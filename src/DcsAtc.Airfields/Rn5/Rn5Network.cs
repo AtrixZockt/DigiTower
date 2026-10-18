@@ -1,13 +1,5 @@
 namespace DcsAtc.Airfields.Rn5;
 
-/// <summary>A point in DCS map coordinates: X = north, Z = east (metres).</summary>
-public readonly record struct Vec2(double X, double Z)
-{
-    public double DistanceTo(Vec2 o) => Math.Sqrt((X - o.X) * (X - o.X) + (Z - o.Z) * (Z - o.Z));
-    public static Vec2 Average(IReadOnlyCollection<Vec2> points) =>
-        new(points.Average(p => p.X), points.Average(p => p.Z));
-}
-
 /// <summary>
 /// The taxi network of one airfield, read from DCS's <c>Mods\terrains\&lt;map&gt;\AirfieldsTaxiways\&lt;airfield&gt;.rn5</c>.
 /// This is the network the DCS AI taxis on. It has no taxiway names; those are added by our own labeling.
@@ -23,11 +15,25 @@ public sealed class Rn5Network
     public required IReadOnlyList<Rn5Node> Nodes { get; init; }
     /// <summary>Runway names found in the node block, e.g. "13L" (stored as "1#13L").</summary>
     public required IReadOnlyList<string> RunwayNames { get; init; }
+
+    /// <summary>A network built from edges directly (tests, hand-made airfields).</summary>
+    public static Rn5Network Create(string name, IReadOnlyList<string> edgeTypes, IReadOnlyList<Rn5Edge> edges, IReadOnlyList<string>? runwayNames = null) => new()
+    {
+        Name = name,
+        EdgeTypes = edgeTypes,
+        NodeTypes = [],
+        Edges = edges,
+        Nodes = Rn5Reader.BuildNodes(edges),
+        RunwayNames = runwayNames ?? [],
+    };
 }
 
 /// <summary>A taxi network edge: a polyline between a port of node A and a port of node B.</summary>
 public sealed record Rn5Edge(int Index, int NodeA, int PortA, int NodeB, int PortB, int TypeIndex, string TypeName, IReadOnlyList<Vec2> Points)
 {
+    /// <summary>File offset of the point count (debugging aid).</summary>
+    public int FileOffset { get; init; }
+
     /// <summary>Runway edge types are "vpp…" (Russian ВПП) on older maps and "runway…" on newer ones.</summary>
     public bool IsRunway => TypeName.StartsWith("vpp", StringComparison.Ordinal) || TypeName.StartsWith("runway", StringComparison.Ordinal);
 

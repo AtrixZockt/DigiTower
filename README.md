@@ -13,11 +13,15 @@ behind it are in [RESEARCH.md](RESEARCH.md).
 | `bridge/install.ps1` | Installs/uninstalls the bridge in a DCS Saved Games folder. |
 | `bridge/tests/` | Lua tests and a **fake DCS** that runs the real hook without the game. |
 | `src/DcsAtc.Bridge` | C# client for the bridge. |
-| `src/DcsAtc.Airfields` | Airfield data. Currently: reader for DCS taxi networks (`.rn5`). |
-| `src/DcsAtc.App` | The ATC app. Currently: the bridge test (spike S1). |
+| `src/DcsAtc.Airfields` | Airfield data: reader for DCS taxi networks (`.rn5`), routing graph, runways and holding points, taxi routing. |
+| `data/dcs/` | Airbase data dumped from DCS by the app (`--dump`). |
+| `data/airfields/<theatre>/` | Hand-labelled airfields: taxiway names, areas, frequencies ([docs/labeling.md](docs/labeling.md)). |
+| `src/DcsAtc.Atc` | The ATC logic: ground control, phraseology, airfield catalog. |
+| `src/DcsAtc.App` | The ATC app (console): connects to DCS, F10 menus, runs the controllers. |
 | `tools/DcsAtc.Rn5Tool` | Inspects `.rn5` files, renders them as SVG, scans whole DCS installs. |
 | `tests/DcsAtc.Tests` | C# tests. |
 | `docs/bridge-protocol.md` | The JSON protocol between DCS and the app. |
+| `docs/labeling.md` | How to add taxiway names for an airfield. |
 
 ## Requirements
 
@@ -35,11 +39,31 @@ lua bridge/tests/test_bridge.lua              # Lua tests (hook + mission side)
 ## Try it without DCS
 
 ```powershell
-lua bridge/tests/fake_dcs.lua --click         # terminal 1: fake mission at Al Dhafra
-dotnet run --project src/DcsAtc.App           # terminal 2
+lua bridge/tests/fake_dcs.lua --static --click "Request taxi"   # terminal 1: fake mission at Al Dhafra (real layout)
+dotnet run --project src/DcsAtc.App                             # terminal 2
 ```
 
-## Try it in DCS (spike S1)
+## Ground control in DCS
+
+1. Install (or update) the bridge in the server and **restart the server** (hooks load at start-up):
+   ```powershell
+   .\bridge\install.ps1 -Instance DCS.dcs_serverrelease
+   ```
+2. Start the mission, then the app from the repository folder (it finds `D:\DCS\DCS World` and `data\`):
+   ```powershell
+   dotnet run --project src/DcsAtc.App
+   ```
+   At airfields with chart data (so far Al Dhafra) the stock ATC is silenced.
+3. In the aircraft: F10 → Other → **ATC → Ground → Request taxi**. You get a clearance such as
+   *"Viper 1-1, Al Dhafra Ground, taxi to holding point runway 31R via A, B. Wind 310 degrees, 10 knots, QNH 1013, altimeter 29.92."*
+   and the route is drawn on the F10 map (coalition-wide) with *HOLD SHORT 31R* at its end.
+   - The active runway follows the wind; with parallel runways you get the one closer to you.
+   - Ground warns if you leave the route or taxi faster than 30 kt, and at the holding point says
+     *hold short, contact Tower*. (Tower comes next.)
+   - *Cancel taxi* and *Say again* are in the same menu; *ATC → Debug → Where am I?* shows your position.
+   - Airfields without chart data still get routes and the map drawing, just without taxiway names.
+
+## First bridge test (spike S1)
 
 1. Install the bridge into the dedicated server (or `-Instance DCS` for single-player):
    ```powershell
@@ -61,4 +85,9 @@ dotnet run --project src/DcsAtc.App           # terminal 2
 dotnet run --project tools/DcsAtc.Rn5Tool -- info "D:\DCS\DCS World\Mods\terrains\PersianGulf\AirfieldsTaxiways\Dhafra_AFB.rn5"
 dotnet run --project tools/DcsAtc.Rn5Tool -- svg  "<file.rn5>" out\dhafra.svg 0.33
 dotnet run --project tools/DcsAtc.Rn5Tool -- scan "D:\DCS\DCS World\Mods\terrains"
+
+# with the DCS airbase dump from the app (--dump): runways, holding points, parking spots
+dotnet run --project tools/DcsAtc.Rn5Tool -- airfield "<file.rn5>" "data\dcs\Al Dhafra AFB.json" out\dhafra.svg
+# taxi route from a parking spot (DCS Term_Index) to a runway's departure holding point
+dotnet run --project tools/DcsAtc.Rn5Tool -- route "<file.rn5>" "data\dcs\Al Dhafra AFB.json" 106 13L out\route.svg [--steps]
 ```

@@ -93,7 +93,7 @@ public static partial class Rn5Reader
             // Real polylines have distinct points a few metres apart; padding and other data do not.
             if (i > 0 && points[i].DistanceTo(points[i - 1]) is < 0.001 or > 5000) return false;
         }
-        edge = new Rn5Edge(index, (int)nodeA, (int)portA, (int)nodeB, (int)portB, (int)type, edgeTypes[(int)type], points);
+        edge = new Rn5Edge(index, (int)nodeA, (int)portA, (int)nodeB, (int)portB, (int)type, edgeTypes[(int)type], points) { FileOffset = p };
         next = first + 24 * (int)n;
         return true;
     }
@@ -115,7 +115,7 @@ public static partial class Rn5Reader
         }
     }
 
-    private static List<Rn5Node> BuildNodes(List<Rn5Edge> edges)
+    internal static List<Rn5Node> BuildNodes(IReadOnlyList<Rn5Edge> edges)
     {
         if (edges.Count == 0) return [];
         int count = edges.Max(e => Math.Max(e.NodeA, e.NodeB)) + 1;

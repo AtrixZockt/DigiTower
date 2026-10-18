@@ -22,6 +22,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\DcsAtc.Bridge\DcsAtc.Bridge.csproj" />
     <ProjectReference Include="..\..\src\DcsAtc.Airfields\DcsAtc.Airfields.csproj" />
+    <ProjectReference Include="..\..\src\DcsAtc.Atc\DcsAtc.Atc.csproj" />
   </ItemGroup>
 
 </Project>

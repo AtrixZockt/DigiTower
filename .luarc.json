@@ -1,0 +1,5 @@
+{
+  "$schema": "https://raw.githubusercontent.com/LuaLS/vscode-lua/master/setting/schema.json",
+  "runtime.version": "Lua 5.1",
+  "diagnostics.globals": ["ATCB", "Sim", "DCS", "net", "log", "lfs", "world", "coalition", "Group", "Unit", "Object", "Airbase", "land", "timer", "trigger", "missionCommands", "env", "a_do_script"]
+}

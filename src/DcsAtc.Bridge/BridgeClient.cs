@@ -22,7 +22,7 @@ public sealed class BridgeCommandException(string message) : Exception(message);
 /// Connects to the DCS bridge hook (newline-delimited JSON over TCP), reconnects when the
 /// connection drops, and publishes everything DCS sends on <see cref="Messages"/>.
 /// </summary>
-public sealed class BridgeClient : IAsyncDisposable
+public sealed class BridgeClient : IAsyncDisposable, IDcsCommands
 {
     internal static readonly JsonSerializerOptions Json = new()
     {
@@ -158,6 +158,33 @@ public sealed class BridgeClient : IAsyncDisposable
         var data = await RequestAsync(new JsonObject { ["cmd"] = "airbase_info", ["name"] = name }, ct);
         return data?.Deserialize<AirbaseInfo>(Json);
     }
+
+    public async Task<AirbaseWeather?> GetAirbaseWeatherAsync(string name, CancellationToken ct = default)
+    {
+        var data = await RequestAsync(new JsonObject { ["cmd"] = "airbase_weather", ["name"] = name }, ct);
+        return data?.Deserialize<AirbaseWeather>(Json);
+    }
+
+    /// <summary>
+    /// Draws a polyline on the F10 map for a coalition (-1 = all), optionally with a text at its end.
+    /// Drawing again with the same <paramref name="key"/> replaces the previous drawing.
+    /// </summary>
+    public Task DrawRouteAsync(string key, int coalition, IEnumerable<(double X, double Z)> points, double[] rgba, string? text = null, CancellationToken ct = default)
+    {
+        var cmd = new JsonObject
+        {
+            ["cmd"] = "draw_route",
+            ["key"] = key,
+            ["coalition"] = coalition,
+            ["points"] = new JsonArray(points.Select(p => (JsonNode?)new JsonArray(Math.Round(p.X, 1), Math.Round(p.Z, 1))).ToArray()),
+            ["color"] = new JsonArray(rgba.Select(c => (JsonNode?)JsonValue.Create(c)).ToArray()),
+        };
+        if (text is not null) cmd["text"] = text;
+        return SendAsync(cmd, ct);
+    }
+
+    public Task ClearDrawingAsync(string key, CancellationToken ct = default) =>
+        SendAsync(new JsonObject { ["cmd"] = "drawing_clear", ["key"] = key }, ct);
 
     /// <summary>Silences (or restores) the stock DCS ATC of an airbase.</summary>
     public async Task<bool> SetRadioSilentAsync(string name, bool silent, CancellationToken ct = default)

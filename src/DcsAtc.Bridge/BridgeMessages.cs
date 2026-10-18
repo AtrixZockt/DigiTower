@@ -16,6 +16,8 @@ public sealed record HelloMessage : BridgeMessage
     public bool MissionRunning { get; init; }
     public MissionInfo? Info { get; init; }
     public bool Multiplayer { get; init; }
+    /// <summary>The hook's last error (e.g. a failed mission injection), if any.</summary>
+    public string? Error { get; init; }
 }
 
 public sealed record MissionStartedMessage : BridgeMessage
@@ -156,4 +158,30 @@ public sealed record ParkingInfo
     public double Z { get; init; }
     public double DistToRunway { get; init; }
     public bool Occupied { get; init; }
+}
+
+/// <summary>Weather at an airbase: wind 10 m above the field, temperature and pressure at field elevation.</summary>
+public sealed record AirbaseWeather
+{
+    /// <summary>Wind velocity north component (m/s), in the direction the wind blows towards.</summary>
+    public double WindX { get; init; }
+    /// <summary>Wind velocity east component (m/s), in the direction the wind blows towards.</summary>
+    public double WindZ { get; init; }
+    /// <summary>Kelvin.</summary>
+    public double Temperature { get; init; }
+    /// <summary>Station pressure in pascals.</summary>
+    public double Pressure { get; init; }
+    /// <summary>Field elevation in metres.</summary>
+    public double Elevation { get; init; }
+
+    [System.Text.Json.Serialization.JsonIgnore] public double WindSpeed => Math.Sqrt(WindX * WindX + WindZ * WindZ);
+    [System.Text.Json.Serialization.JsonIgnore] public double WindSpeedKnots => WindSpeed * 1.943844;
+
+    /// <summary>The true direction the wind comes from, in degrees (meteorological convention).</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public double WindFrom => ((Math.Atan2(-WindZ, -WindX) * 180 / Math.PI) + 360) % 360;
+
+    /// <summary>QNH in hPa: station pressure reduced to sea level with the ISA lapse rate.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public double QnhHpa => Pressure / 100 * Math.Pow(1 - 0.0065 * Elevation / 288.15, -5.25588);
 }
