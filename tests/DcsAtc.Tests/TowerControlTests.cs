@@ -1,0 +1,290 @@
+using System.Text.Json;
+using DcsAtc.Airfields;
+using DcsAtc.Airfields.Taxi;
+using DcsAtc.Atc;
+using DcsAtc.Bridge;
+
+namespace DcsAtc.Tests;
+
+public class TowerControlTests
+{
+    /// <summary>Al Dhafra (real DCS layout and chart labels) with wind from 310° at 10 knots.</summary>
+    private sealed class World
+    {
+        public required FakeDcs Dcs { get; init; }
+        public required GroundControl Ground { get; init; }
+        public required TowerControl Tower { get; init; }
+        public required FlightRegistry Flights { get; init; }
+        public required Airfield Layout { get; init; }
+        public Dictionary<string, UnitState> Units { get; } = [];
+        public Runway Rwy31R => Layout.Runways.Single(r => r.End("31R") is not null);
+        public RunwayEnd End31R => Rwy31R.End("31R")!;
+        public string LastText => Dcs.Texts[^1].Text;
+
+        public UnitState Put(UnitState u)
+        {
+            Units[u.Name] = u;
+            return u;
+        }
+
+        /// <summary>A point on final for 31R, <paramref name="metres"/> before the threshold.</summary>
+        public Vec2 OnFinal31R(double metres) => End31R.Threshold - Vec2.FromHeading(End31R.TrueHeading) * metres;
+
+        /// <summary>A point on runway 31R, <paramref name="metres"/> past its threshold.</summary>
+        public Vec2 OnRunway31R(double metres) => End31R.Threshold + Vec2.FromHeading(End31R.TrueHeading) * metres;
+    }
+
+    private static async Task<World?> CreateAsync()
+    {
+        if (TestPaths.Terrains is null) return null;
+        string dump = Path.Combine(TestPaths.RepoRoot, "data", "dcs", "Al Dhafra AFB.json");
+        if (!File.Exists(dump)) return null;
+        var info = JsonSerializer.Deserialize<AirbaseInfo>(File.ReadAllText(dump), new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
+        var weather = new AirbaseWeather { WindX = -5.14 * Math.Cos(310 * Math.PI / 180), WindZ = -5.14 * Math.Sin(310 * Math.PI / 180), Pressure = 101130, Elevation = 16, Temperature = 303 };
+        var airbase = new AirbaseSummary { Name = "Al Dhafra AFB", Id = 4, Category = 0, Coalition = 2, X = info.X, Y = info.Y, Z = info.Z };
+        var dcs = new FakeDcs([airbase], info, weather);
+        var catalog = new AirfieldCatalog(dcs, Path.GetDirectoryName(Path.GetDirectoryName(TestPaths.Terrains)), Path.Combine(TestPaths.RepoRoot, "data"));
+        catalog.SetMission("PersianGulf", [airbase]);
+        var now = new DateTime(2026, 10, 18, 12, 0, 0);
+        var flights = new FlightRegistry(dcs);
+        var ground = new GroundControl(dcs, catalog, flights, clock: () => now);
+        var tower = new TowerControl(dcs, catalog, ground, flights, clock: () => now = now.AddSeconds(1));
+        var layout = (await catalog.GetAsync(airbase))!.Layout;
+        return new World { Dcs = dcs, Ground = ground, Tower = tower, Flights = flights, Layout = layout };
+    }
+
+    private static UnitState Aircraft(string name, int group, Vec2 p, bool inAir = false, double agl = 0, double hdg = 0, double speed = 0, string? player = null) => new()
+    {
+        Id = 1000 + group, Name = name, Type = "F-16C_50", Cat = "plane", Coal = 2, Group = name, GroupId = group,
+        Player = player, Callsign = "", X = p.X, Y = 16 + agl, Z = p.Z, Agl = agl, InAir = inAir, Hdg = hdg,
+        Vx = speed * Math.Cos(hdg * Math.PI / 180), Vz = speed * Math.Sin(hdg * Math.PI / 180),
+    };
+
+    private static UnitState Viper(Vec2 p, bool inAir = false, double agl = 0, double hdg = 0, double speed = 0) =>
+        Aircraft("Viper 1-1", 1, p, inAir, agl, hdg, speed, "Viper 1-1 | DiGii");
+
+    /// <summary>Taxis Viper 1-1 from spot 106 to the 31R holding point and reports ready.</summary>
+    private static async Task<Vec2> TaxiToHoldingPointAsync(World w)
+    {
+        var spot = w.Layout.Parking.Single(p => p.Index == 106).Position;
+        await w.Ground.RequestTaxiAsync(w.Put(Viper(spot)), w.Units);
+        var hold = w.Ground.Clearances[1].Route.Geometry[^1];
+        w.Put(Viper(hold));
+        await w.Ground.OnUnitsAsync(w.Units);
+        Assert.Equal(TaxiPhase.HoldingShort, w.Ground.Clearances[1].Phase);
+        return hold;
+    }
+
+    [SkippableFact]
+    public async Task Departure_cleared_takes_off_and_is_handed_to_approach()
+    {
+        var w = await CreateAsync();
+        Skip.If(w is null, "DCS install or Al Dhafra dump not available");
+
+        await TaxiToHoldingPointAsync(w!);
+        await w!.Tower.ReadyForDepartureAsync(w.Units["Viper 1-1"], w.Units);
+        Assert.Equal("Viper 1-1, wind 310 degrees, 10 knots, runway 31R, cleared for takeoff.", w.LastText);
+        Assert.Empty(w.Ground.Clearances);
+        Assert.Empty(w.Dcs.Drawings);
+
+        w.Put(Viper(w.OnRunway31R(2500), inAir: true, agl: 60, hdg: 308, speed: 90));
+        await w.Tower.OnUnitsAsync(w.Units);
+        Assert.Equal(TowerPhase.Departed, w.Tower.Flights[1].Phase);
+
+        w.Put(Viper(w.OnRunway31R(9000), inAir: true, agl: 1200, hdg: 308, speed: 150));
+        await w.Tower.OnUnitsAsync(w.Units);
+        Assert.Equal("Viper 1-1, contact Approach on 257.0, good day.", w.LastText);
+        Assert.Empty(w.Tower.Flights);
+    }
+
+    [SkippableFact]
+    public async Task Departure_holds_while_the_runway_is_occupied()
+    {
+        var w = await CreateAsync();
+        Skip.If(w is null, "DCS install or Al Dhafra dump not available");
+
+        await TaxiToHoldingPointAsync(w!);
+        w!.Put(Aircraft("Hornet 1-1", 2, w.OnRunway31R(1500)));
+        await w.Tower.ReadyForDepartureAsync(w.Units["Viper 1-1"], w.Units);
+        Assert.Equal("Viper 1-1, Al Dhafra Tower, hold short runway 31R, runway occupied.", w.LastText);
+
+        // Still occupied: no repeat.
+        int texts = w.Dcs.Texts.Count;
+        await w.Tower.OnUnitsAsync(w.Units);
+        Assert.Equal(texts, w.Dcs.Texts.Count);
+
+        w.Units.Remove("Hornet 1-1");
+        await w.Tower.OnUnitsAsync(w.Units);
+        Assert.EndsWith("runway 31R, cleared for takeoff.", w.LastText);
+    }
+
+    [SkippableFact]
+    public async Task Departure_holds_for_traffic_on_final()
+    {
+        var w = await CreateAsync();
+        Skip.If(w is null, "DCS install or Al Dhafra dump not available");
+
+        await TaxiToHoldingPointAsync(w!);
+        w!.Put(Aircraft("Tanker", 3, w.OnFinal31R(4000), inAir: true, agl: 250, hdg: 308, speed: 80));
+        await w.Tower.ReadyForDepartureAsync(w.Units["Viper 1-1"], w.Units);
+        Assert.Equal("Viper 1-1, Al Dhafra Tower, hold short runway 31R, traffic on final.", w.LastText);
+
+        // Traffic far out (beyond 5 NM) no longer blocks.
+        w.Put(Aircraft("Tanker", 3, w.OnFinal31R(15000), inAir: true, agl: 900, hdg: 308, speed: 80));
+        await w.Tower.OnUnitsAsync(w.Units);
+        Assert.EndsWith("cleared for takeoff.", w.LastText);
+    }
+
+    [SkippableFact]
+    public async Task Second_departure_lines_up_behind_a_departing_aircraft()
+    {
+        var w = await CreateAsync();
+        Skip.If(w is null, "DCS install or Al Dhafra dump not available");
+
+        var hold = await TaxiToHoldingPointAsync(w!);
+        await w!.Tower.ReadyForDepartureAsync(w.Units["Viper 1-1"], w.Units);
+        // Viper 1-1 rolls; Viper 1-2 is ready at the same holding point.
+        w.Put(Viper(w.OnRunway31R(800), hdg: 308, speed: 50));
+        var two = w.Put(Aircraft("Viper 1-2", 4, hold, player: "Viper 1-2 | Wingman"));
+        await w.Tower.ReadyForDepartureAsync(two, w.Units);
+        Assert.Equal("Viper 1-2, runway 31R, line up and wait.", w.LastText);
+
+        w.Put(Viper(w.OnRunway31R(3000), inAir: true, agl: 100, hdg: 308, speed: 100));
+        await w.Tower.OnUnitsAsync(w.Units);
+        Assert.Equal("Viper 1-2, wind 310 degrees, 10 knots, runway 31R, cleared for takeoff.", w.LastText);
+    }
+
+    [SkippableFact]
+    public async Task Arrival_cleared_to_land_goes_around_lands_and_taxis_to_parking()
+    {
+        var w = await CreateAsync();
+        Skip.If(w is null, "DCS install or Al Dhafra dump not available");
+
+        var viper = w!.Put(Viper(w.OnFinal31R(15000), inAir: true, agl: 900, hdg: 308, speed: 120));
+        await w.Tower.RequestLandingAsync(viper, w.Units);
+        Assert.Equal("Viper 1-1, Al Dhafra Tower, runway 31R, wind 310 degrees, 10 knots, QNH 1013, altimeter 29.92, report final.", w.LastText);
+
+        // 8 NM out: too far for a landing clearance.
+        await w.Tower.OnUnitsAsync(w.Units);
+        Assert.Equal(TowerPhase.Inbound, w.Tower.Flights[1].Phase);
+
+        w.Put(Viper(w.OnFinal31R(9000), inAir: true, agl: 450, hdg: 308, speed: 80));
+        await w.Tower.OnUnitsAsync(w.Units);
+        Assert.Equal("Viper 1-1, runway 31R, wind 310 degrees, 10 knots, cleared to land.", w.LastText);
+
+        // Someone taxis onto the runway with Viper 1-1 at half a mile: go around.
+        w.Put(Aircraft("Hornet 1-1", 2, w.OnRunway31R(300)));
+        w.Put(Viper(w.OnFinal31R(900), inAir: true, agl: 50, hdg: 308, speed: 75));
+        await w.Tower.OnUnitsAsync(w.Units);
+        Assert.Equal("Viper 1-1, go around, I say again, go around, runway occupied.", w.LastText);
+        Assert.Equal(TowerPhase.Inbound, w.Tower.Flights[1].Phase);
+
+        // Second approach: runway clear again, final reported early.
+        w.Units.Remove("Hornet 1-1");
+        w.Put(Viper(w.OnFinal31R(14000), inAir: true, agl: 800, hdg: 308, speed: 90));
+        await w.Tower.ReportFinalAsync(w.Units["Viper 1-1"], w.Units);
+        Assert.EndsWith("cleared to land.", w.LastText);
+
+        // Down on the runway, then off it.
+        w.Put(Viper(w.OnRunway31R(1500), hdg: 308, speed: 20));
+        await w.Tower.OnUnitsAsync(w.Units);
+        Assert.Equal("Viper 1-1, welcome to Al Dhafra, vacate runway when able, contact Ground on 250.0.", w.LastText);
+        var exit = w.Rwy31R.HoldPoints.MinBy(h => h.Position.DistanceTo(w.OnRunway31R(1500)))!.Position;
+        w.Put(Viper(exit));
+        await w.Tower.OnUnitsAsync(w.Units);
+        Assert.Empty(w.Tower.Flights);
+
+        await w.Ground.RequestTaxiToParkingAsync(w.Units["Viper 1-1"], w.Units);
+        var clearance = w.Ground.Clearances[1];
+        Assert.NotNull(clearance.Spot);
+        Assert.Matches(@"^Viper 1-1, Al Dhafra Ground, taxi to [A-Z][\w -]+( via [A-Z0-9, ]+)?\.$", w.LastText);
+        Assert.True(clearance.Route.Geometry[^1].DistanceTo(clearance.Spot!.Position) < 1);
+        Assert.True(w.Dcs.Drawings.ContainsKey("taxi-1"));
+
+        w.Put(Viper(clearance.Spot.Position));
+        await w.Ground.OnUnitsAsync(w.Units);
+        Assert.Equal("Viper 1-1, Al Dhafra Ground, parking reached.", w.LastText);
+        Assert.Empty(w.Ground.Clearances);
+    }
+
+    private static UnitState Hangman(int number, Vec2 p, int group, bool inAir = false, double agl = 0, double hdg = 0, double speed = 0) =>
+        Aircraft($"Hangman 1-{number}", group, p, inAir, agl, hdg, speed, $"Hangman 1-{number} | Pilot{number}");
+
+    [SkippableFact]
+    public async Task Flights_are_declared_by_callsign_prefix_and_complete_themselves()
+    {
+        var w = await CreateAsync();
+        Skip.If(w is null, "DCS install or Al Dhafra dump not available");
+        var spot = w!.Layout.Parking.Single(p => p.Index == 106).Position;
+
+        var two = w.Put(Hangman(2, spot, 12));
+        w.Put(Viper(spot + new Vec2(0, 60)));
+        await w.Flights.DeclareAsync(two, 2, w.Units);
+        Assert.Equal("Hangman 1 flight of 2: Hangman 1-2 (lead Hangman 1-2). Waiting for 1 more.", w.LastText);
+
+        // Hangman 1-1 spawns: joins, and as number one becomes lead.
+        w.Put(Hangman(1, spot + new Vec2(30, 0), 11));
+        await w.Flights.OnUnitsAsync(w.Units);
+        Assert.Equal("Hangman 1-1 joined. Hangman 1 flight of 2: Hangman 1-1, Hangman 1-2 (lead Hangman 1-1).", w.LastText);
+        Assert.Equal(new[] { 11, 12 }, w.Dcs.Texts.TakeLast(2).Select(t => t.Group).Order());
+        var party = w.Flights.PartyFor(two, w.Units);
+        Assert.Equal(("Hangman 1 flight", 11, "Hangman 1-1"), (party.Callsign, party.Key, party.LeadUnit));
+        Assert.Equal(Phraseology.Callsign(w.Units["Viper 1-1"]), w.Flights.PartyFor(w.Units["Viper 1-1"], w.Units).Callsign);
+
+        // Leaving makes Hangman 1-2 single ship again.
+        await w.Flights.LeaveAsync(two, w.Units);
+        Assert.Equal("Hangman 1-2", w.Flights.PartyFor(two, w.Units).Callsign);
+    }
+
+    [SkippableFact]
+    public async Task Callsigns_without_a_flight_number_cannot_form_a_flight()
+    {
+        var w = await CreateAsync();
+        Skip.If(w is null, "DCS install or Al Dhafra dump not available");
+        var digii = w!.Put(Aircraft("DiGii", 5, new Vec2(0, 0), player: "DiGii"));
+        await w.Flights.DeclareAsync(digii, 2, w.Units);
+        Assert.Contains("use a callsign with a flight number", w.LastText);
+        Assert.Empty(w.Flights.Flights);
+    }
+
+    [SkippableFact]
+    public async Task A_flight_gets_one_clearance_and_its_members_are_not_traffic()
+    {
+        var w = await CreateAsync();
+        Skip.If(w is null, "DCS install or Al Dhafra dump not available");
+        var spot = w!.Layout.Parking.Single(p => p.Index == 106).Position;
+        var one = w.Put(Hangman(1, spot, 11));
+        var two = w.Put(Hangman(2, spot + new Vec2(25, 0), 12));
+        await w.Flights.DeclareAsync(one, 2, w.Units);
+
+        // The wingman asks; the clearance is for the flight, from the lead's position, to both.
+        int before = w.Dcs.Texts.Count;
+        await w.Ground.RequestTaxiAsync(two, w.Units);
+        var sent = w.Dcs.Texts.Skip(before).ToList();
+        Assert.Equal(new[] { 11, 12 }, sent.Select(t => t.Group).Order());
+        Assert.All(sent, t => Assert.StartsWith("Hangman 1 flight, Al Dhafra Ground, taxi to holding point runway 31R via A, B.", t.Text));
+        var clearance = w.Ground.Clearances[11];
+        Assert.Equal("Hangman 1-1", clearance.UnitName);
+
+        // Lead at the holding point, wingman already lined up on the runway: the flight is cleared.
+        var hold = clearance.Route.Geometry[^1];
+        w.Put(Hangman(1, hold, 11));
+        w.Put(Hangman(2, w.OnRunway31R(100), 12, hdg: 308));
+        await w.Ground.OnUnitsAsync(w.Units);
+        await w.Tower.ReadyForDepartureAsync(w.Units["Hangman 1-2"], w.Units);
+        Assert.Equal("Hangman 1 flight, wind 310 degrees, 10 knots, runway 31R, cleared for takeoff.", w.LastText);
+
+        // Back for landing: the wingman landed first and is still on the runway; the lead at half a mile is not sent around.
+        w.Units.Clear();
+        w.Put(Hangman(1, w.OnFinal31R(9000), 11, inAir: true, agl: 450, hdg: 308, speed: 80));
+        w.Put(Hangman(2, w.OnFinal31R(8000), 12, inAir: true, agl: 400, hdg: 308, speed: 80));
+        await w.Tower.RequestLandingAsync(w.Units["Hangman 1-1"], w.Units);
+        await w.Tower.OnUnitsAsync(w.Units);
+        Assert.Equal("Hangman 1 flight, runway 31R, wind 310 degrees, 10 knots, cleared to land.", w.LastText);
+        w.Put(Hangman(2, w.OnRunway31R(600), 12, hdg: 308, speed: 30));
+        w.Put(Hangman(1, w.OnFinal31R(900), 11, inAir: true, agl: 50, hdg: 308, speed: 75));
+        await w.Tower.OnUnitsAsync(w.Units);
+        Assert.Equal(TowerPhase.ClearedToLand, w.Tower.Flights[11].Phase);
+        Assert.DoesNotContain("go around", w.LastText);
+    }
+}

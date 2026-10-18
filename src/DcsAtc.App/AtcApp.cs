@@ -24,12 +24,16 @@ public sealed record AppOptions
 public sealed class AtcApp
 {
     private static readonly string[] GroundMenu = ["ATC", "Ground"];
+    private static readonly string[] TowerMenu = ["ATC", "Tower"];
+    private static readonly string[] FlightMenu = ["ATC", "Flight"];
     private static readonly string[] DebugMenu = ["ATC", "Debug"];
 
     private readonly BridgeClient _client;
     private readonly AppOptions _options;
     private readonly AirfieldCatalog _airfields;
+    private readonly FlightRegistry _flights;
     private readonly GroundControl _ground;
+    private readonly TowerControl _tower;
     private readonly Dictionary<string, UnitState> _units = [];
     private readonly HashSet<int> _menuGroups = [];
     private DateTime _lastStatus = DateTime.MinValue;
@@ -39,7 +43,9 @@ public sealed class AtcApp
         _client = client;
         _options = options;
         _airfields = new AirfieldCatalog(client, options.DcsDirectory, options.DataDirectory, Log);
-        _ground = new GroundControl(client, _airfields, Log);
+        _flights = new FlightRegistry(client, Log);
+        _ground = new GroundControl(client, _airfields, _flights, Log);
+        _tower = new TowerControl(client, _airfields, _ground, _flights, Log);
     }
 
     public async Task RunAsync(CancellationToken ct)
@@ -88,6 +94,7 @@ public sealed class AtcApp
                 if (e.Player is not null || e.Event is "takeoff" or "land")
                     Log($"event {e.Event,-16} {e.Unit} ({e.UnitType}){(e.Player is null ? "" : $" player {e.Player}")}{(e.Place is null ? "" : $" at {e.Place}")}");
                 await _ground.OnEventAsync(e, ct);
+                await _tower.OnEventAsync(e, ct);
                 break;
             case MenuSelectedMessage m:
                 await OnMenuAsync(m, ct);
@@ -137,20 +144,32 @@ public sealed class AtcApp
             int groupId = u.GroupId!.Value;
             if (!_menuGroups.Add(groupId)) continue;
             await _client.AddMenuAsync(groupId, GroundMenu, "Request taxi", "ground.taxi", ct);
+            await _client.AddMenuAsync(groupId, GroundMenu, "Request taxi to parking", "ground.parking", ct);
             await _client.AddMenuAsync(groupId, GroundMenu, "Cancel taxi", "ground.cancel", ct);
             await _client.AddMenuAsync(groupId, GroundMenu, "Say again", "ground.repeat", ct);
+            await _client.AddMenuAsync(groupId, TowerMenu, "Ready for departure", "tower.ready", ct);
+            await _client.AddMenuAsync(groupId, TowerMenu, "Request landing", "tower.landing", ct);
+            await _client.AddMenuAsync(groupId, TowerMenu, "Report final", "tower.final", ct);
+            await _client.AddMenuAsync(groupId, TowerMenu, "Say again", "tower.repeat", ct);
+            await _client.AddMenuAsync(groupId, FlightMenu, "Flight of 2", "flight.2", ct);
+            await _client.AddMenuAsync(groupId, FlightMenu, "Flight of 3", "flight.3", ct);
+            await _client.AddMenuAsync(groupId, FlightMenu, "Flight of 4", "flight.4", ct);
+            await _client.AddMenuAsync(groupId, FlightMenu, "Single ship", "flight.single", ct);
             await _client.AddMenuAsync(groupId, DebugMenu, "Where am I?", "debug.where", ct);
             Log($"ATC menu added for {u.Player} ({u.Group})");
         }
 
+        await _flights.OnUnitsAsync(_units, ct);
         await _ground.OnUnitsAsync(_units, ct);
+        await _tower.OnUnitsAsync(_units, ct);
 
         if (DateTime.UtcNow - _lastStatus >= _options.StatusInterval)
         {
             _lastStatus = DateTime.UtcNow;
             foreach (var p in snapshot.Units.Where(u => u.IsPlayer))
                 Log($"    {p.Player,-14} {p.Type,-12} {Phraseology.Callsign(p),-12} hdg {p.Hdg:000}  gs {p.GroundSpeed * 1.94384,4:F0} kt  {p.Agl * 3.28084,6:F0} ft AGL  {(p.InAir ? "air" : "ground")}" +
-                    (_ground.Clearances.Values.FirstOrDefault(c => c.UnitName == p.Name) is { } c ? $"  [{c.Phase} to {c.Departure.End.Name}]" : ""));
+                    (_ground.Clearances.Values.FirstOrDefault(c => c.UnitName == p.Name) is { } c ? $"  [Ground: {c.Phase} to {c.Departure?.End.Name ?? "parking"}]" : "") +
+                    (_tower.Flights.Values.FirstOrDefault(f => f.UnitName == p.Name) is { } t ? $"  [Tower: {t.Phase} runway {t.End.Name}]" : ""));
         }
     }
 
@@ -162,13 +181,34 @@ public sealed class AtcApp
         switch (m.Id)
         {
             case "ground.taxi":
-                await _ground.RequestTaxiAsync(unit, ct);
+                await _ground.RequestTaxiAsync(unit, _units, ct);
+                break;
+            case "ground.parking":
+                await _ground.RequestTaxiToParkingAsync(unit, _units, ct);
+                break;
+            case "tower.ready":
+                await _tower.ReadyForDepartureAsync(unit, _units, ct);
+                break;
+            case "tower.landing":
+                await _tower.RequestLandingAsync(unit, _units, ct);
+                break;
+            case "tower.final":
+                await _tower.ReportFinalAsync(unit, _units, ct);
+                break;
+            case "tower.repeat":
+                await _tower.SayAgainAsync(unit, _units, ct);
+                break;
+            case "flight.2" or "flight.3" or "flight.4":
+                await _flights.DeclareAsync(unit, m.Id[^1] - '0', _units, ct);
+                break;
+            case "flight.single":
+                await _flights.LeaveAsync(unit, _units, ct);
                 break;
             case "ground.cancel":
-                await _ground.CancelTaxiAsync(m.GroupId, ct);
+                await _ground.CancelTaxiAsync(unit, _units, ct);
                 break;
             case "ground.repeat":
-                await _ground.SayAgainAsync(m.GroupId, ct);
+                await _ground.SayAgainAsync(unit, _units, ct);
                 break;
             case "debug.where":
                 await _client.ShowTextAsync(m.GroupId, DescribePosition(unit), 15, ct: ct);
@@ -194,7 +234,9 @@ public sealed class AtcApp
     {
         _units.Clear();
         _menuGroups.Clear();
+        _flights.Reset();
         _ground.Reset();
+        _tower.Reset();
     }
 
     private static void Log(string text) => Console.WriteLine($"{DateTime.Now:HH:mm:ss}  {text}");

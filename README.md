@@ -16,7 +16,7 @@ behind it are in [RESEARCH.md](RESEARCH.md).
 | `src/DcsAtc.Airfields` | Airfield data: reader for DCS taxi networks (`.rn5`), routing graph, runways and holding points, taxi routing. |
 | `data/dcs/` | Airbase data dumped from DCS by the app (`--dump`). |
 | `data/airfields/<theatre>/` | Hand-labelled airfields: taxiway names, areas, frequencies ([docs/labeling.md](docs/labeling.md)). |
-| `src/DcsAtc.Atc` | The ATC logic: ground control, phraseology, airfield catalog. |
+| `src/DcsAtc.Atc` | The ATC logic: ground control, tower, flights, phraseology, airfield catalog. |
 | `src/DcsAtc.App` | The ATC app (console): connects to DCS, F10 menus, runs the controllers. |
 | `tools/DcsAtc.Rn5Tool` | Inspects `.rn5` files, renders them as SVG, scans whole DCS installs. |
 | `tests/DcsAtc.Tests` | C# tests. |
@@ -43,7 +43,7 @@ lua bridge/tests/fake_dcs.lua --static --click "Request taxi"   # terminal 1: fa
 dotnet run --project src/DcsAtc.App                             # terminal 2
 ```
 
-## Ground control in DCS
+## ATC in DCS (Ground and Tower)
 
 1. Install (or update) the bridge in the server and **restart the server** (hooks load at start-up):
    ```powershell
@@ -54,14 +54,22 @@ dotnet run --project src/DcsAtc.App                             # terminal 2
    dotnet run --project src/DcsAtc.App
    ```
    At airfields with chart data (so far Al Dhafra) the stock ATC is silenced.
-3. In the aircraft: F10 → Other → **ATC → Ground → Request taxi**. You get a clearance such as
-   *"Viper 1-1, Al Dhafra Ground, taxi to holding point runway 31R via A, B. Wind 310 degrees, 10 knots, QNH 1013, altimeter 29.92."*
-   and the route is drawn on the F10 map (coalition-wide) with *HOLD SHORT 31R* at its end.
-   - The active runway follows the wind; with parallel runways you get the one closer to you.
-   - Ground warns if you leave the route or taxi faster than 30 kt, and at the holding point says
-     *hold short, contact Tower*. (Tower comes next.)
-   - *Cancel taxi* and *Say again* are in the same menu; *ATC → Debug → Where am I?* shows your position.
-   - Airfields without chart data still get routes and the map drawing, just without taxiway names.
+3. In the aircraft, F10 → Other → **ATC**:
+
+   | Menu | What happens |
+   |---|---|
+   | Ground → Request taxi | Taxi clearance to the holding point of the runway in use (from the wind; with parallel runways the closer one), e.g. *"Hangman 1-1, Al Dhafra Ground, taxi to holding point runway 31R via A, B. Wind 310 degrees, 10 knots, QNH 1013, altimeter 29.92."* The route is drawn on the F10 map (coalition-wide). Ground warns if you leave the route or taxi faster than 30 kt; at the holding point: *hold short, contact Tower*. |
+   | Tower → Ready for departure | At the holding point: *cleared for takeoff*, *line up and wait* (behind a departing aircraft) or *hold short, runway occupied / traffic on final / number two for departure*; you are cleared as soon as the runway allows. After takeoff: *contact Approach*. |
+   | Tower → Request landing | Airborne within 30 NM: runway, wind, QNH, *report final*. Cleared to land within 6 NM on final (or once you report final) if the runway is free; *go around* if it gets blocked inside 1 NM. After landing: *vacate, contact Ground*. |
+   | Tower → Report final | Report final early (landing clearance as soon as the runway allows). |
+   | Ground → Request taxi to parking | Route to the free spot that is quickest to reach, named by its area: *"taxi to Apron 1 West via D2, A"*. |
+   | Cancel taxi, Say again (Ground and Tower) | As named. *Debug → Where am I?* shows your position. |
+   | Flight → Flight of 2 / 3 / 4, Single ship | Declares a flight: you and the players with your callsign prefix ("Hangman 1-1", "Hangman 1-2" → "Hangman 1 flight"), lowest number leads; members who spawn later join until the flight is complete. Ground and Tower then give one clearance to *"Hangman 1 flight"* (sent to every member, from the lead's position), and members are never traffic to each other. Any member may make the calls. *Single ship* leaves the flight. |
+
+   Every aircraft counts as traffic for Tower, AI included. Airfields without chart data get routes and
+   map drawings without taxiway names. Callsigns come from the player name before "|"
+   ("Hangman 1-1 | DiGii" → "Hangman 1-1"), otherwise the whole name; flights need the
+   "Name 1-1" form.
 
 ## First bridge test (spike S1)
 

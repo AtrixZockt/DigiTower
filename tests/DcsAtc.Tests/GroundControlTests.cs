@@ -53,7 +53,7 @@ public class GroundControlTests
         var catalog = new AirfieldCatalog(dcs, Path.GetDirectoryName(Path.GetDirectoryName(TestPaths.Terrains)), Path.Combine(TestPaths.RepoRoot, "data"));
         catalog.SetMission("PersianGulf", [airbase]);
         var now = new DateTime(2026, 10, 18, 12, 0, 0);
-        var ground = new GroundControl(dcs, catalog, clock: () => now);
+        var ground = new GroundControl(dcs, catalog, new FlightRegistry(dcs), clock: () => now);
         return (ground, dcs, t => now = t);
     }
 
@@ -73,13 +73,14 @@ public class GroundControlTests
         var (ground, dcs, setTime) = setup!.Value;
         var spot106 = (X: -211546.62, Z: -171721.41);
 
-        await ground.RequestTaxiAsync(Viper(spot106.X, spot106.Z));
+        var viper = Viper(spot106.X, spot106.Z);
+        await ground.RequestTaxiAsync(viper, Units(viper));
         Assert.Equal("Viper 1-1, Al Dhafra Ground, taxi to holding point runway 31R via A, B. Wind 310 degrees, 10 knots, QNH 1013, altimeter 29.92.", dcs.Texts[^1].Text);
         var drawing = dcs.Drawings["taxi-1"];
         Assert.Equal("HOLD SHORT 31R", drawing.Text);
         Assert.InRange(drawing.Points.Count, 5, 60);
 
-        var departure = ground.Clearances[1].Departure;
+        var departure = ground.Clearances[1].Departure!;
         var route = departure.Route.Geometry;
         // The route and its drawing end at the holding point, 90 m from the runway, not on it.
         Assert.Equal(90, departure.Runway.DistanceFrom(route[^1]), 1);
@@ -117,12 +118,13 @@ public class GroundControlTests
         Skip.If(setup is null, "DCS install or Al Dhafra dump not available");
         var (ground, dcs, _) = setup!.Value;
 
-        await ground.RequestTaxiAsync(Viper(-211546.62, -171721.41));
+        var viper = Viper(-211546.62, -171721.41);
+        await ground.RequestTaxiAsync(viper, Units(viper));
         string clearance = dcs.Texts[^1].Text;
-        await ground.SayAgainAsync(1);
+        await ground.SayAgainAsync(viper, Units(viper));
         Assert.Equal(clearance, dcs.Texts[^1].Text);
 
-        await ground.CancelTaxiAsync(1);
+        await ground.CancelTaxiAsync(viper, Units(viper));
         Assert.Contains("taxi clearance cancelled", dcs.Texts[^1].Text);
         Assert.Empty(dcs.Drawings);
         Assert.Empty(ground.Clearances);
@@ -135,9 +137,11 @@ public class GroundControlTests
         Skip.If(setup is null, "DCS install or Al Dhafra dump not available");
         var (ground, dcs, _) = setup!.Value;
 
-        await ground.RequestTaxiAsync(Viper(-211546.62, -171721.41, inAir: true));
+        var airborne = Viper(-211546.62, -171721.41, inAir: true);
+        await ground.RequestTaxiAsync(airborne, Units(airborne));
         Assert.Contains("you are airborne", dcs.Texts[^1].Text);
-        await ground.RequestTaxiAsync(Viper(-150000, -100000));
+        var elsewhere = Viper(-150000, -100000);
+        await ground.RequestTaxiAsync(elsewhere, Units(elsewhere));
         Assert.Contains("no ground control available", dcs.Texts[^1].Text);
         Assert.Empty(ground.Clearances);
     }

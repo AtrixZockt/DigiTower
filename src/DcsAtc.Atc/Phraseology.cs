@@ -94,5 +94,28 @@ public static partial class Phraseology
         return clearance;
     }
 
+    /// <summary>"Viper 1-1, Al Dhafra Ground, taxi to Apron 1 East via B, A."</summary>
+    public static string TaxiToParking(string callsign, string facility, string area, IReadOnlyList<ViaItem> via)
+    {
+        string text = $"{callsign}, {facility} Ground, taxi to {area}";
+        if (via.Count > 0) text += $" via {string.Join(", ", via.Select(v => v.IsRunwayCrossing ? $"cross runway {v.CrossedRunway!.EndA.Name}" : v.Name))}";
+        return text + ".";
+    }
+
+    /// <summary>A radio frequency as said: 270 → "270.0", 251.25 → "251.25".</summary>
+    public static string? Frequency(double? mhz) => mhz?.ToString("0.0##", Inv);
+
+    /// <summary>"Viper 1-1, wind 310 degrees, 10 knots, runway 31R, cleared for takeoff."</summary>
+    public static string ClearedForTakeoff(string callsign, RunwayEnd runway, AirbaseWeather? weather) =>
+        $"{callsign}, {(weather is null ? "" : Wind(weather) + ", ")}runway {runway.Name}, cleared for takeoff.";
+
+    /// <summary>"Viper 1-1, runway 31L, wind 310 degrees, 10 knots, cleared to land."</summary>
+    public static string ClearedToLand(string callsign, RunwayEnd runway, AirbaseWeather? weather) =>
+        $"{callsign}, runway {runway.Name}, {(weather is null ? "" : Wind(weather) + ", ")}cleared to land.";
+
+    /// <summary>"…, contact Approach on 257.0, good day." or "…, frequency change approved, good day."</summary>
+    public static string ContactAfterDeparture(string callsign, double? approach) =>
+        Frequency(approach) is { } f ? $"{callsign}, contact Approach on {f}, good day." : $"{callsign}, frequency change approved, good day.";
+
     private static string Capitalize(string s) => s.Length == 0 ? s : char.ToUpperInvariant(s[0]) + s[1..];
 }
