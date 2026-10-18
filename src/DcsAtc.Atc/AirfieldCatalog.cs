@@ -5,9 +5,12 @@ using DcsAtc.Bridge;
 namespace DcsAtc.Atc;
 
 /// <summary>An airbase of the current mission with its ground layout.</summary>
-public sealed record GroundAirfield(AirbaseSummary Airbase, Airfield Layout)
+public sealed record GroundAirfield(AirbaseSummary Airbase, Airfield Layout, AirfieldNavaids? Navaids = null)
 {
     public string Facility => Phraseology.Facility(Airbase.Name);
+
+    /// <summary>Its ILS, TACAN, … from the terrain's beacons.</summary>
+    public AirfieldNavaids Radio => Navaids ?? AirfieldNavaids.None;
 }
 
 /// <summary>
@@ -22,7 +25,9 @@ public sealed class AirfieldCatalog(IDcsCommands dcs, string? dcsDirectory, stri
     public const double MatchDistance = 3000;
 
     private readonly Dictionary<string, Task<GroundAirfield?>> _cache = [];
+    private readonly Dictionary<string, AirfieldLabels?> _labels = [];
     private Task<List<(string Path, Vec2 Center)>>? _index;
+    private IReadOnlyList<Navaid>? _beacons;
     private string? _theatre;
     private IReadOnlyList<AirbaseSummary> _airbases = [];
 
@@ -31,16 +36,25 @@ public sealed class AirfieldCatalog(IDcsCommands dcs, string? dcsDirectory, stri
     /// <summary>Starts a new mission: forgets everything cached for the previous one.</summary>
     public void SetMission(string? theatre, IReadOnlyList<AirbaseSummary> airbases)
     {
-        if (theatre != _theatre) _index = null;
+        if (theatre != _theatre)
+        {
+            _index = null;
+            _beacons = null;
+        }
         _theatre = theatre;
         _airbases = airbases;
         _cache.Clear();
+        _labels.Clear();
     }
 
     /// <summary>The nearest airdrome within <paramref name="maxDistance"/> metres that has a taxi network.</summary>
-    public async Task<GroundAirfield?> NearestAsync(Vec2 position, double maxDistance = 4000, CancellationToken ct = default)
+    public Task<GroundAirfield?> NearestAsync(Vec2 position, double maxDistance = 4000, CancellationToken ct = default) =>
+        NearestAsync(position, maxDistance, null, ct);
+
+    /// <summary>The nearest airdrome within <paramref name="maxDistance"/> metres that has a taxi network and passes <paramref name="filter"/>.</summary>
+    public async Task<GroundAirfield?> NearestAsync(Vec2 position, double maxDistance, Func<AirbaseSummary, bool>? filter, CancellationToken ct = default)
     {
-        foreach (var airbase in _airbases.Where(a => a.Category == 0).OrderBy(a => Distance(a, position)))
+        foreach (var airbase in _airbases.Where(a => a.Category == 0 && (filter is null || filter(a))).OrderBy(a => Distance(a, position)))
         {
             if (Distance(airbase, position) > maxDistance) break;
             if (await GetAsync(airbase, ct) is { } airfield) return airfield;
@@ -57,10 +71,33 @@ public sealed class AirfieldCatalog(IDcsCommands dcs, string? dcsDirectory, stri
     /// <summary>The labels file for an airbase, if there is one (matched on the airbase name in the file).</summary>
     public AirfieldLabels? LabelsFor(string airbaseName)
     {
-        if (dataDirectory is null || _theatre is null) return null;
-        string dir = Path.Combine(dataDirectory, "airfields", _theatre);
-        if (!Directory.Exists(dir)) return null;
-        return Directory.EnumerateFiles(dir, "*.labels.json").Select(AirfieldLabels.Load).FirstOrDefault(l => l.Airfield == airbaseName);
+        if (_labels.TryGetValue(airbaseName, out var cached)) return cached;
+        AirfieldLabels? labels = null;
+        if (dataDirectory is not null && _theatre is not null && Directory.Exists(Path.Combine(dataDirectory, "airfields", _theatre)))
+        {
+            labels = Directory.EnumerateFiles(Path.Combine(dataDirectory, "airfields", _theatre), "*.labels.json")
+                .Select(AirfieldLabels.Load).FirstOrDefault(l => l.Airfield == airbaseName);
+        }
+        return _labels[airbaseName] = labels;
+    }
+
+    /// <summary>The navaids of an airdrome (by its DCS id) from the terrain's beacons.lua.</summary>
+    public AirfieldNavaids NavaidsFor(int airdromeId)
+    {
+        if (_beacons is null)
+        {
+            string? path = dcsDirectory is null || _theatre is null ? null : Path.Combine(dcsDirectory, "Mods", "terrains", _theatre, "beacons.lua");
+            try
+            {
+                _beacons = path is not null && File.Exists(path) ? BeaconReader.Read(path) : [];
+            }
+            catch (IOException ex)
+            {
+                log?.Invoke($"beacons not readable: {ex.Message}");
+                _beacons = [];
+            }
+        }
+        return new AirfieldNavaids(_beacons.Where(b => b.AirdromeId == airdromeId).ToList());
     }
 
     private async Task<GroundAirfield?> LoadAsync(AirbaseSummary airbase, CancellationToken ct)
@@ -89,7 +126,14 @@ public sealed class AirfieldCatalog(IDcsCommands dcs, string? dcsDirectory, stri
         log?.Invoke($"{airbase.Name}: taxi network {net.Name}, runways {string.Join(", ", layout.Runways.Select(r => r.Name))}, " +
                     $"{(labels is null ? "no taxiway names" : $"{layout.TaxiwayNames.Values.Distinct().Count()} taxiway names")}");
         foreach (var warning in layout.LabelWarnings) log?.Invoke($"  label warning: {warning}");
-        return new GroundAirfield(airbase, layout);
+        var navaids = NavaidsFor(airbase.Id);
+        if (navaids.All.Count > 0)
+        {
+            var ils = layout.Runways.SelectMany(r => new[] { r.EndA, r.EndB }.Select(e => (End: e, Loc: navaids.LocalizerFor(r, e))))
+                .Where(x => x.Loc is not null).Select(x => $"ILS {x.End.Name} {x.Loc!.Callsign} {x.Loc.FrequencyMhz:0.0#}");
+            log?.Invoke($"  navaids: {string.Join(", ", ils.Append(navaids.Tacan is { } t ? $"TACAN {t.Callsign} {t.TacanChannel}" : "no TACAN"))}");
+        }
+        return new GroundAirfield(airbase, layout, navaids);
     }
 
     private List<(string Path, Vec2 Center)> BuildIndex()

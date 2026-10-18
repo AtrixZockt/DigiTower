@@ -38,6 +38,34 @@
     "tower": 270.0,
     "approach": 257.0
   },
+  "departure": {
+    "initialAltitude": 3000,
+    "stayLowAltitude": 500,
+    "stayLowDistance": 3,
+    "patternRadius": 5,
+    "patternFloor": 700,
+    "patternTop": 3500,
+    "separation": 5,
+    "closedTraffic": { "31R": "right", "13L": "left", "31L": "left", "13R": "right" }
+  },
+  "approach": {
+    "requestRange": 60,
+    "serviceRadius": 40,
+    "arrivalAltitude": 6000,
+    "interceptAltitude": 3000,
+    "finalDistance": 10,
+    "downwindOffset": 5,
+    "baseExtension": 3,
+    "spacing": 5,
+    "handoffDistance": 8,
+    "maxVectored": 3,
+    "holdingAltitude": 7000,
+    "holdingStep": 1000,
+    "initialDistance": 5,
+    "initialAltitude": 1500,
+    "trafficRange": 5,
+    "trafficVertical": 2000
+  },
   "taxiways": [
     {
       "name": "A",

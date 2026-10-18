@@ -22,8 +22,25 @@ public sealed class Runway
     public required RunwayEnd EndA { get; init; }
     public required RunwayEnd EndB { get; init; }
     public required IReadOnlyList<HoldPoint> HoldPoints { get; init; }
+    /// <summary>Width in metres (from the DCS runway type, e.g. "vpp_60"; 45 if unknown).</summary>
+    public double Width { get; init; } = 45;
 
     public string Name => $"{EndA.Name}/{EndB.Name}";
+
+    public RunwayEnd Opposite(RunwayEnd end) => end == EndA ? EndB : EndA;
+
+    /// <summary>Distance along the runway from <paramref name="end"/>'s threshold (negative before it).</summary>
+    public double AlongFrom(RunwayEnd end, Vec2 p) => (p - end.Threshold).Dot(Vec2.FromHeading(end.TrueHeading));
+
+    /// <summary>Distance from the centerline (extended beyond the ends).</summary>
+    public double FromCenterline(Vec2 p) => Math.Abs((p - EndA.Threshold).Dot(Axis.Left));
+
+    /// <summary>Whether a point is on the runway surface, with <paramref name="margin"/> metres around it.</summary>
+    public bool IsOnRunway(Vec2 p, double margin = 10)
+    {
+        double along = AlongFrom(EndA, p);
+        return FromCenterline(p) <= Width / 2 + margin && along >= -margin && along <= Length + margin;
+    }
     public Vec2 Axis => (EndB.Threshold - EndA.Threshold).Normalized;
     public double Length => EndA.Threshold.DistanceTo(EndB.Threshold);
     public Vec2 Center => (EndA.Threshold + EndB.Threshold) * 0.5;
@@ -111,6 +128,7 @@ public static partial class RunwayFinder
                 EndA = new RunwayEnd(Number(heading, knownNumbers) + suffixA, a, heading),
                 EndB = new RunwayEnd(Number((heading + 180) % 360, knownNumbers) + suffixB, b, (heading + 180) % 360),
                 HoldPoints = HoldPoints(graph, nodes, a, b, axis, holdDistance),
+                Width = WidthOf(edges),
             });
         }
         return runways;
@@ -147,6 +165,16 @@ public static partial class RunwayFinder
         }
         return walked;
     }
+
+    /// <summary>Width from the runway edge type name ("vpp_60", "runway_45m"), 45 m if it has none.</summary>
+    private static double WidthOf(List<Rn5Edge> edges)
+    {
+        var m = WidthPattern().Match(edges[0].TypeName);
+        return m.Success ? double.Parse(m.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture) : 45;
+    }
+
+    [GeneratedRegex(@"_(\d+)m?$")]
+    private static partial Regex WidthPattern();
 
     /// <summary>Connected groups of runway edges (joined through shared nodes).</summary>
     private static List<List<Rn5Edge>> RunwayChains(Rn5Network net)

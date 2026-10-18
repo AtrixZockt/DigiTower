@@ -1,0 +1,31 @@
+{
+  // The ATC voices. Models are downloaded with: dotnet run --project tools/DcsAtc.VoiceTool -- fetch
+  // Clips are generated once per voice into cache/<id>/ and reused (see docs/voice.md).
+  // Chosen by ear in the audition (2026-10-18).
+  "default": "piper-alan",
+  // CPU threads per TTS engine (new clips only; the game keeps the rest).
+  "threads": 2,
+  "voices": [
+    { "id": "kokoro-am_michael", "label": "Kokoro: Michael (US male)", "engine": "kokoro", "model": "kokoro-multi-lang-v1_0", "speaker": 16 },
+    { "id": "kokoro-am_adam", "label": "Kokoro: Adam (US male)", "engine": "kokoro", "model": "kokoro-multi-lang-v1_0", "speaker": 11 },
+    { "id": "kokoro-am_eric", "label": "Kokoro: Eric (US male)", "engine": "kokoro", "model": "kokoro-multi-lang-v1_0", "speaker": 13 },
+    { "id": "kokoro-am_onyx", "label": "Kokoro: Onyx (US male)", "engine": "kokoro", "model": "kokoro-multi-lang-v1_0", "speaker": 17 },
+    { "id": "kokoro-am_fenrir", "label": "Kokoro: Fenrir (US male)", "engine": "kokoro", "model": "kokoro-multi-lang-v1_0", "speaker": 14 },
+    { "id": "kokoro-af_heart", "label": "Kokoro: Heart (US female)", "engine": "kokoro", "model": "kokoro-multi-lang-v1_0", "speaker": 3 },
+    { "id": "kokoro-af_nicole", "label": "Kokoro: Nicole (US female)", "engine": "kokoro", "model": "kokoro-multi-lang-v1_0", "speaker": 6 },
+    { "id": "kokoro-bm_george", "label": "Kokoro: George (British male)", "engine": "kokoro", "model": "kokoro-multi-lang-v1_0", "speaker": 26, "lang": "en-gb" },
+    { "id": "kokoro-bm_lewis", "label": "Kokoro: Lewis (British male)", "engine": "kokoro", "model": "kokoro-multi-lang-v1_0", "speaker": 27, "lang": "en-gb" },
+    { "id": "kokoro-bf_emma", "label": "Kokoro: Emma (British female)", "engine": "kokoro", "model": "kokoro-multi-lang-v1_0", "speaker": 21, "lang": "en-gb" },
+    { "id": "piper-ryan", "label": "Piper: Ryan (US male)", "engine": "piper", "model": "vits-piper-en_US-ryan-high-fp16" },
+    { "id": "piper-alan", "label": "Piper: Alan (British male)", "engine": "piper", "model": "vits-piper-en_GB-alan-medium-fp16" },
+    { "id": "piper-lessac", "label": "Piper: Lessac (US female)", "engine": "piper", "model": "vits-piper-en_US-lessac-high-fp16" },
+    { "id": "sapi-david", "label": "Windows: David (US male)", "engine": "sapi", "name": "Microsoft David Desktop" },
+    { "id": "sapi-zira", "label": "Windows: Zira (US female)", "engine": "sapi", "name": "Microsoft Zira Desktop" }
+  ],
+  "models": [
+    { "name": "kokoro-multi-lang-v1_0", "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/kokoro-multi-lang-v1_0.tar.bz2", "license": "Apache-2.0" },
+    { "name": "vits-piper-en_US-ryan-high-fp16", "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-en_US-ryan-high-fp16.tar.bz2", "license": "CC BY-NC-SA 4.0 (non-commercial)" },
+    { "name": "vits-piper-en_GB-alan-medium-fp16", "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-en_GB-alan-medium-fp16.tar.bz2", "license": "trained on Mycroft mimic3 apope, all rights reserved (private use only, do not redistribute)" },
+    { "name": "vits-piper-en_US-lessac-high-fp16", "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-en_US-lessac-high-fp16.tar.bz2", "license": "Blizzard 2013 Lessac license (research use)" }
+  ]
+}

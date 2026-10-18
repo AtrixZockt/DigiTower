@@ -21,6 +21,60 @@ public sealed record AreaLabel(string Name, double X, double Z)
 
 public sealed record AirfieldFrequencies(double? Atis, double? Ground, double? Tower, double? Approach);
 
+/// <summary>How Approach works an airfield's arrivals and departures. Generic defaults; each airfield can tune them in its labels file.</summary>
+public sealed record ApproachProcedures
+{
+    public static readonly ApproachProcedures Default = new();
+
+    /// <summary>Arrivals may ask for an approach within this distance of the airfield (NM).</summary>
+    public double RequestRange { get; init; } = 60;
+    /// <summary>Departures get radar service up to this distance (NM): then "radar service terminated".</summary>
+    public double ServiceRadius { get; init; } = 40;
+    /// <summary>The first descent for arrivals (feet).</summary>
+    public double ArrivalAltitude { get; init; } = 6000;
+    /// <summary>Final approach: intercepted at this altitude (feet), this far from the threshold (NM), at 30°.</summary>
+    public double InterceptAltitude { get; init; } = 3000;
+    public double FinalDistance { get; init; } = 10;
+    /// <summary>Downwind: this far beside final (NM); base turn this far beyond the intercept point (NM).</summary>
+    public double DownwindOffset { get; init; } = 5;
+    public double BaseExtension { get; init; } = 3;
+    /// <summary>Minimum distance between arrivals on final (NM).</summary>
+    public double Spacing { get; init; } = 5;
+    /// <summary>Arrivals go to Tower this far out on final (NM).</summary>
+    public double HandoffDistance { get; init; } = 8;
+    /// <summary>More arrivals than this at once go into the hold.</summary>
+    public int MaxVectored { get; init; } = 3;
+    /// <summary>The lowest holding altitude over the TACAN and the step between holders (feet).</summary>
+    public double HoldingAltitude { get; init; } = 7000;
+    public double HoldingStep { get; init; } = 1000;
+    /// <summary>Overhead: the initial point this far out on final (NM), flown at this altitude (feet).</summary>
+    public double InitialDistance { get; init; } = 5;
+    public double InitialAltitude { get; init; } = 1500;
+    /// <summary>Traffic advisories for other aircraft within this distance (NM) and height difference (feet).</summary>
+    public double TrafficRange { get; init; } = 5;
+    public double TrafficVertical { get; init; } = 2000;
+}
+
+/// <summary>How Tower sends departures off. Generic military defaults; each airfield can tune them in its labels file.</summary>
+public sealed record DepartureProcedures
+{
+    public static readonly DepartureProcedures Default = new();
+
+    /// <summary>Behind departing traffic: "climb and maintain 3000 feet until advised" (feet MSL).</summary>
+    public double InitialAltitude { get; init; } = 3000;
+    /// <summary>Under pattern traffic: "maintain at or below 500 feet (AGL) until 3 miles (NM from the runway)".</summary>
+    public double StayLowAltitude { get; init; } = 500;
+    public double StayLowDistance { get; init; } = 3;
+    /// <summary>Airborne traffic within this distance of the runway (NM), between floor and top (feet AGL), is pattern traffic.</summary>
+    public double PatternRadius { get; init; } = 5;
+    public double PatternFloor { get; init; } = 700;
+    public double PatternTop { get; init; } = 3500;
+    /// <summary>Departing traffic ahead closer than this (NM) restricts the next departure until it is this far away.</summary>
+    public double Separation { get; init; } = 5;
+    /// <summary>Closed traffic side per runway end ("left" or "right"); left where not given.</summary>
+    public IReadOnlyDictionary<string, string> ClosedTraffic { get; init; } = new Dictionary<string, string>();
+}
+
 /// <summary>A point known both on the chart (pixels) and in DCS (e.g. a runway end).</summary>
 public sealed record ControlPoint(double[] Chart, double X, double Z);
 
@@ -44,6 +98,8 @@ public sealed record AirfieldLabels
     public Georeference? Georeference { get; init; }
     public IReadOnlyList<TaxiwayPath> Taxiways { get; init; } = [];
     public IReadOnlyList<AreaLabel> Areas { get; init; } = [];
+    public DepartureProcedures Departure { get; init; } = DepartureProcedures.Default;
+    public ApproachProcedures Approach { get; init; } = ApproachProcedures.Default;
 
     private static readonly JsonSerializerOptions Json = new() { PropertyNameCaseInsensitive = true };
 

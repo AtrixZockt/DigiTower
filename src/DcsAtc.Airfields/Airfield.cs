@@ -122,7 +122,8 @@ public sealed class Airfield
     /// </summary>
     public DepartureRoute? RouteToRunway(Vec2 from, string runwayEnd, RouteOptions? options = null, double maxFromThreshold = 250)
     {
-        if (FindRunwayEnd(runwayEnd) is not var (runway, end)) return null;
+        if (FindRunwayEnd(runwayEnd) is not { } found) return null;
+        var (runway, end) = found;
         var holds = runway.DepartureHoldPoints(end.Name).ToList();
         if (holds.Count == 0) return null;
         double nearest = DistanceFromThreshold(runway, end, holds[0]);
@@ -143,6 +144,61 @@ public sealed class Airfield
         }
         return best;
     }
+
+    /// <summary>
+    /// Whether a DCS parking spot suits the aircraft. Terminal types (MOOSE AIRBASE.TerminalType): 16 runway,
+    /// 40 helicopter only, 68 shelter, 72 open medium, 104 open big, 176 open medium or big, 216 helicopter
+    /// usable, 244 fighter.
+    /// </summary>
+    public static bool SpotSuits(ParkingSpot spot, bool helicopter) => spot.TermType switch
+    {
+        16 => false,
+        40 => helicopter,
+        _ => true,
+    };
+
+    /// <summary>
+    /// Taxi route to the free parking spot (no aircraft within 25 m of it) that is quickest to reach:
+    /// every suitable spot is ranked by its taxi cost (one search over the whole network), then the
+    /// <paramref name="candidates"/> best are routed exactly.
+    /// </summary>
+    public (ParkingSpot Spot, TaxiRoute Route)? RouteToParking(Vec2 from, bool helicopter, IEnumerable<Vec2> otherAircraft, int candidates = 3)
+    {
+        var occupied = otherAircraft.ToList();
+        var costs = TaxiRouter.CostsFrom(Graph, from);
+        return Parking
+            .Where(s => SpotSuits(s, helicopter) && !occupied.Any(a => a.DistanceTo(s.Position) < 25))
+            .Select(s => (Spot: s, Cost: ApproximateCost(costs, s)))
+            .Where(c => c.Cost < double.MaxValue)
+            .OrderBy(c => c.Cost)
+            .Take(candidates)
+            .Select(c => (c.Spot, Route: TaxiRouter.RouteToPoint(Graph, from, c.Spot.Position)))
+            .Where(c => c.Route is not null)
+            .Select(c => (c.Spot, Route: c.Route!))
+            .OrderBy(c => c.Route.Length)
+            .Cast<(ParkingSpot, TaxiRoute)?>()
+            .FirstOrDefault();
+    }
+
+    private readonly Dictionary<int, (TaxiLink Link, double Along, double Distance)> _spotEntries = [];
+
+    /// <summary>Taxi cost to a spot: to either end of the taxiway piece nearest the spot, along it, then across to the spot.</summary>
+    private double ApproximateCost(double[] costs, ParkingSpot spot)
+    {
+        if (!_spotEntries.TryGetValue(spot.Index, out var entry))
+        {
+            var p = Graph.ProjectOntoTaxiway(spot.Position);
+            _spotEntries[spot.Index] = entry = (p.Link, p.Along, p.Distance);
+        }
+        double viaA = costs[entry.Link.A] == double.MaxValue ? double.MaxValue : costs[entry.Link.A] + entry.Along;
+        double viaB = costs[entry.Link.B] == double.MaxValue ? double.MaxValue : costs[entry.Link.B] + entry.Link.Length - entry.Along;
+        double best = Math.Min(viaA, viaB);
+        return best == double.MaxValue ? best : best + entry.Distance;
+    }
+
+    /// <summary>The name of the labelled area (apron, parking) nearest to a point, if one is within <paramref name="maxDistance"/>.</summary>
+    public string? AreaNear(Vec2 p, double maxDistance = 500) =>
+        Labels?.Areas.Where(a => a.Position.DistanceTo(p) <= maxDistance).MinBy(a => a.Position.DistanceTo(p))?.Name;
 
     private static double DistanceFromThreshold(Runway runway, RunwayEnd end, HoldPoint hold) =>
         end == runway.EndA ? hold.AlongRunway : runway.Length - hold.AlongRunway;
