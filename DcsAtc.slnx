@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/DcsAtc.Airfields/DcsAtc.Airfields.csproj" />
+    <Project Path="src/DcsAtc.App/DcsAtc.App.csproj" />
+    <Project Path="src/DcsAtc.Bridge/DcsAtc.Bridge.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/DcsAtc.Tests/DcsAtc.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/DcsAtc.Rn5Tool/DcsAtc.Rn5Tool.csproj" />
+  </Folder>
+</Solution>
