@@ -14,7 +14,7 @@ public sealed class AtcVoice(VoiceInfo info, ISpeechEngine engine, string cacheD
     public const int SampleRate = 16000;
 
     /// <summary>Part of every cache key (with the voice's speed): bump it when clip processing changes, so old clips are regenerated.</summary>
-    private const string ProcessingVersion = "v1";
+    private const string ProcessingVersion = "v2";
 
     private static readonly TimeSpan LeadIn = TimeSpan.FromMilliseconds(120);
 

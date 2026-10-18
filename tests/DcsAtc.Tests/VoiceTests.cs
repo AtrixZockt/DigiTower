@@ -10,8 +10,8 @@ public class VoiceTests
     public void Taxi_clearance_is_said_the_ICAO_way()
     {
         Assert.Equal(
-            "[Hangman] [one one] | [Al Dafra Ground] | [taxi to holding point runway] [three one right] [via] [Alpha] | [Bravo] ‖ " +
-            "[Wind] [three one zero] [degrees] | [one zero] [knots] | [Q N H] [one zero one three] | [altimeter] [two niner niner two]",
+            "[hangman] [one one] | [al Dafra Ground] | [taxi to holding point runway] [three one right] [via] [Alpha] | [Bravo] ‖ " +
+            "[wind] [three one zero] [degrees] | [one zero] [knots] | [Q N H] [one zero one three] | [altimeter] [two niner niner two]",
             Spoken("Hangman 1-1, Al Dhafra Ground, taxi to holding point runway 31R via A, B. Wind 310 degrees, 10 knots, QNH 1013, altimeter 29.92."));
     }
 
@@ -31,8 +31,8 @@ public class VoiceTests
     public void Words_are_not_mistaken_for_taxiways()
     {
         // "I" is a word, and single letters are taxiways only in a "via" list.
-        Assert.Equal("[Viper] [one one] | [go around] | [I say again] | [go around]", Spoken("Viper 1-1, go around, I say again, go around."));
-        Assert.Equal("[Hangman] [one] [flight] | [taxi to Parking X-Ray North via] [Whiskey]", Spoken("Hangman 1 flight, taxi to Parking X-Ray North via W."));
+        Assert.Equal("[viper] [one one] | [go around] | [I say again] | [go around]", Spoken("Viper 1-1, go around, I say again, go around."));
+        Assert.Equal("[hangman] [one] [flight] | [taxi to Parking X-Ray North via] [Whiskey]", Spoken("Hangman 1 flight, taxi to Parking X-Ray North via W."));
     }
 
     [Fact]
@@ -90,7 +90,7 @@ public class VoiceTests
                 var audio = voice.Render("Viper 1-1, cleared to land.");
                 Assert.True(audio.Duration > TimeSpan.FromSeconds(1));
             }
-            Assert.Equal(["Viper", "one one", "cleared to land"], engine.Said);
+            Assert.Equal(["viper", "one one", "cleared to land"], engine.Said);
 
             // A new voice object finds the clips on disk: nothing is synthesized again.
             var again = new ToneEngine();

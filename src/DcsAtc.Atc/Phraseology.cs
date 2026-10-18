@@ -219,6 +219,10 @@ public static partial class Phraseology
 
     public static string LineUpAndWait(string callsign, RunwayEnd runway) => $"{callsign}, runway {runway.Name}, line up and wait.";
 
+    /// <summary>Closed traffic that flies off: "Viper 1-1, leaving the pattern, contact Approach on 257.0, good day."</summary>
+    public static string LeavingPattern(string callsign, double? approach) =>
+        $"{callsign}, leaving the pattern, " + (Frequency(approach) is { } f ? $"contact Approach on {f}, good day." : "frequency change approved, good day.");
+
     public static string HoldShort(string callsign, string facility, RunwayEnd runway, string reason) =>
         $"{callsign}, {facility} Tower, hold short runway {runway.Name}, {reason}.";
 
@@ -280,6 +284,7 @@ public static partial class Phraseology
         yield return ParkingReached(cs, facility);
         yield return ContactAfterDeparture(cs, frequencies?.Approach);
         yield return ContactAfterDeparture(cs, frequencies?.Approach, resumeOwnNavigation: true);
+        yield return LeavingPattern(cs, frequencies?.Approach);
         yield return CheckAltitudeStayLow(cs, procedures ?? DepartureProcedures.Default);
         yield return CheckAltitudeMaintain(cs, procedures ?? DepartureProcedures.Default);
         yield return CheckHeading(cs);

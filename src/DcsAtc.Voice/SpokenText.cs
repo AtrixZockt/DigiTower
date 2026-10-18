@@ -23,6 +23,7 @@ public static partial class SpokenText
     public static readonly TimeSpan SentencePause = TimeSpan.FromMilliseconds(300);
 
     private static readonly string[] Digits = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "niner"];
+    private static readonly string[] Clock = ["", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve"];
 
     public static readonly IReadOnlyDictionary<char, string> Phonetic = new Dictionary<char, string>
     {
@@ -97,6 +98,12 @@ public static partial class SpokenText
             return $"{DigitWords(flight.Groups[1].Value)} {DigitWords(flight.Groups[2].Value)}";
         if (FlightLevel().Match(token) is { Success: true } fl)
             return $"flight level {DigitWords(fl.Groups[1].Value)}";
+        // TACAN channels: "96X" → "niner six X-ray".
+        if (TacanChannel().Match(token) is { Success: true } ch)
+            return $"{DigitWords(ch.Groups[1].Value)} {(ch.Groups[2].Value == "X" ? "X-ray" : "Yankee")}";
+        // Clock positions are said as words: "twelve o'clock".
+        if (next.Equals("o'clock", StringComparison.OrdinalIgnoreCase) && int.TryParse(token, out int hour) && hour is >= 1 and <= 12)
+            return Clock[hour];
         if (Integer().IsMatch(token))
         {
             // Altitudes in whole hundreds are said in thousands and hundreds ("three thousand five hundred feet", "five hundred feet").
@@ -126,7 +133,10 @@ public static partial class SpokenText
     private static void Flush(List<SpeechUnit> units, List<string> words)
     {
         if (words.Count == 0) return;
-        units.Add(new SpeechUnit(string.Join(" ", words), WordGap));
+        string text = string.Join(" ", words);
+        // A capital only marks the start of a sentence here: "Wind" and "wind" are one clip. Spelled letters ("Q N H") stay.
+        if (text.Length > 1 && char.IsUpper(text[0]) && char.IsLower(text[1])) text = char.ToLowerInvariant(text[0]) + text[1..];
+        units.Add(new SpeechUnit(text, WordGap));
         words.Clear();
     }
 
@@ -151,6 +161,9 @@ public static partial class SpokenText
 
     [GeneratedRegex(@"^\d+$")]
     private static partial Regex Integer();
+
+    [GeneratedRegex(@"^(\d{1,3})([XY])$")]
+    private static partial Regex TacanChannel();
 
     [GeneratedRegex(@"^([A-Z]{1,2})(\d{0,2})$")]
     private static partial Regex Taxiway();

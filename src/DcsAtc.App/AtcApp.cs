@@ -31,6 +31,7 @@ public sealed class AtcApp
     private readonly FlightRegistry _flights;
     private readonly GroundControl _ground;
     private readonly TowerControl _tower;
+    private readonly ApproachControl _approach;
     private readonly AtcMenu _menu;
     private readonly Dictionary<string, UnitState> _units = [];
     /// <summary>The F10 menu each player group has now (entry ids), so it is only rebuilt when it changes.</summary>
@@ -45,7 +46,8 @@ public sealed class AtcApp
         _flights = new FlightRegistry(client, Log);
         _ground = new GroundControl(client, _airfields, _flights, Log, radio: options.Radio);
         _tower = new TowerControl(client, _airfields, _ground, _flights, Log, radio: options.Radio);
-        _menu = new AtcMenu(_airfields, _ground, _tower, _flights);
+        _approach = new ApproachControl(client, _airfields, _tower, _flights, Log, radio: options.Radio);
+        _menu = new AtcMenu(_airfields, _ground, _tower, _approach, _flights);
     }
 
     public async Task RunAsync(CancellationToken ct)
@@ -95,6 +97,7 @@ public sealed class AtcApp
                     Log($"event {e.Event,-16} {e.Unit} ({e.UnitType}){(e.Player is null ? "" : $" player {e.Player}")}{(e.Place is null ? "" : $" at {e.Place}")}");
                 await _ground.OnEventAsync(e, ct);
                 await _tower.OnEventAsync(e, ct);
+                await _approach.OnEventAsync(e, ct);
                 break;
             case MenuSelectedMessage m:
                 await OnMenuAsync(m, ct);
@@ -137,6 +140,8 @@ public sealed class AtcApp
                 radio.Prepare(Phraseology.Samples(airfield.Facility, layout.Runways,
                     layout.Labels?.Taxiways.Select(t => t.Name).Distinct() ?? [], layout.Labels?.Areas.Select(a => a.Name) ?? [],
                     layout.Labels?.Frequencies, weather, layout.Labels?.Departure));
+                if (ApproachControl.Serves(layout.Labels))
+                    radio.Prepare(Phraseology.ApproachSamples(airfield.Facility, layout.Runways, airfield.Radio, layout.Labels?.Frequencies, weather, ApproachControl.ProceduresOf(airfield)));
             }
         }
         foreach (var name in silence)
@@ -158,6 +163,7 @@ public sealed class AtcApp
         await _flights.OnUnitsAsync(_units, ct);
         await _ground.OnUnitsAsync(_units, ct);
         await _tower.OnUnitsAsync(_units, ct);
+        await _approach.OnUnitsAsync(_units, ct);
         foreach (var u in PlayerGroups()) await UpdateMenuAsync(u, ct);
 
         if (DateTime.UtcNow - _lastStatus >= _options.StatusInterval)
@@ -166,7 +172,9 @@ public sealed class AtcApp
             foreach (var p in snapshot.Units.Where(u => u.IsPlayer))
                 Log($"    {p.Player,-14} {p.Type,-12} {Phraseology.Callsign(p),-12} hdg {p.Hdg:000}  gs {p.GroundSpeed * 1.94384,4:F0} kt  {p.Agl * 3.28084,6:F0} ft AGL  {(p.InAir ? "air" : "ground")}" +
                     (_ground.Clearances.Values.FirstOrDefault(c => c.UnitName == p.Name) is { } c ? $"  [Ground: {c.Phase} to {c.Departure?.End.Name ?? "parking"}]" : "") +
-                    (_tower.Flights.Values.FirstOrDefault(f => f.UnitName == p.Name) is { } t ? $"  [Tower: {t.Phase} runway {t.End.Name}]" : ""));
+                    (_tower.Flights.Values.FirstOrDefault(f => f.UnitName == p.Name) is { } t ? $"  [Tower: {t.Phase} runway {t.End.Name}]" : "") +
+                    (_approach.Flights.Values.FirstOrDefault(f => f.UnitName == p.Name) is { } a
+                        ? $"  [Approach: {a.Phase}{(a.IsArrival ? $" {a.Type} {a.End.Name} {a.Leg} hdg {a.Heading:000} alt {a.Altitude:0}" : "")}]" : ""));
         }
     }
 
@@ -175,19 +183,28 @@ public sealed class AtcApp
         var unit = _units.Values.FirstOrDefault(u => u.GroupId == m.GroupId && u.IsPlayer) ?? _units.Values.FirstOrDefault(u => u.GroupId == m.GroupId);
         Log($"menu '{m.Id}' from group {m.GroupId} ({unit?.Player ?? "?"})");
         if (unit is null) return;
-        switch (m.Id)
+        // Airfield calls carry the airfield ("ab4:ground.taxi"): the controllers work that one, not the nearest.
+        var (airbaseId, action) = AtcMenu.ParseId(m.Id);
+        var at = airbaseId is int id && _airfields.Airbases.FirstOrDefault(a => a.Id == id) is { } airbase ? await _airfields.GetAsync(airbase, ct) : null;
+        switch (action)
         {
             case "ground.taxi":
-                await _ground.RequestTaxiAsync(unit, _units, ct);
+                await _ground.RequestTaxiAsync(unit, _units, at, ct);
                 break;
             case "ground.parking":
-                await _ground.RequestTaxiToParkingAsync(unit, _units, ct);
+                await _ground.RequestTaxiToParkingAsync(unit, _units, at, ct);
+                break;
+            case "ground.cancel":
+                await _ground.CancelTaxiAsync(unit, _units, ct);
+                break;
+            case "ground.repeat":
+                await _ground.SayAgainAsync(unit, _units, ct);
                 break;
             case var ready when AtcMenu.IntentOf(ready) is { } intent:
-                await _tower.ReadyForDepartureAsync(unit, _units, intent, ct);
+                await _tower.ReadyForDepartureAsync(unit, _units, intent, at, ct);
                 break;
             case "tower.landing":
-                await _tower.RequestLandingAsync(unit, _units, ct);
+                await _tower.RequestLandingAsync(unit, _units, at, ct);
                 break;
             case "tower.final":
                 await _tower.ReportFinalAsync(unit, _units, ct);
@@ -195,17 +212,32 @@ public sealed class AtcApp
             case "tower.repeat":
                 await _tower.SayAgainAsync(unit, _units, ct);
                 break;
+            case "tower.initial":
+                await _tower.ReportInitialAsync(unit, _units, at, ct);
+                break;
+            case var request when AtcMenu.ApproachOf(request) is { } type:
+                await _approach.RequestApproachAsync(unit, _units, type, at, ct);
+                break;
+            case "approach.checkin":
+                await _approach.CheckInAsync(unit, _units, at, ct);
+                break;
+            case "approach.field":
+                await _approach.FieldInSightAsync(unit, _units, ct);
+                break;
+            case "approach.cancel":
+                await _approach.CancelAsync(unit, _units, ct);
+                break;
+            case "approach.repeat":
+                await _approach.SayAgainAsync(unit, _units, ct);
+                break;
+            case "frequencies" when at is not null:
+                await _client.ShowTextAsync(m.GroupId, Phraseology.FrequencyList(at), 20, ct: ct);
+                break;
             case "flight.2" or "flight.3" or "flight.4":
-                await _flights.DeclareAsync(unit, m.Id[^1] - '0', _units, ct);
+                await _flights.DeclareAsync(unit, action[^1] - '0', _units, ct);
                 break;
             case "flight.single":
                 await _flights.LeaveAsync(unit, _units, ct);
-                break;
-            case "ground.cancel":
-                await _ground.CancelTaxiAsync(unit, _units, ct);
-                break;
-            case "ground.repeat":
-                await _ground.SayAgainAsync(unit, _units, ct);
                 break;
             case "debug.where":
                 await _client.ShowTextAsync(m.GroupId, DescribePosition(unit), 15, ct: ct);
@@ -252,6 +284,7 @@ public sealed class AtcApp
         _flights.Reset();
         _ground.Reset();
         _tower.Reset();
+        _approach.Reset();
     }
 
     private static void Log(string text) => Console.WriteLine($"{DateTime.Now:HH:mm:ss}  {text}");

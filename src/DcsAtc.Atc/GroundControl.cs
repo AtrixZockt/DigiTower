@@ -68,9 +68,9 @@ public sealed class GroundControl(IDcsCommands dcs, AirfieldCatalog airfields, F
         _clearances.GetValueOrDefault(flights.PartyFor(unit, units).Key);
 
     /// <summary>Taxi to the holding point of the active runway.</summary>
-    public async Task RequestTaxiAsync(UnitState unit, IReadOnlyDictionary<string, UnitState> units, CancellationToken ct = default)
+    public async Task RequestTaxiAsync(UnitState unit, IReadOnlyDictionary<string, UnitState> units, GroundAirfield? at = null, CancellationToken ct = default)
     {
-        if (await OnGroundAtAirfieldAsync(unit, units, ct) is not { } who) return;
+        if (await OnGroundAtAirfieldAsync(unit, units, at, ct) is not { } who) return;
         var (party, lead, airfield) = who;
 
         var weather = await dcs.GetAirbaseWeatherAsync(airfield.Airbase.Name, ct);
@@ -100,9 +100,9 @@ public sealed class GroundControl(IDcsCommands dcs, AirfieldCatalog airfields, F
     }
 
     /// <summary>Taxi to a free parking spot (after landing). A flight is sent to the lead's spot's area.</summary>
-    public async Task RequestTaxiToParkingAsync(UnitState unit, IReadOnlyDictionary<string, UnitState> units, CancellationToken ct = default)
+    public async Task RequestTaxiToParkingAsync(UnitState unit, IReadOnlyDictionary<string, UnitState> units, GroundAirfield? at = null, CancellationToken ct = default)
     {
-        if (await OnGroundAtAirfieldAsync(unit, units, ct) is not { } who) return;
+        if (await OnGroundAtAirfieldAsync(unit, units, at, ct) is not { } who) return;
         var (party, lead, airfield) = who;
 
         var others = units.Values.Where(u => !party.Units.Contains(u.Name) && !u.InAir).Select(u => new Vec2(u.X, u.Z));
@@ -247,7 +247,7 @@ public sealed class GroundControl(IDcsCommands dcs, AirfieldCatalog airfields, F
     }
 
     /// <summary>The unit's party, its lead and the airfield if the lead is on the ground at an airfield we control; tells it otherwise.</summary>
-    private async Task<(Party Party, UnitState Lead, GroundAirfield Airfield)?> OnGroundAtAirfieldAsync(UnitState unit, IReadOnlyDictionary<string, UnitState> units, CancellationToken ct)
+    private async Task<(Party Party, UnitState Lead, GroundAirfield Airfield)?> OnGroundAtAirfieldAsync(UnitState unit, IReadOnlyDictionary<string, UnitState> units, GroundAirfield? at, CancellationToken ct)
     {
         if (unit.GroupId is null) return null;
         var party = flights.PartyFor(unit, units);
@@ -257,7 +257,9 @@ public sealed class GroundControl(IDcsCommands dcs, AirfieldCatalog airfields, F
             await SayAsync(party, null, Phraseology.GroundWhileAirborne(party.Callsign), 10, ct);
             return null;
         }
-        var airfield = await airfields.NearestAsync(new Vec2(lead.X, lead.Z), ct: ct);
+        var position = new Vec2(lead.X, lead.Z);
+        var airfield = at is null ? await airfields.NearestAsync(position, ct: ct)
+            : new Vec2(at.Airbase.X, at.Airbase.Z).DistanceTo(position) <= 4000 ? at : null;
         if (airfield is null)
         {
             await SayAsync(party, null, Phraseology.NoGroundControl(party.Callsign), 10, ct);
