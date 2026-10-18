@@ -38,6 +38,16 @@
     "tower": 270.0,
     "approach": 257.0
   },
+  "departure": {
+    "initialAltitude": 3000,
+    "stayLowAltitude": 500,
+    "stayLowDistance": 3,
+    "patternRadius": 5,
+    "patternFloor": 700,
+    "patternTop": 3500,
+    "separation": 5,
+    "closedTraffic": { "31R": "right", "13L": "left", "31L": "left", "13R": "right" }
+  },
   "taxiways": [
     {
       "name": "A",

@@ -99,8 +99,8 @@ public static partial class SpokenText
             return $"flight level {DigitWords(fl.Groups[1].Value)}";
         if (Integer().IsMatch(token))
         {
-            // Altitudes in whole hundreds are said in thousands and hundreds ("three thousand five hundred feet").
-            if (next.Equals("feet", StringComparison.OrdinalIgnoreCase) && int.Parse(token) is var feet and >= 1000 && feet % 100 == 0)
+            // Altitudes in whole hundreds are said in thousands and hundreds ("three thousand five hundred feet", "five hundred feet").
+            if (next.Equals("feet", StringComparison.OrdinalIgnoreCase) && int.Parse(token) is var feet and >= 100 && feet % 100 == 0)
                 return Thousands(feet);
             return DigitWords(token);
         }

@@ -17,6 +17,7 @@ public class TowerControlTests
         public required TowerControl Tower { get; init; }
         public required FlightRegistry Flights { get; init; }
         public required FakeRadio Radio { get; init; }
+        public required AtcMenu Menu { get; init; }
         public required Airfield Layout { get; init; }
         public Dictionary<string, UnitState> Units { get; } = [];
         public Runway Rwy31R => Layout.Runways.Single(r => r.End("31R") is not null);
@@ -54,18 +55,21 @@ public class TowerControlTests
         var ground = new GroundControl(dcs, catalog, flights, clock: () => now, radio: radio);
         var tower = new TowerControl(dcs, catalog, ground, flights, clock: () => now = now.AddSeconds(1), radio: radio);
         var layout = (await catalog.GetAsync(airbase))!.Layout;
-        return new World { Dcs = dcs, Ground = ground, Tower = tower, Flights = flights, Radio = radio, Layout = layout, Weather = weather };
+        var menu = new AtcMenu(catalog, ground, tower, flights);
+        return new World { Dcs = dcs, Ground = ground, Tower = tower, Flights = flights, Radio = radio, Menu = menu, Layout = layout, Weather = weather };
     }
 
-    private static UnitState Aircraft(string name, int group, Vec2 p, bool inAir = false, double agl = 0, double hdg = 0, double speed = 0, string? player = null) => new()
+    private static UnitState Aircraft(string name, int group, Vec2 p, bool inAir = false, double agl = 0, double hdg = 0, double speed = 0, string? player = null, double climb = 0) => new()
     {
         Id = 1000 + group, Name = name, Type = "F-16C_50", Cat = "plane", Coal = 2, Group = name, GroupId = group,
         Player = player, Callsign = "", X = p.X, Y = 16 + agl, Z = p.Z, Agl = agl, InAir = inAir, Hdg = hdg,
-        Vx = speed * Math.Cos(hdg * Math.PI / 180), Vz = speed * Math.Sin(hdg * Math.PI / 180),
+        Vx = speed * Math.Cos(hdg * Math.PI / 180), Vy = climb, Vz = speed * Math.Sin(hdg * Math.PI / 180),
     };
 
-    private static UnitState Viper(Vec2 p, bool inAir = false, double agl = 0, double hdg = 0, double speed = 0) =>
-        Aircraft("Viper 1-1", 1, p, inAir, agl, hdg, speed, "Viper 1-1 | DiGii");
+    private static UnitState Viper(Vec2 p, bool inAir = false, double agl = 0, double hdg = 0, double speed = 0, double climb = 0) =>
+        Aircraft("Viper 1-1", 1, p, inAir, agl, hdg, speed, "Viper 1-1 | DiGii", climb);
+
+    private const double Ft = 0.3048, Nm = 1852;
 
     /// <summary>Taxis Viper 1-1 from spot 106 to the 31R holding point and reports ready.</summary>
     private static async Task<Vec2> TaxiToHoldingPointAsync(World w)
@@ -87,7 +91,7 @@ public class TowerControlTests
 
         await TaxiToHoldingPointAsync(w!);
         await w!.Tower.ReadyForDepartureAsync(w.Units["Viper 1-1"], w.Units);
-        Assert.Equal("Viper 1-1, wind 310 degrees, 10 knots, runway 31R, cleared for takeoff.", w.LastText);
+        Assert.Equal("Viper 1-1, unrestricted climb approved, wind 310 degrees, 10 knots, runway 31R, cleared for takeoff.", w.LastText);
         Assert.Empty(w.Ground.Clearances);
         Assert.Empty(w.Dcs.Drawings);
 
@@ -153,9 +157,108 @@ public class TowerControlTests
         await w.Tower.ReadyForDepartureAsync(two, w.Units);
         Assert.Equal("Viper 1-2, runway 31R, line up and wait.", w.LastText);
 
-        w.Put(Viper(w.OnRunway31R(3000), inAir: true, agl: 100, hdg: 308, speed: 100));
+        // Viper 1-1 climbs out ahead: Viper 1-2 is kept on runway heading and low until there is room.
+        w.Put(Viper(w.OnRunway31R(3000), inAir: true, agl: 100, hdg: 308, speed: 100, climb: 20));
         await w.Tower.OnUnitsAsync(w.Units);
-        Assert.Equal("Viper 1-2, wind 310 degrees, 10 knots, runway 31R, cleared for takeoff.", w.LastText);
+        Assert.Equal("Viper 1-2, fly runway heading, climb and maintain 3000 feet until advised, wind 310 degrees, 10 knots, runway 31R, cleared for takeoff.", w.LastText);
+
+        // Airborne, then climbing through 3000 feet with Viper 1-1 only 3 miles ahead.
+        w.Put(Aircraft("Viper 1-2", 4, w.OnRunway31R(2500), inAir: true, agl: 60, hdg: 308, speed: 90, player: "Viper 1-2 | Wingman", climb: 15));
+        await w.Tower.OnUnitsAsync(w.Units);
+        w.Put(Viper(w.OnRunway31R(3000 + 8 * Nm), inAir: true, agl: 3000, hdg: 308, speed: 150, climb: 20));
+        w.Put(Aircraft("Viper 1-2", 4, w.OnRunway31R(3000 + 5 * Nm), inAir: true, agl: 3500 * Ft, hdg: 308, speed: 150, player: "Viper 1-2 | Wingman", climb: 15));
+        await w.Tower.OnUnitsAsync(w.Units);
+        Assert.Equal("Viper 1-2, check altitude, maintain 3000 feet.", w.LastText);
+
+        // 5 miles between them: released, then handed off.
+        w.Put(Viper(w.OnRunway31R(3000 + 11 * Nm), inAir: true, agl: 4000, hdg: 308, speed: 150, climb: 20));
+        await w.Tower.OnUnitsAsync(w.Units);
+        Assert.Equal("Viper 1-2, climb unrestricted, resume own navigation.", w.LastText);
+        await w.Tower.OnUnitsAsync(w.Units);
+        Assert.Equal("Viper 1-2, contact Approach on 257.0, good day.", w.LastText);
+    }
+
+    [SkippableFact]
+    public async Task Departure_north_turns_out_and_resumes_own_navigation_at_the_hand_off()
+    {
+        var w = await CreateAsync();
+        Skip.If(w is null, "DCS install or Al Dhafra dump not available");
+
+        await TaxiToHoldingPointAsync(w!);
+        await w!.Tower.ReadyForDepartureAsync(w.Units["Viper 1-1"], w.Units, DepartureIntent.North);
+        Assert.Equal("Viper 1-1, after departure turn right heading 360, unrestricted climb approved, wind 310 degrees, 10 knots, runway 31R, cleared for takeoff.", w.LastText);
+
+        w.Put(Viper(w.OnRunway31R(2500), inAir: true, agl: 60, hdg: 320, speed: 90, climb: 20));
+        await w.Tower.OnUnitsAsync(w.Units);
+        w.Put(Viper(w.OnRunway31R(9000), inAir: true, agl: 1200, hdg: 360, speed: 150, climb: 20));
+        await w.Tower.OnUnitsAsync(w.Units);
+        Assert.Equal("Viper 1-1, resume own navigation, contact Approach on 257.0, good day.", w.LastText);
+    }
+
+    [SkippableFact]
+    public async Task Departure_stays_low_under_pattern_traffic_until_3_miles()
+    {
+        var w = await CreateAsync();
+        Skip.If(w is null, "DCS install or Al Dhafra dump not available");
+
+        await TaxiToHoldingPointAsync(w!);
+        // A jet on the downwind at 1500 feet, two miles abeam the runway.
+        var downwind = w!.Rwy31R.Center + w.Rwy31R.Axis.Left * (2 * Nm);
+        w.Put(Aircraft("Hornet 1-1", 2, downwind, inAir: true, agl: 1500 * Ft, hdg: 128, speed: 120));
+        await w.Tower.ReadyForDepartureAsync(w.Units["Viper 1-1"], w.Units, DepartureIntent.West);
+        Assert.Equal("Viper 1-1, fly runway heading, maintain at or below 500 feet until 3 miles, then turn left heading 270, unrestricted climb, " +
+                     "wind 310 degrees, 10 knots, runway 31R, cleared for takeoff.", w.LastText);
+
+        // Climbing to 1000 feet one and a half miles out: too high.
+        w.Put(Viper(w.OnRunway31R(2500), inAir: true, agl: 60, hdg: 308, speed: 90, climb: 10));
+        await w.Tower.OnUnitsAsync(w.Units);
+        w.Put(Viper(w.OnRunway31R(w.Rwy31R.Length + 1.5 * Nm), inAir: true, agl: 1000 * Ft, hdg: 308, speed: 150, climb: 10));
+        await w.Tower.OnUnitsAsync(w.Units);
+        Assert.Equal("Viper 1-1, check altitude, maintain at or below 500 feet until 3 miles.", w.LastText);
+
+        // Beyond 3 miles the restriction ends by itself: handed off.
+        w.Put(Viper(w.OnRunway31R(w.Rwy31R.Length + 4 * Nm), inAir: true, agl: 2000 * Ft, hdg: 270, speed: 150, climb: 20));
+        await w.Tower.OnUnitsAsync(w.Units);
+        Assert.Equal("Viper 1-1, resume own navigation, contact Approach on 257.0, good day.", w.LastText);
+    }
+
+    [SkippableFact]
+    public async Task Closed_traffic_stays_with_tower_touches_and_goes_and_full_stops()
+    {
+        var w = await CreateAsync();
+        Skip.If(w is null, "DCS install or Al Dhafra dump not available");
+
+        await TaxiToHoldingPointAsync(w!);
+        await w!.Tower.ReadyForDepartureAsync(w.Units["Viper 1-1"], w.Units, DepartureIntent.ClosedTraffic);
+        Assert.Equal("Viper 1-1, right closed traffic approved, wind 310 degrees, 10 knots, runway 31R, cleared for takeoff.", w.LastText);
+
+        // Airborne and on the downwind: no hand-off.
+        w.Put(Viper(w.OnRunway31R(2500), inAir: true, agl: 60, hdg: 308, speed: 90, climb: 10));
+        await w.Tower.OnUnitsAsync(w.Units);
+        w.Put(Viper(w.Rwy31R.Center + w.Rwy31R.Axis.Left * (-1.5 * Nm), inAir: true, agl: 1500 * Ft, hdg: 128, speed: 120));
+        await w.Tower.OnUnitsAsync(w.Units);
+        Assert.Equal(TowerPhase.Inbound, w.Tower.Flights[1].Phase);
+        Assert.DoesNotContain("contact Approach", w.LastText);
+
+        // On final: cleared to land; touch and go back into the pattern without "vacate".
+        w.Put(Viper(w.OnFinal31R(3000), inAir: true, agl: 200, hdg: 308, speed: 80));
+        await w.Tower.OnUnitsAsync(w.Units);
+        Assert.Equal("Viper 1-1, runway 31R, wind 310 degrees, 10 knots, cleared to land.", w.LastText);
+        w.Put(Viper(w.OnRunway31R(600), hdg: 308, speed: 70));
+        await w.Tower.OnUnitsAsync(w.Units);
+        w.Put(Viper(w.OnRunway31R(2000), inAir: true, agl: 20, hdg: 308, speed: 80, climb: 10));
+        await w.Tower.OnUnitsAsync(w.Units);
+        Assert.Equal(TowerPhase.Inbound, w.Tower.Flights[1].Phase);
+        Assert.DoesNotContain("vacate", w.LastText);
+
+        // Second landing to a full stop.
+        w.Put(Viper(w.OnFinal31R(3000), inAir: true, agl: 200, hdg: 308, speed: 80));
+        await w.Tower.OnUnitsAsync(w.Units);
+        w.Put(Viper(w.OnRunway31R(600), hdg: 308, speed: 60));
+        await w.Tower.OnUnitsAsync(w.Units);
+        w.Put(Viper(w.OnRunway31R(1500), hdg: 308, speed: 10));
+        await w.Tower.OnUnitsAsync(w.Units);
+        Assert.Equal("Viper 1-1, welcome to Al Dhafra, vacate runway when able, contact Ground on 250.0.", w.LastText);
     }
 
     [SkippableFact]
@@ -276,7 +379,7 @@ public class TowerControlTests
         w.Put(Hangman(2, w.OnRunway31R(100), 12, hdg: 308));
         await w.Ground.OnUnitsAsync(w.Units);
         await w.Tower.ReadyForDepartureAsync(w.Units["Hangman 1-2"], w.Units);
-        Assert.Equal("Hangman 1 flight, wind 310 degrees, 10 knots, runway 31R, cleared for takeoff.", w.LastText);
+        Assert.Equal("Hangman 1 flight, unrestricted climb approved, wind 310 degrees, 10 knots, runway 31R, cleared for takeoff.", w.LastText);
 
         // Back for landing: the wingman landed first and is still on the runway; the lead at half a mile is not sent around.
         w.Units.Clear();
@@ -293,20 +396,90 @@ public class TowerControlTests
     }
 
     [SkippableFact]
+    public async Task The_menu_offers_only_the_calls_that_can_be_made_now()
+    {
+        var w = await CreateAsync();
+        Skip.If(w is null, "DCS install or Al Dhafra dump not available");
+        async Task<string> Menu() => MenuText.Describe(await w!.Menu.ForAsync(w.Units["Viper 1-1"], w.Units));
+        const string flight = "Flight: Flight of 2, Flight of 3, Flight of 4";
+        const string ready = "Ready for departure: Own navigation, Departure north, Departure east, Departure south, Departure west, Closed traffic";
+
+        // Parked: taxi only (no taxi to parking from a parking spot).
+        var spot = w!.Layout.Parking.Single(p => p.Index == 106).Position;
+        w.Put(Viper(spot));
+        Assert.Equal($"Ground: Request taxi | {flight}", await Menu());
+
+        // Taxiing, then at the holding point.
+        await w.Ground.RequestTaxiAsync(w.Units["Viper 1-1"], w.Units);
+        Assert.Equal($"Ground: Cancel taxi, Say again | {flight}", await Menu());
+        w.Put(Viper(w.Ground.Clearances[1].Route.Geometry[^1]));
+        await w.Ground.OnUnitsAsync(w.Units);
+        Assert.Equal($"Ground: Cancel taxi, Say again | {ready} | {flight}", await Menu());
+
+        // Waiting for departure (runway occupied), then cleared: only Tower's say again.
+        w.Put(Aircraft("Hornet 1-1", 2, w.OnRunway31R(1500)));
+        await w.Tower.ReadyForDepartureAsync(w.Units["Viper 1-1"], w.Units);
+        Assert.Equal($"{ready} | Tower: Say again | {flight}", await Menu());
+        w.Units.Remove("Hornet 1-1");
+        await w.Tower.OnUnitsAsync(w.Units);
+        Assert.Equal($"Tower: Say again | {flight}", await Menu());
+
+        // Handed off and away: landing request within 30 miles only.
+        w.Put(Viper(w.OnRunway31R(2500), inAir: true, agl: 60, hdg: 308, speed: 90, climb: 10));
+        await w.Tower.OnUnitsAsync(w.Units);
+        w.Put(Viper(w.OnRunway31R(9000), inAir: true, agl: 1200, hdg: 308, speed: 150));
+        await w.Tower.OnUnitsAsync(w.Units);
+        Assert.Equal($"Tower: Request landing | {flight}", await Menu());
+        w.Put(Viper(w.OnRunway31R(80 * Nm), inAir: true, agl: 5000, hdg: 308, speed: 200));
+        Assert.Equal(flight, await Menu());
+
+        // Inbound: report final until reported; landed: taxi to parking.
+        w.Put(Viper(w.OnFinal31R(15000), inAir: true, agl: 900, hdg: 308, speed: 120));
+        await w.Tower.RequestLandingAsync(w.Units["Viper 1-1"], w.Units);
+        Assert.Equal($"Tower: Report final, Say again | {flight}", await Menu());
+        await w.Tower.ReportFinalAsync(w.Units["Viper 1-1"], w.Units);
+        Assert.Equal($"Tower: Say again | {flight}", await Menu());
+        w.Put(Viper(w.OnRunway31R(1200), hdg: 308, speed: 40));
+        await w.Tower.OnUnitsAsync(w.Units);
+        Assert.Equal($"Ground: Request taxi to parking | Tower: Say again | {flight}", await Menu());
+    }
+
+    [SkippableFact]
+    public async Task Flight_entries_depend_on_the_callsign_and_membership()
+    {
+        var w = await CreateAsync();
+        Skip.If(w is null, "DCS install or Al Dhafra dump not available");
+        var spot = w!.Layout.Parking.Single(p => p.Index == 106).Position;
+
+        var digii = w.Put(Aircraft("DiGii", 5, spot, player: "DiGii"));
+        Assert.Equal("Ground: Request taxi", MenuText.Describe(await w.Menu.ForAsync(digii, w.Units)));
+
+        var one = w.Put(Hangman(1, spot + new Vec2(0, 200), 11));
+        w.Put(Hangman(2, spot + new Vec2(0, 230), 12));
+        await w.Flights.DeclareAsync(one, 2, w.Units);
+        Assert.EndsWith("Flight: Single ship", MenuText.Describe(await w.Menu.ForAsync(w.Units["Hangman 1-2"], w.Units)));
+    }
+
+    [SkippableFact]
     public async Task Controllers_speak_on_their_frequencies_and_every_clip_is_prepared_in_advance()
     {
         var w = await CreateAsync();
         Skip.If(w is null, "DCS install or Al Dhafra dump not available");
 
-        // A whole sortie: taxi, hold for traffic, take off, hand-off; arrival, go-around, landing, taxi in.
+        // A whole sortie: taxi, hold for traffic, take off west under pattern traffic (and climb too early), hand-off;
+        // arrival, go-around, landing, taxi in.
         await TaxiToHoldingPointAsync(w!);
         w!.Put(Aircraft("Hornet 1-1", 2, w.OnRunway31R(1500)));
-        await w.Tower.ReadyForDepartureAsync(w.Units["Viper 1-1"], w.Units);
+        await w.Tower.ReadyForDepartureAsync(w.Units["Viper 1-1"], w.Units, DepartureIntent.West);
         w.Units.Remove("Hornet 1-1");
+        w.Put(Aircraft("Hornet 2-1", 5, w.Rwy31R.Center + w.Rwy31R.Axis.Left * (2 * Nm), inAir: true, agl: 1500 * Ft, hdg: 128, speed: 120));
         await w.Tower.OnUnitsAsync(w.Units);
-        w.Put(Viper(w.OnRunway31R(2500), inAir: true, agl: 60, hdg: 308, speed: 90));
+        w.Put(Viper(w.OnRunway31R(2500), inAir: true, agl: 60, hdg: 308, speed: 90, climb: 10));
         await w.Tower.OnUnitsAsync(w.Units);
-        w.Put(Viper(w.OnRunway31R(9000), inAir: true, agl: 1200, hdg: 308, speed: 150));
+        w.Put(Viper(w.OnRunway31R(w.Rwy31R.Length + 1.5 * Nm), inAir: true, agl: 1000 * Ft, hdg: 308, speed: 150, climb: 10));
+        await w.Tower.OnUnitsAsync(w.Units);
+        w.Units.Remove("Hornet 2-1");
+        w.Put(Viper(w.OnRunway31R(w.Rwy31R.Length + 4 * Nm), inAir: true, agl: 1200, hdg: 270, speed: 150, climb: 20));
         await w.Tower.OnUnitsAsync(w.Units);
 
         w.Put(Viper(w.OnFinal31R(15000), inAir: true, agl: 900, hdg: 308, speed: 120));
@@ -326,6 +499,8 @@ public class TowerControlTests
         var calls = w.Radio.Calls;
         Assert.Contains(calls, c => c.Text.Contains("taxi to holding point runway 31R"));
         Assert.Contains(calls, c => c.Text.Contains("go around"));
+        Assert.Contains(calls, c => c.Text.Contains("maintain at or below 500 feet until 3 miles, then turn left heading 270"));
+        Assert.Contains(calls, c => c.Text.Contains("check altitude"));
         Assert.All(calls, c => Assert.Equal(2, c.Coalition));
         Assert.All(calls.Where(c => c.Text.Contains(" Ground, ")), c => Assert.Equal(("Al Dhafra Ground", 250.0), (c.Station, c.FrequencyMhz)));
         Assert.All(calls.Where(c => c.Text.Contains("cleared") || c.Text.Contains("go around")), c => Assert.Equal(("Al Dhafra Tower", 270.0), (c.Station, c.FrequencyMhz)));
@@ -333,12 +508,19 @@ public class TowerControlTests
 
         // What the app prepares at mission start (plus the callsign as the pilot spawns) covers every clip of every call.
         var labels = w.Layout.Labels!;
-        var prepared = Phraseology.Samples("Al Dhafra", w.Layout.Runways, labels.Taxiways.Select(t => t.Name).Distinct(), labels.Areas.Select(a => a.Name), labels.Frequencies, w.Weather)
+        var prepared = Phraseology.Samples("Al Dhafra", w.Layout.Runways, labels.Taxiways.Select(t => t.Name).Distinct(), labels.Areas.Select(a => a.Name), labels.Frequencies, w.Weather, labels.Departure)
             .Concat(Phraseology.CallsignSamples("Viper 1-1"))
             .SelectMany(SpokenText.Units).Select(u => u.Text).ToHashSet();
         var missing = calls.SelectMany(c => SpokenText.Units(c.Text)).Select(u => u.Text).Where(u => !prepared.Contains(u)).Distinct().ToList();
         Assert.Empty(missing);
     }
+}
+
+file static class MenuText
+{
+    /// <summary>"Ground: Request taxi | Tower: Say again | …": the menu as a pilot reads it (submenu, then entry).</summary>
+    public static string Describe(IReadOnlyList<MenuEntry> menu) =>
+        string.Join(" | ", menu.Where(e => e.Path[^1] != "Debug").GroupBy(e => e.Path[^1]).Select(g => $"{g.Key}: {string.Join(", ", g.Select(e => e.Label))}"));
 }
 
 /// <summary>Records what controllers would say on the radio.</summary>

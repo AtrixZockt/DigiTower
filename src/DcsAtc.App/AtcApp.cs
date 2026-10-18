@@ -25,19 +25,16 @@ public sealed record AppOptions
 /// </summary>
 public sealed class AtcApp
 {
-    private static readonly string[] GroundMenu = ["ATC", "Ground"];
-    private static readonly string[] TowerMenu = ["ATC", "Tower"];
-    private static readonly string[] FlightMenu = ["ATC", "Flight"];
-    private static readonly string[] DebugMenu = ["ATC", "Debug"];
-
     private readonly BridgeClient _client;
     private readonly AppOptions _options;
     private readonly AirfieldCatalog _airfields;
     private readonly FlightRegistry _flights;
     private readonly GroundControl _ground;
     private readonly TowerControl _tower;
+    private readonly AtcMenu _menu;
     private readonly Dictionary<string, UnitState> _units = [];
-    private readonly HashSet<int> _menuGroups = [];
+    /// <summary>The F10 menu each player group has now (entry ids), so it is only rebuilt when it changes.</summary>
+    private readonly Dictionary<int, IReadOnlyList<string>> _menus = [];
     private DateTime _lastStatus = DateTime.MinValue;
 
     public AtcApp(BridgeClient client, AppOptions options)
@@ -48,6 +45,7 @@ public sealed class AtcApp
         _flights = new FlightRegistry(client, Log);
         _ground = new GroundControl(client, _airfields, _flights, Log, radio: options.Radio);
         _tower = new TowerControl(client, _airfields, _ground, _flights, Log, radio: options.Radio);
+        _menu = new AtcMenu(_airfields, _ground, _tower, _flights);
     }
 
     public async Task RunAsync(CancellationToken ct)
@@ -138,7 +136,7 @@ public sealed class AtcApp
                 var weather = await _client.GetAirbaseWeatherAsync(airbase.Name, ct);
                 radio.Prepare(Phraseology.Samples(airfield.Facility, layout.Runways,
                     layout.Labels?.Taxiways.Select(t => t.Name).Distinct() ?? [], layout.Labels?.Areas.Select(a => a.Name) ?? [],
-                    layout.Labels?.Frequencies, weather));
+                    layout.Labels?.Frequencies, weather, layout.Labels?.Departure));
             }
         }
         foreach (var name in silence)
@@ -150,30 +148,17 @@ public sealed class AtcApp
         _units.Clear();
         foreach (var u in snapshot.Units) _units[u.Name] = u;
 
-        foreach (var u in snapshot.Units.Where(u => u.IsPlayer && u.GroupId is not null))
+        foreach (var u in PlayerGroups())
         {
-            int groupId = u.GroupId!.Value;
-            if (!_menuGroups.Add(groupId)) continue;
-            await _client.AddMenuAsync(groupId, GroundMenu, "Request taxi", "ground.taxi", ct);
-            await _client.AddMenuAsync(groupId, GroundMenu, "Request taxi to parking", "ground.parking", ct);
-            await _client.AddMenuAsync(groupId, GroundMenu, "Cancel taxi", "ground.cancel", ct);
-            await _client.AddMenuAsync(groupId, GroundMenu, "Say again", "ground.repeat", ct);
-            await _client.AddMenuAsync(groupId, TowerMenu, "Ready for departure", "tower.ready", ct);
-            await _client.AddMenuAsync(groupId, TowerMenu, "Request landing", "tower.landing", ct);
-            await _client.AddMenuAsync(groupId, TowerMenu, "Report final", "tower.final", ct);
-            await _client.AddMenuAsync(groupId, TowerMenu, "Say again", "tower.repeat", ct);
-            await _client.AddMenuAsync(groupId, FlightMenu, "Flight of 2", "flight.2", ct);
-            await _client.AddMenuAsync(groupId, FlightMenu, "Flight of 3", "flight.3", ct);
-            await _client.AddMenuAsync(groupId, FlightMenu, "Flight of 4", "flight.4", ct);
-            await _client.AddMenuAsync(groupId, FlightMenu, "Single ship", "flight.single", ct);
-            await _client.AddMenuAsync(groupId, DebugMenu, "Where am I?", "debug.where", ct);
-            Log($"ATC menu added for {u.Player} ({u.Group})");
+            if (_menus.ContainsKey(u.GroupId!.Value)) continue;
+            Log($"ATC menu for {u.Player} ({u.Group})");
             _options.Radio?.Prepare(Phraseology.CallsignSamples(Phraseology.Callsign(u)), soon: true);
         }
 
         await _flights.OnUnitsAsync(_units, ct);
         await _ground.OnUnitsAsync(_units, ct);
         await _tower.OnUnitsAsync(_units, ct);
+        foreach (var u in PlayerGroups()) await UpdateMenuAsync(u, ct);
 
         if (DateTime.UtcNow - _lastStatus >= _options.StatusInterval)
         {
@@ -198,8 +183,8 @@ public sealed class AtcApp
             case "ground.parking":
                 await _ground.RequestTaxiToParkingAsync(unit, _units, ct);
                 break;
-            case "tower.ready":
-                await _tower.ReadyForDepartureAsync(unit, _units, ct);
+            case var ready when AtcMenu.IntentOf(ready) is { } intent:
+                await _tower.ReadyForDepartureAsync(unit, _units, intent, ct);
                 break;
             case "tower.landing":
                 await _tower.RequestLandingAsync(unit, _units, ct);
@@ -226,6 +211,24 @@ public sealed class AtcApp
                 await _client.ShowTextAsync(m.GroupId, DescribePosition(unit), 15, ct: ct);
                 break;
         }
+        // What the pilot can do next changed: show it now rather than on the next update. A flight's call changes its members' menus too.
+        foreach (var u in PlayerGroups()) await UpdateMenuAsync(u, ct);
+    }
+
+    /// <summary>One player unit per group with players (the menu is per group).</summary>
+    private IEnumerable<UnitState> PlayerGroups() =>
+        _units.Values.Where(u => u.IsPlayer && u.GroupId is not null).DistinctBy(u => u.GroupId).ToList();
+
+    /// <summary>Rebuilds a group's ATC menu when the calls it can make have changed (rebuilt whole, so the order stays the same).</summary>
+    private async Task UpdateMenuAsync(UnitState unit, CancellationToken ct)
+    {
+        int groupId = unit.GroupId!.Value;
+        var entries = await _menu.ForAsync(unit, _units, ct);
+        var ids = entries.Select(e => e.Id).ToList();
+        if (_menus.TryGetValue(groupId, out var current) && current.SequenceEqual(ids)) return;
+        await _client.ClearMenusAsync(groupId, ct);
+        foreach (var e in entries) await _client.AddMenuAsync(groupId, e.Path, e.Label, e.Id, ct);
+        _menus[groupId] = ids;
     }
 
     private string DescribePosition(UnitState u)
@@ -245,7 +248,7 @@ public sealed class AtcApp
     private void ResetMission()
     {
         _units.Clear();
-        _menuGroups.Clear();
+        _menus.Clear();
         _flights.Reset();
         _ground.Reset();
         _tower.Reset();

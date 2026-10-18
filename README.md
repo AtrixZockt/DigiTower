@@ -63,12 +63,15 @@ dotnet run --project src/DcsAtc.App                             # terminal 2
    At airfields with chart data (so far Al Dhafra) the stock ATC is silenced. The controllers speak on SRS
    (127.0.0.1:5002): at Al Dhafra **Ground 250.0** and **Tower 270.0** AM; every call is also shown as text.
    Choosing the voice: [docs/voice.md](docs/voice.md).
-3. In the aircraft, F10 → Other → **ATC**:
+3. In the aircraft, F10 → Other → **ATC**. The menu only shows the calls you can make right now and changes as
+   you go (parked: *Request taxi*; taxiing: *Cancel taxi*, *Say again*; at the holding point: *Ready for
+   departure*; airborne near an airfield: *Request landing*; …). Menus are per group in DCS, so every flight sees
+   its own; players sharing one group (e.g. a two-seater) share its menu.
 
    | Menu | What happens |
    |---|---|
    | Ground → Request taxi | Taxi clearance to the holding point of the runway in use (from the wind; with parallel runways the closer one), e.g. *"Hangman 1-1, Al Dhafra Ground, taxi to holding point runway 31R via A, B. Wind 310 degrees, 10 knots, QNH 1013, altimeter 29.92."* The route is drawn on the F10 map (coalition-wide). Ground warns if you leave the route or taxi faster than 30 kt; at the holding point: *hold short, contact Tower*. |
-   | Tower → Ready for departure | At the holding point: *cleared for takeoff*, *line up and wait* (behind a departing aircraft) or *hold short, runway occupied / traffic on final / number two for departure*; you are cleared as soon as the runway allows. After takeoff: *contact Approach*. |
+   | Tower → Ready for departure → Own navigation / Departure north, east, south, west / Closed traffic | At the holding point: *cleared for takeoff*, *line up and wait* (behind a departing aircraft) or *hold short, runway occupied / traffic on final / number two for departure*; you are cleared as soon as the runway allows. The clearance says how to climb out, from your choice and the traffic: *unrestricted climb approved*; *after departure turn right heading 360*; under pattern traffic *fly runway heading, maintain at or below 500 feet until 3 miles, then …*; behind a departing aircraft *fly runway heading, climb and maintain 3000 feet until advised* (later *climb unrestricted, resume own navigation*); *right closed traffic approved*. Tower warns *check altitude / check heading* if you break a restriction. After takeoff: *contact Approach* (closed traffic stays with Tower: touch and go, or a full stop and *vacate*). The numbers are per airfield (`"departure"` in its labels file). |
    | Tower → Request landing | Airborne within 30 NM: runway, wind, QNH, *report final*. Cleared to land within 6 NM on final (or once you report final) if the runway is free; *go around* if it gets blocked inside 1 NM. After landing: *vacate, contact Ground*. |
    | Tower → Report final | Report final early (landing clearance as soon as the runway allows). |
    | Ground → Request taxi to parking | Route to the free spot that is quickest to reach, named by its area: *"taxi to Apron 1 West via D2, A"*. |

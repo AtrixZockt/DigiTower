@@ -23,6 +23,8 @@ public class VoiceTests
         Assert.Equal("[runway] [zero four]", Spoken("runway 04."));
         Assert.Equal("[climb and maintain] [three thousand five hundred] [feet] | [then] [flight level one two zero]", Spoken("climb and maintain 3500 feet, then FL120."));
         Assert.Equal("[no tower within] [three zero] [miles]", Spoken("no tower within 30 miles."));
+        Assert.Equal("[fly runway heading] | [maintain at or below] [five hundred] [feet until] [three] [miles] | [then turn left heading] [two seven zero] | [unrestricted climb]",
+            Spoken("fly runway heading, maintain at or below 500 feet until 3 miles, then turn left heading 270, unrestricted climb."));
     }
 
     [Fact]

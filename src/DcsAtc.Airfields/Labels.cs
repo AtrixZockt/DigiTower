@@ -21,6 +21,26 @@ public sealed record AreaLabel(string Name, double X, double Z)
 
 public sealed record AirfieldFrequencies(double? Atis, double? Ground, double? Tower, double? Approach);
 
+/// <summary>How Tower sends departures off. Generic military defaults; each airfield can tune them in its labels file.</summary>
+public sealed record DepartureProcedures
+{
+    public static readonly DepartureProcedures Default = new();
+
+    /// <summary>Behind departing traffic: "climb and maintain 3000 feet until advised" (feet MSL).</summary>
+    public double InitialAltitude { get; init; } = 3000;
+    /// <summary>Under pattern traffic: "maintain at or below 500 feet (AGL) until 3 miles (NM from the runway)".</summary>
+    public double StayLowAltitude { get; init; } = 500;
+    public double StayLowDistance { get; init; } = 3;
+    /// <summary>Airborne traffic within this distance of the runway (NM), between floor and top (feet AGL), is pattern traffic.</summary>
+    public double PatternRadius { get; init; } = 5;
+    public double PatternFloor { get; init; } = 700;
+    public double PatternTop { get; init; } = 3500;
+    /// <summary>Departing traffic ahead closer than this (NM) restricts the next departure until it is this far away.</summary>
+    public double Separation { get; init; } = 5;
+    /// <summary>Closed traffic side per runway end ("left" or "right"); left where not given.</summary>
+    public IReadOnlyDictionary<string, string> ClosedTraffic { get; init; } = new Dictionary<string, string>();
+}
+
 /// <summary>A point known both on the chart (pixels) and in DCS (e.g. a runway end).</summary>
 public sealed record ControlPoint(double[] Chart, double X, double Z);
 
@@ -44,6 +64,7 @@ public sealed record AirfieldLabels
     public Georeference? Georeference { get; init; }
     public IReadOnlyList<TaxiwayPath> Taxiways { get; init; } = [];
     public IReadOnlyList<AreaLabel> Areas { get; init; } = [];
+    public DepartureProcedures Departure { get; init; } = DepartureProcedures.Default;
 
     private static readonly JsonSerializerOptions Json = new() { PropertyNameCaseInsensitive = true };
 

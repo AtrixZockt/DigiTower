@@ -105,17 +105,61 @@ public static partial class Phraseology
     /// <summary>A radio frequency as said: 270 → "270.0", 251.25 → "251.25".</summary>
     public static string? Frequency(double? mhz) => mhz?.ToString("0.0##", Inv);
 
-    /// <summary>"Viper 1-1, wind 310 degrees, 10 knots, runway 31R, cleared for takeoff."</summary>
-    public static string ClearedForTakeoff(string callsign, RunwayEnd runway, AirbaseWeather? weather) =>
-        $"{callsign}, {(weather is null ? "" : Wind(weather) + ", ")}runway {runway.Name}, cleared for takeoff.";
+    /// <summary>"Viper 1-1, unrestricted climb approved, wind 310 degrees, 10 knots, runway 31R, cleared for takeoff."</summary>
+    public static string ClearedForTakeoff(string callsign, RunwayEnd runway, AirbaseWeather? weather, DepartureInstruction? departure = null) =>
+        $"{callsign}, {(departure is null ? "" : Departure(departure) + ", ")}{(weather is null ? "" : Wind(weather) + ", ")}runway {runway.Name}, cleared for takeoff.";
+
+    /// <summary>
+    /// The climb-out part of a takeoff clearance: "unrestricted climb approved", "after departure turn right heading 360,
+    /// unrestricted climb approved", "fly runway heading, maintain at or below 500 feet until 3 miles, then unrestricted climb",
+    /// "fly runway heading, climb and maintain 3000 feet until advised", "right closed traffic approved".
+    /// </summary>
+    public static string Departure(DepartureInstruction d)
+    {
+        var p = d.Procedures;
+        if (d.Intent == DepartureIntent.ClosedTraffic) return $"{d.ClosedTrafficSide} closed traffic approved";
+        string? turnOut = TurnOut(d);
+        if (d.StayLow)
+        {
+            string then = d.UntilAdvised ? $"climb and maintain {p.InitialAltitude:0} feet until advised"
+                : turnOut is null ? "unrestricted climb" : $"{turnOut}, unrestricted climb";
+            return $"fly runway heading, maintain at or below {p.StayLowAltitude:0} feet until {p.StayLowDistance:0} miles, then {then}";
+        }
+        if (d.UntilAdvised) return $"fly runway heading, climb and maintain {p.InitialAltitude:0} feet until advised";
+        return turnOut switch
+        {
+            null => "unrestricted climb approved",
+            "fly runway heading" => "fly runway heading, unrestricted climb approved",
+            _ => $"after departure {turnOut}, unrestricted climb approved",
+        };
+    }
+
+    /// <summary>"turn right heading 360", "fly runway heading" (heading close to the runway's), or null (own navigation).</summary>
+    private static string? TurnOut(DepartureInstruction d) =>
+        d.Heading is not int h ? null : d.Turn is { } turn ? $"turn {turn} heading {h:000}" : "fly runway heading";
+
+    /// <summary>The departing traffic ahead is far enough away: "Viper 1-2, climb unrestricted, resume own navigation."</summary>
+    public static string ClimbUnrestricted(string callsign, DepartureInstruction d) =>
+        d.Heading is int h
+            ? $"{callsign}, {(d.Turn is { } turn ? $"turn {turn} heading {h:000}" : $"fly heading {h:000}")}, climb unrestricted."
+            : $"{callsign}, climb unrestricted, resume own navigation.";
+
+    public static string CheckAltitudeStayLow(string callsign, DepartureProcedures p) =>
+        $"{callsign}, check altitude, maintain at or below {p.StayLowAltitude:0} feet until {p.StayLowDistance:0} miles.";
+
+    public static string CheckAltitudeMaintain(string callsign, DepartureProcedures p) =>
+        $"{callsign}, check altitude, maintain {p.InitialAltitude:0} feet.";
+
+    public static string CheckHeading(string callsign) => $"{callsign}, check heading, fly runway heading.";
 
     /// <summary>"Viper 1-1, runway 31L, wind 310 degrees, 10 knots, cleared to land."</summary>
     public static string ClearedToLand(string callsign, RunwayEnd runway, AirbaseWeather? weather) =>
         $"{callsign}, runway {runway.Name}, {(weather is null ? "" : Wind(weather) + ", ")}cleared to land.";
 
-    /// <summary>"…, contact Approach on 257.0, good day." or "…, frequency change approved, good day."</summary>
-    public static string ContactAfterDeparture(string callsign, double? approach) =>
-        Frequency(approach) is { } f ? $"{callsign}, contact Approach on {f}, good day." : $"{callsign}, frequency change approved, good day.";
+    /// <summary>"…, contact Approach on 257.0, good day." or "…, frequency change approved, good day."; after an assigned heading, "resume own navigation" first.</summary>
+    public static string ContactAfterDeparture(string callsign, double? approach, bool resumeOwnNavigation = false) =>
+        $"{callsign}, {(resumeOwnNavigation ? "resume own navigation, " : "")}" +
+        (Frequency(approach) is { } f ? $"contact Approach on {f}, good day." : "frequency change approved, good day.");
 
     // Ground.
 
@@ -192,7 +236,7 @@ public static partial class Phraseology
     /// except the pilots' callsigns.
     /// </summary>
     public static IEnumerable<string> Samples(string facility, IReadOnlyList<Runway> runways, IEnumerable<string> taxiways, IEnumerable<string> areas,
-        AirfieldFrequencies? frequencies, AirbaseWeather? weather)
+        AirfieldFrequencies? frequencies, AirbaseWeather? weather, DepartureProcedures? procedures = null)
     {
         const string cs = "Viper 1-1";
         var via = taxiways.Select(t => new ViaItem(t)).ToList();
@@ -208,7 +252,11 @@ public static partial class Phraseology
                 yield return ReportFinal(cs, facility, end, weather, type);
             }
             yield return HoldShortContactTower(cs, facility, end, frequencies?.Tower);
-            yield return ClearedForTakeoff(cs, end, weather);
+            foreach (var d in DepartureVariants(end, procedures ?? DepartureProcedures.Default))
+            {
+                yield return ClearedForTakeoff(cs, end, weather, d);
+                if (d.UntilAdvised) yield return ClimbUnrestricted(cs, d);
+            }
             yield return ClearedToLand(cs, end, weather);
             yield return LineUpAndWait(cs, end);
             yield return NotAtHoldingPoint(cs, facility, end);
@@ -231,7 +279,26 @@ public static partial class Phraseology
         yield return ReduceTaxiSpeed(cs, facility);
         yield return ParkingReached(cs, facility);
         yield return ContactAfterDeparture(cs, frequencies?.Approach);
+        yield return ContactAfterDeparture(cs, frequencies?.Approach, resumeOwnNavigation: true);
+        yield return CheckAltitudeStayLow(cs, procedures ?? DepartureProcedures.Default);
+        yield return CheckAltitudeMaintain(cs, procedures ?? DepartureProcedures.Default);
+        yield return CheckHeading(cs);
         yield return VacateContactGround(cs, facility, frequencies?.Ground);
+    }
+
+    /// <summary>Every climb-out Tower can give from this runway end: each intent, with and without each restriction.</summary>
+    private static IEnumerable<DepartureInstruction> DepartureVariants(RunwayEnd end, DepartureProcedures procedures)
+    {
+        foreach (var intent in Enum.GetValues<DepartureIntent>())
+        {
+            if (intent == DepartureIntent.ClosedTraffic)
+            {
+                yield return DepartureInstruction.Create(intent, end, procedures);
+                continue;
+            }
+            foreach (var (stayLow, following) in new[] { (false, (string?)null), (true, null), (false, "traffic"), (true, "traffic") })
+                yield return DepartureInstruction.Create(intent, end, procedures, stayLow, following);
+        }
     }
 
     /// <summary>What a pilot's callsign is said as, alone and as a flight ("Hangman 1-1", "Hangman 1 flight").</summary>
