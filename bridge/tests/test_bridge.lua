@@ -28,13 +28,19 @@ local function eq(actual, expected, what)
   end
 end
 
+--- Runs code in the fake mission the way the hook does (result returned twice, see runInMission in the hook).
+local function runInMission(W, code)
+  local inner = 'local __f = function()\n' .. code .. '\nend\nlocal __r = __f()\nreturn __r, __r'
+  return W.net.dostring_in('mission', 'local a, b = a_do_script(' .. string.format('%q', inner) .. ')\nif b ~= nil then return b end\nreturn a')
+end
+
 --- A fake world with the mission script loaded the same way the hook does it.
-local function missionWorld()
-  local W = fake.new()
+local function missionWorld(opts)
+  local W = fake.new(opts)
   W:setupScenario()
   local f = assert(io.open(root .. 'Scripts/DcsAtc/DcsAtcMission.lua')):read('*a')
-  local info, ok = W.net.dostring_in('mission', 'return a_do_script(' .. string.format('%q', f .. '\nreturn ATCB.start()') .. ')')
-  assert(ok, info)
+  local info, ok = runInMission(W, f .. '\nreturn ATCB.start()')
+  assert(ok and info ~= '', 'mission did not start: ' .. tostring(info))
   return W, W.env.ATCB, info
 end
 
@@ -57,11 +63,21 @@ test('encoder: strings, numbers, arrays, objects', function()
   eq(decoded.a, 1, 'object a'); eq(decoded.b.c, 'd', 'object b.c')
 end)
 
-test('start returns mission info', function()
-  local _, _, info = missionWorld()
-  local m = json.decode(info)
-  eq(m.theatre, 'PersianGulf', 'theatre')
-  eq(m.protocol, 1, 'protocol')
+test('fake DCS reproduces the a_do_script return bug', function()
+  local buggy = fake.new()
+  eq(buggy.net.dostring_in('mission', 'return a_do_script("return 42")'), '', 'single value lost')
+  eq(buggy.net.dostring_in('mission', 'local a, b = a_do_script("return 1, 2") return tostring(a) .. "," .. tostring(b)'), 'nil,1', 'values shifted')
+  local fixed = fake.new({ fixedReturns = true })
+  eq(fixed.net.dostring_in('mission', 'return a_do_script("return 42")'), '42', 'fixed DCS')
+end)
+
+test('start returns mission info, with and without the return bug', function()
+  for _, fixed in ipairs({ false, true }) do
+    local _, _, info = missionWorld({ fixedReturns = fixed })
+    local m = json.decode(info)
+    eq(m.theatre, 'PersianGulf', 'theatre')
+    eq(m.protocol, 1, 'protocol')
+  end
 end)
 
 test('poll returns unit states for planes and helicopters', function()
@@ -125,16 +141,15 @@ test('commands: replies, text, airbase info, radio silence, unknown', function()
   for _, m in ipairs(poll(W, false).msgs) do if m.type == 'reply' then replies[m.req] = m end end
   eq(replies[1].ok, true, 'ping ok'); eq(replies[1].data.pong, true, 'pong')
   eq(W.texts[1].text, 'Hello', 'text shown'); eq(W.texts[1].target, 'group 7', 'text target')
-  eq(replies[2].data.runways[1].name, '13L', 'runway name')
-  eq(#replies[2].data.parking, 2, 'parking count')
+  eq(replies[2].data.runways[1].name, '13', 'runway name (DCS calls the parallel runways 13 and 31)')
+  eq(#replies[2].data.parking, 4, 'parking count')
   eq(replies[3].data.silent, true, 'radio silent')
   eq(replies[4].ok, false, 'unknown command fails'); eq(replies[5].ok, false, 'missing airbase fails')
 end)
 
-test('hook: end to end over a real socket', function()
-  local port = 42790
+local function hookEndToEnd(port, fixedReturns)
   local start = socket.gettime()
-  local W = fake.new()
+  local W = fake.new({ fixedReturns = fixedReturns })
   W:setupScenario()
   local cb = fake.loadHook(W, root, port, start)
   local client = assert(socket.connect('127.0.0.1', port))
@@ -195,6 +210,45 @@ test('hook: end to end over a real socket', function()
   cb.onSimulationStop()
   pump(0.2)
   eq(find(function(m) return m.type == 'mission_stop' end) ~= nil, true, 'mission_stop')
+  client:close()
+end
+
+test('commands: weather and F10 map drawings', function()
+  local W, ATCB = missionWorld()
+  ATCB.command({ cmd = 'airbase_weather', req = 1, name = 'Al Dhafra AFB' })
+  ATCB.command({ cmd = 'draw_route', req = 2, key = 'taxi-1', coalition = 2, points = { { 0, 0 }, { 100, 0 }, { 100, 100 } }, text = 'HOLD SHORT 13L' })
+  local replies = {}
+  for _, m in ipairs(poll(W, false).msgs) do if m.type == 'reply' then replies[m.req] = m end end
+  eq(math.floor(replies[1].data.pressure), 101130, 'pressure')
+  eq(replies[1].data.elevation, 16, 'elevation')
+  eq(replies[2].data.marks, 3, 'two lines and a text')
+  local count = 0
+  for _ in pairs(W.marks) do count = count + 1 end
+  eq(count, 3, 'marks on the map')
+  ATCB.command({ cmd = 'draw_route', key = 'taxi-1', coalition = 2, points = { { 0, 0 }, { 50, 0 } } })
+  count = 0
+  for _ in pairs(W.marks) do count = count + 1 end
+  eq(count, 1, 'redraw replaces the old route')
+  ATCB.command({ cmd = 'drawing_clear', key = 'taxi-1' })
+  eq(next(W.marks), nil, 'cleared')
+end)
+
+test('hook: end to end over a real socket (DCS 2.9.30 a_do_script bug)', function() hookEndToEnd(42790, false) end)
+test('hook: end to end over a real socket (a_do_script fixed)', function() hookEndToEnd(42791, true) end)
+
+test('hook: reports a failed injection in hello', function()
+  local start = socket.gettime()
+  local W = fake.new()
+  W:setupScenario()
+  local cb = fake.loadHook(W, root, 42792, start)
+  W.missionState.a_do_script = function() return nil end   -- mission side never answers
+  cb.onSimulationStart()
+  local client = assert(socket.connect('127.0.0.1', 42792))
+  client:settimeout(1)
+  for _ = 1, 5 do cb.onSimulationFrame() socket.sleep(0.02) end
+  local hello = fake.stripNull(json.decode(assert(client:receive('*l'))))
+  eq(hello.missionRunning, false, 'not running')
+  eq(hello.error ~= nil and hello.error:find('mission injection failed', 1, true) ~= nil, true, 'error reported')
   client:close()
 end)
 

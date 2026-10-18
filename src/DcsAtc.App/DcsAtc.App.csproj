@@ -3,6 +3,7 @@
   <ItemGroup>
     <ProjectReference Include="..\DcsAtc.Bridge\DcsAtc.Bridge.csproj" />
     <ProjectReference Include="..\DcsAtc.Airfields\DcsAtc.Airfields.csproj" />
+    <ProjectReference Include="..\DcsAtc.Atc\DcsAtc.Atc.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

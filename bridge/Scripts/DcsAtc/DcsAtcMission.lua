@@ -335,6 +335,59 @@ local function radioSilent(c)
   return { name = c.name, silent = ab:getRadioSilentMode() }
 end
 
+--- Wind 10 m above the field (the direction the wind blows towards, m/s) and temperature (K) and
+-- pressure (Pa) at field elevation.
+local function airbaseWeather(c)
+  local ab = Airbase.getByName(c.name)
+  if not ab then error('airbase not found: ' .. tostring(c.name)) end
+  local p = ab:getPoint()
+  local wind = atmosphere.getWind({ x = p.x, y = p.y + 10, z = p.z })
+  local temperature, pressure = atmosphere.getTemperatureAndPressure({ x = p.x, y = p.y, z = p.z })
+  return { windX = wind.x, windZ = wind.z, temperature = temperature, pressure = pressure, elevation = p.y }
+end
+
+---------------------------------------------------------------------------------------------------
+-- F10 map drawings (lines and a text), grouped under a key so they can be replaced or removed
+---------------------------------------------------------------------------------------------------
+
+ATCB.drawings = {}         -- [key] = list of mark ids
+ATCB.nextMarkId = 7400000  -- well above ids that missions and players typically use
+
+local function newMarkId()
+  local id = ATCB.nextMarkId
+  ATCB.nextMarkId = id + 1
+  return id
+end
+
+local function drawingClear(c)
+  for _, id in ipairs(ATCB.drawings[c.key] or {}) do trigger.action.removeMark(id) end
+  ATCB.drawings[c.key] = nil
+end
+
+--- Draws a polyline (points = {{x, z}, ...}) for a coalition (-1 = all), optionally with a text at its end.
+local function drawRoute(c)
+  assert(c.key, 'key required')
+  drawingClear(c)
+  local coal = tonumber(c.coalition) or -1
+  local color = c.color or { 1, 0, 1, 1 }
+  local pts = c.points or {}
+  local ids = {}
+  for i = 2, #pts do
+    local id = newMarkId()
+    trigger.action.lineToAll(coal, id, { x = pts[i - 1][1], y = 0, z = pts[i - 1][2] }, { x = pts[i][1], y = 0, z = pts[i][2] },
+      color, tonumber(c.lineType) or 1, true, '')
+    ids[#ids + 1] = id
+  end
+  if c.text and #pts > 0 then
+    local id = newMarkId()
+    trigger.action.textToAll(coal, id, { x = pts[#pts][1], y = 0, z = pts[#pts][2] }, color, { 0, 0, 0, 0.35 },
+      tonumber(c.fontSize) or 14, true, tostring(c.text))
+    ids[#ids + 1] = id
+  end
+  ATCB.drawings[c.key] = ids
+  return { marks = #ids }
+end
+
 local COMMANDS = {
   ping = function() return { pong = true, t = now() } end,
   text = text,
@@ -343,7 +396,10 @@ local COMMANDS = {
   menu_clear = menuClear,
   airbase_list = airbaseList,
   airbase_info = airbaseInfo,
+  airbase_weather = airbaseWeather,
   radio_silent = radioSilent,
+  draw_route = drawRoute,
+  drawing_clear = drawingClear,
 }
 
 --- Executes one command table from the ATC app. Replies are queued when the command has a `req` id.

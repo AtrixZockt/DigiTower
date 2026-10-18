@@ -51,6 +51,7 @@ local state = {
   outBuffer = '',
   missionRunning = false,
   missionInfo = nil,
+  lastError = nil,      -- reported in `hello`, because the app may connect after the error happened
   lastPoll = 0,
   lastUnits = 0,
 }
@@ -59,10 +60,16 @@ local state = {
 -- Running code in the mission scripting environment
 ---------------------------------------------------------------------------------------------------
 
---- Runs `code` in the mission scripting environment and returns its first result as a string.
+--- Runs `code` in the mission scripting environment and returns its result as a string.
 -- Returns nil and an error message on failure.
+--
+-- DCS bug (since 2.9.18, still in 2.9.30): a_do_script() prepends a nil to the values it passes
+-- back and drops the last one, so `return a_do_script("return 42")` yields nil. The code therefore
+-- runs inside a function whose result is returned twice; the second value is the result whether
+-- or not the bug is present. https://forum.dcs.world/topic/376809-a_do_script-return-value-pass-thru-mangled-since-dcs-291812722/
 local function runInMission(code)
-  local wrapped = 'return a_do_script(' .. string.format('%q', code) .. ')'
+  local inner = 'local __dcsatc = function()\n' .. code .. '\nend\nlocal __r = __dcsatc()\nreturn __r, __r'
+  local wrapped = 'local a, b = a_do_script(' .. string.format('%q', inner) .. ')\nif b ~= nil then return b end\nreturn a'
   local ok, result, success = pcall(net.dostring_in, 'mission', wrapped)
   if not ok then return nil, tostring(result) end
   if success == false then return nil, tostring(result) end
@@ -140,6 +147,7 @@ local function hello()
     missionRunning = state.missionRunning,
     info = state.missionInfo,
     multiplayer = Sim.isMultiplayer(),
+    error = state.lastError,
   })
 end
 
@@ -235,13 +243,15 @@ local function injectMission()
   file:close()
   local info, err = runInMission(code .. '\nreturn ATCB.start()')
   if err or not info or info == '' then
-    logError('could not start the mission side (is autoexec.cfg set up?): ' .. tostring(err))
-    send({ type = 'error', error = 'mission injection failed: ' .. tostring(err) })
+    state.lastError = 'mission injection failed: ' .. (err or 'no reply from the mission (see dcs.log for SCRIPTING errors)')
+    logError(state.lastError)
+    send({ type = 'error', error = state.lastError })
     return
   end
   local okDecode, decoded = pcall(net.json2lua, info)
   state.missionInfo = okDecode and decoded or nil
   state.missionRunning = true
+  state.lastError = nil
   state.lastPoll, state.lastUnits = 0, 0
   logInfo('mission side started: ' .. tostring(Sim.getMissionName()))
   send({ type = 'mission_start', mission = Sim.getMissionName(), info = state.missionInfo })

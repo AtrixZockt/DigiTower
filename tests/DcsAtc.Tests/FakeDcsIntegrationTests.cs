@@ -63,8 +63,11 @@ public class FakeDcsIntegrationTests
             Assert.Contains(units!.Units, u => u is { Name: "Dustoff 1-1", IsHelicopter: true, IsPlayer: true });
 
             var dhafra = await client.GetAirbaseAsync("Al Dhafra AFB", cts.Token);
-            Assert.Equal(["13L", "13R"], dhafra!.Runways.Select(r => r.Name));
-            Assert.Equal(130, dhafra.Runways[0].TrueHeading, 3);
+            // The fake uses DCS's real Al Dhafra data: DCS names the parallel runways "13" and "31".
+            Assert.Equal(["13", "31"], dhafra!.Runways.Select(r => r.Name));
+            Assert.Equal(127.9, dhafra.Runways[0].TrueHeading, 1);
+            var weather = await client.GetAirbaseWeatherAsync("Al Dhafra AFB", cts.Token);
+            Assert.Equal(310, weather!.WindFrom, 3);
             Assert.True(await client.SetRadioSilentAsync("Al Dhafra AFB", true, cts.Token));
             await Assert.ThrowsAsync<BridgeCommandException>(() => client.GetAirbaseAsync("Nowhere", cts.Token));
 

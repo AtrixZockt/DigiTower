@@ -2,6 +2,7 @@
   <Folder Name="/src/">
     <Project Path="src/DcsAtc.Airfields/DcsAtc.Airfields.csproj" />
     <Project Path="src/DcsAtc.App/DcsAtc.App.csproj" />
+    <Project Path="src/DcsAtc.Atc/DcsAtc.Atc.csproj" />
     <Project Path="src/DcsAtc.Bridge/DcsAtc.Bridge.csproj" />
   </Folder>
   <Folder Name="/tests/">

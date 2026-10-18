@@ -1,0 +1,2573 @@
+{
+  "Name": "Al Dhafra AFB",
+  "Id": 4,
+  "Callsign": "Al Dhafra AFB",
+  "Category": 0,
+  "Coalition": 2,
+  "X": -209935.4844,
+  "Y": 16.00001526,
+  "Z": -174592.0625,
+  "RadioSilent": false,
+  "Runways": [
+    {
+      "Name": "13",
+      "Course": -2.233061075,
+      "Width": 60,
+      "Length": 3475.793213,
+      "X": -211027.7812,
+      "Y": 16.00001526,
+      "Z": -173240
+    },
+    {
+      "Name": "31",
+      "Course": -2.233127356,
+      "Width": 60,
+      "Length": 3475.793213,
+      "X": -212946.2656,
+      "Y": 16.00001526,
+      "Z": -172936.4688
+    }
+  ],
+  "Parking": [
+    {
+      "Index": 253,
+      "Index0": -1,
+      "TermType": 104,
+      "X": -211593.0625,
+      "Y": 16.00001526,
+      "Z": -171758.2969,
+      "DistToRunway": 3820.878418,
+      "Occupied": false
+    },
+    {
+      "Index": 252,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -211549.7656,
+      "Y": 16.00001526,
+      "Z": -174212.0625,
+      "DistToRunway": 2609.342529,
+      "Occupied": false
+    },
+    {
+      "Index": 251,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -211565.9688,
+      "Y": 16.00001526,
+      "Z": -174223.9219,
+      "DistToRunway": 2621.603516,
+      "Occupied": false
+    },
+    {
+      "Index": 250,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -211582.7969,
+      "Y": 16.00001526,
+      "Z": -174237.2656,
+      "DistToRunway": 2643.232178,
+      "Occupied": false
+    },
+    {
+      "Index": 249,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -211598.8281,
+      "Y": 16.00001526,
+      "Z": -174249.0938,
+      "DistToRunway": 2662.850586,
+      "Occupied": false
+    },
+    {
+      "Index": 248,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -211614.5156,
+      "Y": 16.00001526,
+      "Z": -174261.75,
+      "DistToRunway": 2682.920166,
+      "Occupied": false
+    },
+    {
+      "Index": 247,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -211630.4062,
+      "Y": 16.00001526,
+      "Z": -174273.8594,
+      "DistToRunway": 2702.631348,
+      "Occupied": false
+    },
+    {
+      "Index": 246,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -211647.2188,
+      "Y": 16.00001526,
+      "Z": -174287.0781,
+      "DistToRunway": 2724.122803,
+      "Occupied": false
+    },
+    {
+      "Index": 245,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -211662.6562,
+      "Y": 16.00001526,
+      "Z": -174298.6719,
+      "DistToRunway": 2743.087891,
+      "Occupied": false
+    },
+    {
+      "Index": 244,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -211940.6562,
+      "Y": 16.00001526,
+      "Z": -174520.3438,
+      "DistToRunway": 3092.2854,
+      "Occupied": false
+    },
+    {
+      "Index": 243,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -211956.2812,
+      "Y": 16.00001526,
+      "Z": -174531.4219,
+      "DistToRunway": 3110.709229,
+      "Occupied": false
+    },
+    {
+      "Index": 242,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -211974.0312,
+      "Y": 16.00001526,
+      "Z": -174543.5312,
+      "DistToRunway": 3130.77832,
+      "Occupied": false
+    },
+    {
+      "Index": 241,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -211989.8438,
+      "Y": 16.00001526,
+      "Z": -174555.6562,
+      "DistToRunway": 3150.554199,
+      "Occupied": false
+    },
+    {
+      "Index": 240,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -212005.9062,
+      "Y": 16.00001526,
+      "Z": -174567.8594,
+      "DistToRunway": 3170.470703,
+      "Occupied": false
+    },
+    {
+      "Index": 239,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -212021.3906,
+      "Y": 16.00001526,
+      "Z": -174580.6094,
+      "DistToRunway": 3190.954346,
+      "Occupied": false
+    },
+    {
+      "Index": 238,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -212038.3594,
+      "Y": 16.00001526,
+      "Z": -174593.625,
+      "DistToRunway": 3212.234375,
+      "Occupied": false
+    },
+    {
+      "Index": 237,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -212246,
+      "Y": 16.00001526,
+      "Z": -174625.625,
+      "DistToRunway": 3390.109863,
+      "Occupied": false
+    },
+    {
+      "Index": 236,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -212260.5781,
+      "Y": 16.00001526,
+      "Z": -174638.2188,
+      "DistToRunway": 3408.480957,
+      "Occupied": false
+    },
+    {
+      "Index": 235,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -212277.4844,
+      "Y": 16.00001526,
+      "Z": -174651.2812,
+      "DistToRunway": 3429.979736,
+      "Occupied": false
+    },
+    {
+      "Index": 234,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -212294.2812,
+      "Y": 16.00001526,
+      "Z": -174662.1562,
+      "DistToRunway": 3451.669434,
+      "Occupied": false
+    },
+    {
+      "Index": 233,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -212310.2969,
+      "Y": 16.00001526,
+      "Z": -174674.375,
+      "DistToRunway": 3472.053467,
+      "Occupied": false
+    },
+    {
+      "Index": 232,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -212325.7344,
+      "Y": 16.00001526,
+      "Z": -174687.25,
+      "DistToRunway": 3491.344971,
+      "Occupied": false
+    },
+    {
+      "Index": 231,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -212343.1562,
+      "Y": 16.00001526,
+      "Z": -174699.6406,
+      "DistToRunway": 3513.739746,
+      "Occupied": false
+    },
+    {
+      "Index": 230,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -212359.125,
+      "Y": 16.00001526,
+      "Z": -174711.8438,
+      "DistToRunway": 3534.772949,
+      "Occupied": false
+    },
+    {
+      "Index": 229,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -212608.7188,
+      "Y": 16.00001526,
+      "Z": -174196.7656,
+      "DistToRunway": 4012.190186,
+      "Occupied": false
+    },
+    {
+      "Index": 228,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -212593.4531,
+      "Y": 16.00001526,
+      "Z": -174217.1094,
+      "DistToRunway": 3986.585938,
+      "Occupied": false
+    },
+    {
+      "Index": 227,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -212577.4844,
+      "Y": 16.00001526,
+      "Z": -174237.2031,
+      "DistToRunway": 3961.057129,
+      "Occupied": false
+    },
+    {
+      "Index": 226,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -212561,
+      "Y": 16.00001526,
+      "Z": -174258.4062,
+      "DistToRunway": 3934.176025,
+      "Occupied": false
+    },
+    {
+      "Index": 225,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -212544.4844,
+      "Y": 16.00001526,
+      "Z": -174279.5781,
+      "DistToRunway": 3907.344727,
+      "Occupied": false
+    },
+    {
+      "Index": 224,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -212505.3281,
+      "Y": 16.00001526,
+      "Z": -174329.3125,
+      "DistToRunway": 3844.176514,
+      "Occupied": false
+    },
+    {
+      "Index": 223,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -212490.2344,
+      "Y": 16.00001526,
+      "Z": -174349.125,
+      "DistToRunway": 3819.076172,
+      "Occupied": false
+    },
+    {
+      "Index": 222,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -212474.1719,
+      "Y": 16.00001526,
+      "Z": -174369.5156,
+      "DistToRunway": 3793.261719,
+      "Occupied": false
+    },
+    {
+      "Index": 221,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -212457.6719,
+      "Y": 16.00001526,
+      "Z": -174390.5625,
+      "DistToRunway": 3766.546143,
+      "Occupied": false
+    },
+    {
+      "Index": 220,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -212441.3125,
+      "Y": 16.00001526,
+      "Z": -174411.8125,
+      "DistToRunway": 3739.611084,
+      "Occupied": false
+    },
+    {
+      "Index": 219,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -212425.3438,
+      "Y": 16.00001526,
+      "Z": -174432.6406,
+      "DistToRunway": 3712.895996,
+      "Occupied": false
+    },
+    {
+      "Index": 218,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -212382.7969,
+      "Y": 16.00001526,
+      "Z": -174388.0781,
+      "DistToRunway": 3593.474365,
+      "Occupied": false
+    },
+    {
+      "Index": 217,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -212397.8281,
+      "Y": 16.00001526,
+      "Z": -174368.875,
+      "DistToRunway": 3617.859131,
+      "Occupied": false
+    },
+    {
+      "Index": 216,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -212413.6562,
+      "Y": 16.00001526,
+      "Z": -174348.3438,
+      "DistToRunway": 3643.677246,
+      "Occupied": false
+    },
+    {
+      "Index": 215,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -212428.9062,
+      "Y": 16.00001526,
+      "Z": -174328.4844,
+      "DistToRunway": 3668.635498,
+      "Occupied": false
+    },
+    {
+      "Index": 214,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -212445.4375,
+      "Y": 16.00001526,
+      "Z": -174307.5312,
+      "DistToRunway": 3695.385498,
+      "Occupied": false
+    },
+    {
+      "Index": 213,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -212462.1094,
+      "Y": 16.00001526,
+      "Z": -174286.5312,
+      "DistToRunway": 3722.318604,
+      "Occupied": false
+    },
+    {
+      "Index": 212,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -212500.5312,
+      "Y": 16.00001526,
+      "Z": -174237.2656,
+      "DistToRunway": 3784.833252,
+      "Occupied": false
+    },
+    {
+      "Index": 211,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -212515.125,
+      "Y": 16.00001526,
+      "Z": -174218.0312,
+      "DistToRunway": 3808.733154,
+      "Occupied": false
+    },
+    {
+      "Index": 210,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -212530.9531,
+      "Y": 16.00001526,
+      "Z": -174197.6094,
+      "DistToRunway": 3834.621094,
+      "Occupied": false
+    },
+    {
+      "Index": 209,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -212546.8594,
+      "Y": 16.00001526,
+      "Z": -174177.6406,
+      "DistToRunway": 3860.244141,
+      "Occupied": false
+    },
+    {
+      "Index": 208,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -212562.1562,
+      "Y": 16.00001526,
+      "Z": -174157.3906,
+      "DistToRunway": 3885.437256,
+      "Occupied": false
+    },
+    {
+      "Index": 207,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -213192.625,
+      "Y": 16.00001526,
+      "Z": -173366.4688,
+      "DistToRunway": 4716.757812,
+      "Occupied": false
+    },
+    {
+      "Index": 206,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -213208.6406,
+      "Y": 16.00001526,
+      "Z": -173346.2969,
+      "DistToRunway": 4742.410645,
+      "Occupied": false
+    },
+    {
+      "Index": 205,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -213225.5938,
+      "Y": 16.00001526,
+      "Z": -173324.5625,
+      "DistToRunway": 4769.976074,
+      "Occupied": false
+    },
+    {
+      "Index": 204,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -213240.9062,
+      "Y": 16.00001526,
+      "Z": -173305.2031,
+      "DistToRunway": 4794.54248,
+      "Occupied": false
+    },
+    {
+      "Index": 203,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -213256.9375,
+      "Y": 16.00001526,
+      "Z": -173284.8906,
+      "DistToRunway": 4820.369141,
+      "Occupied": false
+    },
+    {
+      "Index": 202,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -213285.8906,
+      "Y": 16.00001526,
+      "Z": -173247.3438,
+      "DistToRunway": 4867.746094,
+      "Occupied": false
+    },
+    {
+      "Index": 201,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -213301.6875,
+      "Y": 16.00001526,
+      "Z": -173227.0156,
+      "DistToRunway": 4893.617188,
+      "Occupied": false
+    },
+    {
+      "Index": 200,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -213318.5938,
+      "Y": 16.00001526,
+      "Z": -173205.125,
+      "DistToRunway": 4921.399414,
+      "Occupied": false
+    },
+    {
+      "Index": 199,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -213333.875,
+      "Y": 16.00001526,
+      "Z": -173186.1406,
+      "DistToRunway": 4945.619141,
+      "Occupied": false
+    },
+    {
+      "Index": 198,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -213349.8438,
+      "Y": 16.00001526,
+      "Z": -173165.4062,
+      "DistToRunway": 4971.881836,
+      "Occupied": false
+    },
+    {
+      "Index": 197,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -213385.7188,
+      "Y": 16.00001526,
+      "Z": -173119.0156,
+      "DistToRunway": 5030.583984,
+      "Occupied": false
+    },
+    {
+      "Index": 196,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -213401.8594,
+      "Y": 16.00001526,
+      "Z": -173099.5,
+      "DistToRunway": 5055.481934,
+      "Occupied": false
+    },
+    {
+      "Index": 195,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -213418.625,
+      "Y": 16.00001526,
+      "Z": -173077.8281,
+      "DistToRunway": 5083.063477,
+      "Occupied": false
+    },
+    {
+      "Index": 194,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -213434,
+      "Y": 16.00001526,
+      "Z": -173058.3594,
+      "DistToRunway": 5107.76416,
+      "Occupied": false
+    },
+    {
+      "Index": 193,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -213449.9375,
+      "Y": 16.00001526,
+      "Z": -173037.2188,
+      "DistToRunway": 5134.430664,
+      "Occupied": false
+    },
+    {
+      "Index": 192,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -213160.7812,
+      "Y": 16.00001526,
+      "Z": -173333.0156,
+      "DistToRunway": 4612.969727,
+      "Occupied": false
+    },
+    {
+      "Index": 191,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -213175.8438,
+      "Y": 16.00001526,
+      "Z": -173313.4688,
+      "DistToRunway": 4637.584961,
+      "Occupied": false
+    },
+    {
+      "Index": 190,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -213191.3906,
+      "Y": 16.00001526,
+      "Z": -173293.7812,
+      "DistToRunway": 4662.82373,
+      "Occupied": false
+    },
+    {
+      "Index": 189,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -213206.7812,
+      "Y": 16.00001526,
+      "Z": -173273.6406,
+      "DistToRunway": 4687.830566,
+      "Occupied": false
+    },
+    {
+      "Index": 188,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -213222.4844,
+      "Y": 16.00001526,
+      "Z": -173253.6094,
+      "DistToRunway": 4713.387207,
+      "Occupied": false
+    },
+    {
+      "Index": 187,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -213257.1875,
+      "Y": 16.00001526,
+      "Z": -173209.625,
+      "DistToRunway": 4769.608887,
+      "Occupied": false
+    },
+    {
+      "Index": 186,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -213272.1562,
+      "Y": 16.00001526,
+      "Z": -173190.0156,
+      "DistToRunway": 4794.131348,
+      "Occupied": false
+    },
+    {
+      "Index": 185,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -213287.6406,
+      "Y": 16.00001526,
+      "Z": -173170.3125,
+      "DistToRunway": 4819.300781,
+      "Occupied": false
+    },
+    {
+      "Index": 184,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -213303.2344,
+      "Y": 16.00001526,
+      "Z": -173150.25,
+      "DistToRunway": 4844.571777,
+      "Occupied": false
+    },
+    {
+      "Index": 183,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -213319.0938,
+      "Y": 16.00001526,
+      "Z": -173130.3281,
+      "DistToRunway": 4870.196289,
+      "Occupied": false
+    },
+    {
+      "Index": 182,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -213353.2188,
+      "Y": 16.00001526,
+      "Z": -173087.0625,
+      "DistToRunway": 4925.476074,
+      "Occupied": false
+    },
+    {
+      "Index": 181,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -213367.7188,
+      "Y": 16.00001526,
+      "Z": -173067.5625,
+      "DistToRunway": 4949.575684,
+      "Occupied": false
+    },
+    {
+      "Index": 180,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -213383.3594,
+      "Y": 16.00001526,
+      "Z": -173047.6719,
+      "DistToRunway": 4974.885254,
+      "Occupied": false
+    },
+    {
+      "Index": 179,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -213398.6875,
+      "Y": 16.00001526,
+      "Z": -173027.6875,
+      "DistToRunway": 5000.015137,
+      "Occupied": false
+    },
+    {
+      "Index": 178,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -213414.375,
+      "Y": 16.00001526,
+      "Z": -173007.8438,
+      "DistToRunway": 5025.415527,
+      "Occupied": false
+    },
+    {
+      "Index": 177,
+      "Index0": -1,
+      "TermType": 40,
+      "X": -214250.8281,
+      "Y": 16.00001526,
+      "Z": -172216.9219,
+      "DistToRunway": 6131.34082,
+      "Occupied": false
+    },
+    {
+      "Index": 176,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -214910.9844,
+      "Y": 16.00001526,
+      "Z": -171077.625,
+      "DistToRunway": 7402.770996,
+      "Occupied": false
+    },
+    {
+      "Index": 175,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -214917.9375,
+      "Y": 16.00001526,
+      "Z": -171097.4688,
+      "DistToRunway": 7391.741699,
+      "Occupied": false
+    },
+    {
+      "Index": 174,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -214881.8125,
+      "Y": 16.00001526,
+      "Z": -171087.1562,
+      "DistToRunway": 6966.110352,
+      "Occupied": false
+    },
+    {
+      "Index": 173,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -214887.9844,
+      "Y": 16.00001526,
+      "Z": -171106,
+      "DistToRunway": 6953.965332,
+      "Occupied": false
+    },
+    {
+      "Index": 172,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -214927.5469,
+      "Y": 16.00001526,
+      "Z": -171130.2188,
+      "DistToRunway": 7390.748535,
+      "Occupied": false
+    },
+    {
+      "Index": 171,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -214933.5312,
+      "Y": 16.00001526,
+      "Z": -171149.4531,
+      "DistToRunway": 7399.578125,
+      "Occupied": false
+    },
+    {
+      "Index": 170,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -214897.3438,
+      "Y": 16.00001526,
+      "Z": -171139.5781,
+      "DistToRunway": 6951.73584,
+      "Occupied": false
+    },
+    {
+      "Index": 169,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -214903.3906,
+      "Y": 16.00001526,
+      "Z": -171158.1719,
+      "DistToRunway": 6962.265137,
+      "Occupied": false
+    },
+    {
+      "Index": 168,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -214917.7812,
+      "Y": 16.00001526,
+      "Z": -171224.25,
+      "DistToRunway": 7409.675293,
+      "Occupied": false
+    },
+    {
+      "Index": 167,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -214886.8906,
+      "Y": 16.00001526,
+      "Z": -171229.4844,
+      "DistToRunway": 6892.743652,
+      "Occupied": false
+    },
+    {
+      "Index": 166,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -214921.625,
+      "Y": 16.00001526,
+      "Z": -171244.4375,
+      "DistToRunway": 7399.17627,
+      "Occupied": false
+    },
+    {
+      "Index": 165,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -214890.4844,
+      "Y": 16.00001526,
+      "Z": -171249.1875,
+      "DistToRunway": 6881.444824,
+      "Occupied": false
+    },
+    {
+      "Index": 164,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -214928.25,
+      "Y": 16.00001526,
+      "Z": -171278.4531,
+      "DistToRunway": 7397.565918,
+      "Occupied": false
+    },
+    {
+      "Index": 163,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -214932.1875,
+      "Y": 16.00001526,
+      "Z": -171298.7969,
+      "DistToRunway": 7407.318359,
+      "Occupied": false
+    },
+    {
+      "Index": 162,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -214896.9375,
+      "Y": 16.00001526,
+      "Z": -171284.1562,
+      "DistToRunway": 6881.151367,
+      "Occupied": false
+    },
+    {
+      "Index": 161,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -214900.1719,
+      "Y": 16.00001526,
+      "Z": -171304.4062,
+      "DistToRunway": 6890.509277,
+      "Occupied": false
+    },
+    {
+      "Index": 160,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -214778.9219,
+      "Y": 16.00001526,
+      "Z": -171374.3438,
+      "DistToRunway": 7263.987793,
+      "Occupied": false
+    },
+    {
+      "Index": 159,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -214747.0781,
+      "Y": 16.00001526,
+      "Z": -171376.0469,
+      "DistToRunway": 6689.891113,
+      "Occupied": false
+    },
+    {
+      "Index": 158,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -214780.3438,
+      "Y": 16.00001526,
+      "Z": -171395.0156,
+      "DistToRunway": 7253.065918,
+      "Occupied": false
+    },
+    {
+      "Index": 157,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -214747.7969,
+      "Y": 16.00001526,
+      "Z": -171396.4062,
+      "DistToRunway": 6677.397949,
+      "Occupied": false
+    },
+    {
+      "Index": 156,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -214781.5469,
+      "Y": 16.00001526,
+      "Z": -171429.25,
+      "DistToRunway": 7253.676758,
+      "Occupied": false
+    },
+    {
+      "Index": 155,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -214782.375,
+      "Y": 16.00001526,
+      "Z": -171449.75,
+      "DistToRunway": 7263.898926,
+      "Occupied": false
+    },
+    {
+      "Index": 154,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -214750.5938,
+      "Y": 16.00001526,
+      "Z": -171431,
+      "DistToRunway": 6678.04248,
+      "Occupied": false
+    },
+    {
+      "Index": 153,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -214751.625,
+      "Y": 16.00001526,
+      "Z": -171451.3281,
+      "DistToRunway": 6687.991699,
+      "Occupied": false
+    },
+    {
+      "Index": 152,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -214603.5625,
+      "Y": 16.00001526,
+      "Z": -171482.1094,
+      "DistToRunway": 7151.535156,
+      "Occupied": false
+    },
+    {
+      "Index": 151,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -214602.1562,
+      "Y": 16.00001526,
+      "Z": -171502.3906,
+      "DistToRunway": 7144.629395,
+      "Occupied": false
+    },
+    {
+      "Index": 150,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -214597.5938,
+      "Y": 16.00001526,
+      "Z": -171536.0938,
+      "DistToRunway": 7153.132812,
+      "Occupied": false
+    },
+    {
+      "Index": 149,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -214596.4688,
+      "Y": 16.00001526,
+      "Z": -171557.0938,
+      "DistToRunway": 7159.454102,
+      "Occupied": false
+    },
+    {
+      "Index": 148,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -214572.2969,
+      "Y": 16.00001526,
+      "Z": -171479.0156,
+      "DistToRunway": 6465.356934,
+      "Occupied": false
+    },
+    {
+      "Index": 147,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -214570.2812,
+      "Y": 16.00001526,
+      "Z": -171499.2188,
+      "DistToRunway": 6459.182617,
+      "Occupied": false
+    },
+    {
+      "Index": 146,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -214567.5156,
+      "Y": 16.00001526,
+      "Z": -171533.9062,
+      "DistToRunway": 6463.342773,
+      "Occupied": false
+    },
+    {
+      "Index": 145,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -214565.4219,
+      "Y": 16.00001526,
+      "Z": -171553.7812,
+      "DistToRunway": 6470.914551,
+      "Occupied": false
+    },
+    {
+      "Index": 144,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -214702.625,
+      "Y": 16.00001526,
+      "Z": -171609.5938,
+      "DistToRunway": 6823.690918,
+      "Occupied": false
+    },
+    {
+      "Index": 143,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -214700.1875,
+      "Y": 16.00001526,
+      "Z": -171629.7344,
+      "DistToRunway": 6811.755859,
+      "Occupied": false
+    },
+    {
+      "Index": 142,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -214671.9375,
+      "Y": 16.00001526,
+      "Z": -171604.3438,
+      "DistToRunway": 6524.373047,
+      "Occupied": false
+    },
+    {
+      "Index": 141,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -214668.2656,
+      "Y": 16.00001526,
+      "Z": -171624.0781,
+      "DistToRunway": 6513.402832,
+      "Occupied": false
+    },
+    {
+      "Index": 140,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -214689.625,
+      "Y": 16.00001526,
+      "Z": -171683.4375,
+      "DistToRunway": 8058.316406,
+      "Occupied": false
+    },
+    {
+      "Index": 139,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -214692.6719,
+      "Y": 16.00001526,
+      "Z": -171663.0312,
+      "DistToRunway": 6786.600098,
+      "Occupied": false
+    },
+    {
+      "Index": 138,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -214660.9219,
+      "Y": 16.00001526,
+      "Z": -171657.8594,
+      "DistToRunway": 6512.788574,
+      "Occupied": false
+    },
+    {
+      "Index": 137,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -214657.1875,
+      "Y": 16.00001526,
+      "Z": -171677.7812,
+      "DistToRunway": 6523.720703,
+      "Occupied": false
+    },
+    {
+      "Index": 136,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -214551.4219,
+      "Y": 16.00001526,
+      "Z": -171688.875,
+      "DistToRunway": 6769.188965,
+      "Occupied": false
+    },
+    {
+      "Index": 135,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -214544.0312,
+      "Y": 16.00001526,
+      "Z": -171707.6719,
+      "DistToRunway": 6764.462891,
+      "Occupied": false
+    },
+    {
+      "Index": 134,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -214521.6094,
+      "Y": 16.00001526,
+      "Z": -171680.2656,
+      "DistToRunway": 6334.703613,
+      "Occupied": false
+    },
+    {
+      "Index": 133,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -214515.5781,
+      "Y": 16.00001526,
+      "Z": -171699.25,
+      "DistToRunway": 6328.049805,
+      "Occupied": false
+    },
+    {
+      "Index": 132,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -214529.2656,
+      "Y": 16.00001526,
+      "Z": -171761.2812,
+      "DistToRunway": 6778.191895,
+      "Occupied": false
+    },
+    {
+      "Index": 131,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -214534.5156,
+      "Y": 16.00001526,
+      "Z": -171741.2656,
+      "DistToRunway": 6767.569336,
+      "Occupied": false
+    },
+    {
+      "Index": 130,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -214503.8125,
+      "Y": 16.00001526,
+      "Z": -171732.25,
+      "DistToRunway": 6331.038086,
+      "Occupied": false
+    },
+    {
+      "Index": 129,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -214497.7188,
+      "Y": 16.00001526,
+      "Z": -171752.0781,
+      "DistToRunway": 6344.050293,
+      "Occupied": false
+    },
+    {
+      "Index": 128,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -214333.9688,
+      "Y": 16.00001526,
+      "Z": -171628.2969,
+      "DistToRunway": 6197.354004,
+      "Occupied": false
+    },
+    {
+      "Index": 127,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -214316.9688,
+      "Y": 16.00001526,
+      "Z": -171612.6875,
+      "DistToRunway": 6214.826172,
+      "Occupied": false
+    },
+    {
+      "Index": 126,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -214301.25,
+      "Y": 16.00001526,
+      "Z": -171600.0625,
+      "DistToRunway": 6235.300293,
+      "Occupied": false
+    },
+    {
+      "Index": 125,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -214284.8594,
+      "Y": 16.00001526,
+      "Z": -171588.5781,
+      "DistToRunway": 6254.205566,
+      "Occupied": false
+    },
+    {
+      "Index": 124,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -214268.9219,
+      "Y": 16.00001526,
+      "Z": -171574.1562,
+      "DistToRunway": 6261.374023,
+      "Occupied": false
+    },
+    {
+      "Index": 123,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -214253.6406,
+      "Y": 16.00001526,
+      "Z": -171562.4062,
+      "DistToRunway": 6241.930176,
+      "Occupied": false
+    },
+    {
+      "Index": 122,
+      "Index0": -1,
+      "TermType": 16,
+      "X": -211865.625,
+      "Y": 16.00001526,
+      "Z": -174322.1875,
+      "DistToRunway": 0,
+      "Occupied": false
+    },
+    {
+      "Index": 121,
+      "Index0": -1,
+      "TermType": 16,
+      "X": -214026.9062,
+      "Y": 16.00001526,
+      "Z": -171550.7656,
+      "DistToRunway": 0,
+      "Occupied": false
+    },
+    {
+      "Index": 120,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -213876.6094,
+      "Y": 16.00001526,
+      "Z": -171272.75,
+      "DistToRunway": 6193.617188,
+      "Occupied": false
+    },
+    {
+      "Index": 119,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -213895.25,
+      "Y": 16.00001526,
+      "Z": -171286.2812,
+      "DistToRunway": 6209.623535,
+      "Occupied": false
+    },
+    {
+      "Index": 118,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -213911.2188,
+      "Y": 16.00001526,
+      "Z": -171298.5469,
+      "DistToRunway": 6229.944336,
+      "Occupied": false
+    },
+    {
+      "Index": 117,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -213927.1875,
+      "Y": 16.00001526,
+      "Z": -171310.4844,
+      "DistToRunway": 6250.289062,
+      "Occupied": false
+    },
+    {
+      "Index": 116,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -213944,
+      "Y": 16.00001526,
+      "Z": -171323.875,
+      "DistToRunway": 6256.373535,
+      "Occupied": false
+    },
+    {
+      "Index": 115,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -213959.375,
+      "Y": 16.00001526,
+      "Z": -171335.5156,
+      "DistToRunway": 6237.336426,
+      "Occupied": false
+    },
+    {
+      "Index": 114,
+      "Index0": -1,
+      "TermType": 104,
+      "X": -213346.8125,
+      "Y": 16.00001526,
+      "Z": -171661.4844,
+      "DistToRunway": 5605.955566,
+      "Occupied": false
+    },
+    {
+      "Index": 113,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -212703.7344,
+      "Y": 16.00001526,
+      "Z": -172344.8906,
+      "DistToRunway": 4442.141113,
+      "Occupied": false
+    },
+    {
+      "Index": 112,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -212686.0781,
+      "Y": 16.00001526,
+      "Z": -172369,
+      "DistToRunway": 4413.137695,
+      "Occupied": false
+    },
+    {
+      "Index": 111,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -212667.2188,
+      "Y": 16.00001526,
+      "Z": -172393.0625,
+      "DistToRunway": 4382.505859,
+      "Occupied": false
+    },
+    {
+      "Index": 110,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -212647.9375,
+      "Y": 16.00001526,
+      "Z": -172417.0938,
+      "DistToRunway": 4351.141602,
+      "Occupied": false
+    },
+    {
+      "Index": 109,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -212630.1094,
+      "Y": 16.00001526,
+      "Z": -172441.5938,
+      "DistToRunway": 4479.395996,
+      "Occupied": false
+    },
+    {
+      "Index": 108,
+      "Index0": -1,
+      "TermType": 16,
+      "X": -212096.4219,
+      "Y": 16.00001526,
+      "Z": -171869.5,
+      "DistToRunway": 0,
+      "Occupied": false
+    },
+    {
+      "Index": 107,
+      "Index0": -1,
+      "TermType": 16,
+      "X": -209959.1406,
+      "Y": 16.00001526,
+      "Z": -174610.5156,
+      "DistToRunway": 0,
+      "Occupied": false
+    },
+    {
+      "Index": 106,
+      "Index0": -1,
+      "TermType": 104,
+      "X": -211546.625,
+      "Y": 16.00001526,
+      "Z": -171721.4062,
+      "DistToRunway": 3878.558838,
+      "Occupied": false
+    },
+    {
+      "Index": 105,
+      "Index0": -1,
+      "TermType": 104,
+      "X": -211491.4219,
+      "Y": 16.00001526,
+      "Z": -171687.2656,
+      "DistToRunway": 3938.675049,
+      "Occupied": false
+    },
+    {
+      "Index": 104,
+      "Index0": -1,
+      "TermType": 104,
+      "X": -211381.125,
+      "Y": 16.00001526,
+      "Z": -171828.4688,
+      "DistToRunway": 3950.485596,
+      "Occupied": false
+    },
+    {
+      "Index": 103,
+      "Index0": -1,
+      "TermType": 104,
+      "X": -211346.625,
+      "Y": 16.00001526,
+      "Z": -171766.5469,
+      "DistToRunway": 3988.081299,
+      "Occupied": false
+    },
+    {
+      "Index": 102,
+      "Index0": -1,
+      "TermType": 104,
+      "X": -211441.25,
+      "Y": 16.00001526,
+      "Z": -171645.4219,
+      "DistToRunway": 4005.96167,
+      "Occupied": false
+    },
+    {
+      "Index": 101,
+      "Index0": -1,
+      "TermType": 104,
+      "X": -211392.9219,
+      "Y": 16.00001526,
+      "Z": -171600.7812,
+      "DistToRunway": 4077.139893,
+      "Occupied": false
+    },
+    {
+      "Index": 100,
+      "Index0": -1,
+      "TermType": 104,
+      "X": -211282.5781,
+      "Y": 16.00001526,
+      "Z": -171743.0625,
+      "DistToRunway": 4073.634033,
+      "Occupied": false
+    },
+    {
+      "Index": 99,
+      "Index0": -1,
+      "TermType": 104,
+      "X": -211271.1719,
+      "Y": 16.00001526,
+      "Z": -172172.375,
+      "DistToRunway": 3422.897705,
+      "Occupied": false
+    },
+    {
+      "Index": 98,
+      "Index0": -1,
+      "TermType": 104,
+      "X": -211308.1719,
+      "Y": 16.00001526,
+      "Z": -172127.2656,
+      "DistToRunway": 3482.978027,
+      "Occupied": false
+    },
+    {
+      "Index": 97,
+      "Index0": -1,
+      "TermType": 104,
+      "X": -211342.4688,
+      "Y": 16.00001526,
+      "Z": -172082.6406,
+      "DistToRunway": 3538.883545,
+      "Occupied": false
+    },
+    {
+      "Index": 96,
+      "Index0": -1,
+      "TermType": 104,
+      "X": -211376,
+      "Y": 16.00001526,
+      "Z": -172039.0781,
+      "DistToRunway": 3593.399902,
+      "Occupied": false
+    },
+    {
+      "Index": 95,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -211108.9531,
+      "Y": 16.00001526,
+      "Z": -172369.8594,
+      "DistToRunway": 3056.026855,
+      "Occupied": false
+    },
+    {
+      "Index": 94,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -211098.5312,
+      "Y": 16.00001526,
+      "Z": -172383.0938,
+      "DistToRunway": 3039.337646,
+      "Occupied": false
+    },
+    {
+      "Index": 93,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -211087.25,
+      "Y": 16.00001526,
+      "Z": -172397.3594,
+      "DistToRunway": 3021.302979,
+      "Occupied": false
+    },
+    {
+      "Index": 92,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -211075.8281,
+      "Y": 16.00001526,
+      "Z": -172411.6875,
+      "DistToRunway": 3003.171143,
+      "Occupied": false
+    },
+    {
+      "Index": 91,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -211064.7656,
+      "Y": 16.00001526,
+      "Z": -172426.125,
+      "DistToRunway": 2984.751221,
+      "Occupied": false
+    },
+    {
+      "Index": 90,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -211053.4062,
+      "Y": 16.00001526,
+      "Z": -172440.5156,
+      "DistToRunway": 2966.609375,
+      "Occupied": false
+    },
+    {
+      "Index": 89,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -211041.5625,
+      "Y": 16.00001526,
+      "Z": -172455.4844,
+      "DistToRunway": 2947.617432,
+      "Occupied": false
+    },
+    {
+      "Index": 88,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -211017.5,
+      "Y": 16.00001526,
+      "Z": -172245.1094,
+      "DistToRunway": 3233.080566,
+      "Occupied": false
+    },
+    {
+      "Index": 87,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -210999.1875,
+      "Y": 16.00001526,
+      "Z": -172269.5,
+      "DistToRunway": 3202.359131,
+      "Occupied": false
+    },
+    {
+      "Index": 86,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -210981.8906,
+      "Y": 16.00001526,
+      "Z": -172291.625,
+      "DistToRunway": 3174.283447,
+      "Occupied": false
+    },
+    {
+      "Index": 85,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -210964.5312,
+      "Y": 16.00001526,
+      "Z": -172313.5938,
+      "DistToRunway": 3146.369873,
+      "Occupied": false
+    },
+    {
+      "Index": 84,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -210946.8438,
+      "Y": 16.00001526,
+      "Z": -172336.5625,
+      "DistToRunway": 3117.31665,
+      "Occupied": false
+    },
+    {
+      "Index": 83,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -210928.6406,
+      "Y": 16.00001526,
+      "Z": -172359.7812,
+      "DistToRunway": 3087.814697,
+      "Occupied": false
+    },
+    {
+      "Index": 82,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -210910.8906,
+      "Y": 16.00001526,
+      "Z": -172381.9688,
+      "DistToRunway": 3059.562256,
+      "Occupied": false
+    },
+    {
+      "Index": 81,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -210892.9531,
+      "Y": 16.00001526,
+      "Z": -172405.6719,
+      "DistToRunway": 3029.651611,
+      "Occupied": false
+    },
+    {
+      "Index": 80,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -210874.5312,
+      "Y": 16.00001526,
+      "Z": -172428.9062,
+      "DistToRunway": 3000.095947,
+      "Occupied": false
+    },
+    {
+      "Index": 79,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -210856.2344,
+      "Y": 16.00001526,
+      "Z": -172452.1562,
+      "DistToRunway": 2970.582764,
+      "Occupied": false
+    },
+    {
+      "Index": 78,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -211062.25,
+      "Y": 16.00001526,
+      "Z": -172279.7812,
+      "DistToRunway": 3232.578369,
+      "Occupied": false
+    },
+    {
+      "Index": 77,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -211044.7188,
+      "Y": 16.00001526,
+      "Z": -172302.1875,
+      "DistToRunway": 3204.103516,
+      "Occupied": false
+    },
+    {
+      "Index": 76,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -211027.5,
+      "Y": 16.00001526,
+      "Z": -172324.2656,
+      "DistToRunway": 3176.056641,
+      "Occupied": false
+    },
+    {
+      "Index": 75,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -211009.5625,
+      "Y": 16.00001526,
+      "Z": -172347.9531,
+      "DistToRunway": 3146.579346,
+      "Occupied": false
+    },
+    {
+      "Index": 74,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -210992.7031,
+      "Y": 16.00001526,
+      "Z": -172368.7344,
+      "DistToRunway": 3119.560547,
+      "Occupied": false
+    },
+    {
+      "Index": 73,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -210974.9219,
+      "Y": 16.00001526,
+      "Z": -172392.125,
+      "DistToRunway": 3090.34668,
+      "Occupied": false
+    },
+    {
+      "Index": 72,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -210956.8438,
+      "Y": 16.00001526,
+      "Z": -172414.8125,
+      "DistToRunway": 3061.189941,
+      "Occupied": false
+    },
+    {
+      "Index": 71,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -210939.1562,
+      "Y": 16.00001526,
+      "Z": -172437.7969,
+      "DistToRunway": 3032.279297,
+      "Occupied": false
+    },
+    {
+      "Index": 70,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -210920.6094,
+      "Y": 16.00001526,
+      "Z": -172460.8906,
+      "DistToRunway": 3002.533936,
+      "Occupied": false
+    },
+    {
+      "Index": 69,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -210903.5938,
+      "Y": 16.00001526,
+      "Z": -172482.8281,
+      "DistToRunway": 2974.763428,
+      "Occupied": false
+    },
+    {
+      "Index": 68,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -210913.25,
+      "Y": 16.00001526,
+      "Z": -172635.9531,
+      "DistToRunway": 2832.182129,
+      "Occupied": false
+    },
+    {
+      "Index": 67,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -210891.2812,
+      "Y": 16.00001526,
+      "Z": -172662.8438,
+      "DistToRunway": 2867.718994,
+      "Occupied": false
+    },
+    {
+      "Index": 66,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -210870.5,
+      "Y": 16.00001526,
+      "Z": -172690.6719,
+      "DistToRunway": 2901.68457,
+      "Occupied": false
+    },
+    {
+      "Index": 65,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -210848.0469,
+      "Y": 16.00001526,
+      "Z": -172719.4062,
+      "DistToRunway": 2938.191162,
+      "Occupied": false
+    },
+    {
+      "Index": 64,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -210826.3438,
+      "Y": 16.00001526,
+      "Z": -172747.4219,
+      "DistToRunway": 2973.533691,
+      "Occupied": false
+    },
+    {
+      "Index": 63,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -210803.3125,
+      "Y": 16.00001526,
+      "Z": -172778.0781,
+      "DistToRunway": 3011.088379,
+      "Occupied": false
+    },
+    {
+      "Index": 62,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -210880.5469,
+      "Y": 16.00001526,
+      "Z": -172588.4375,
+      "DistToRunway": 2862.088867,
+      "Occupied": false
+    },
+    {
+      "Index": 61,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -210858.0312,
+      "Y": 16.00001526,
+      "Z": -172615.0938,
+      "DistToRunway": 2898.468994,
+      "Occupied": false
+    },
+    {
+      "Index": 60,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -210836.9844,
+      "Y": 16.00001526,
+      "Z": -172642.1094,
+      "DistToRunway": 2932.666748,
+      "Occupied": false
+    },
+    {
+      "Index": 59,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -210814.25,
+      "Y": 16.00001526,
+      "Z": -172669.5625,
+      "DistToRunway": 2969.296875,
+      "Occupied": false
+    },
+    {
+      "Index": 58,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -210792.3594,
+      "Y": 16.00001526,
+      "Z": -172698.0312,
+      "DistToRunway": 3005.001221,
+      "Occupied": false
+    },
+    {
+      "Index": 57,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -210770.5781,
+      "Y": 16.00001526,
+      "Z": -172726.0156,
+      "DistToRunway": 3040.421143,
+      "Occupied": false
+    },
+    {
+      "Index": 56,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -210650.5625,
+      "Y": 16.00001526,
+      "Z": -172787.3281,
+      "DistToRunway": 2717.121094,
+      "Occupied": false
+    },
+    {
+      "Index": 55,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -210632.0625,
+      "Y": 16.00001526,
+      "Z": -172811.4219,
+      "DistToRunway": 2748.051758,
+      "Occupied": false
+    },
+    {
+      "Index": 54,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -210613.1719,
+      "Y": 16.00001526,
+      "Z": -172836.4531,
+      "DistToRunway": 2779.793945,
+      "Occupied": false
+    },
+    {
+      "Index": 53,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -210597.9375,
+      "Y": 16.00001526,
+      "Z": -172855.6094,
+      "DistToRunway": 2803.942627,
+      "Occupied": false
+    },
+    {
+      "Index": 52,
+      "Index0": 52,
+      "TermType": 72,
+      "X": -210579.7812,
+      "Y": 16.00001526,
+      "Z": -172880.0156,
+      "DistToRunway": 2835.295166,
+      "Occupied": true
+    },
+    {
+      "Index": 51,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -210560.5156,
+      "Y": 16.00001526,
+      "Z": -172904.7188,
+      "DistToRunway": 2866.536133,
+      "Occupied": false
+    },
+    {
+      "Index": 50,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -210546.9844,
+      "Y": 16.00001526,
+      "Z": -172923.875,
+      "DistToRunway": 2890.868408,
+      "Occupied": false
+    },
+    {
+      "Index": 49,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -210528.3906,
+      "Y": 16.00001526,
+      "Z": -172948.0312,
+      "DistToRunway": 2921.744873,
+      "Occupied": false
+    },
+    {
+      "Index": 48,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -210509.2969,
+      "Y": 16.00001526,
+      "Z": -172972.7812,
+      "DistToRunway": 2953.164795,
+      "Occupied": false
+    },
+    {
+      "Index": 47,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -210486.0469,
+      "Y": 16.00001526,
+      "Z": -173005.5156,
+      "DistToRunway": 2995.109131,
+      "Occupied": false
+    },
+    {
+      "Index": 46,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -210467.1719,
+      "Y": 16.00001526,
+      "Z": -173029.2344,
+      "DistToRunway": 3025.062988,
+      "Occupied": false
+    },
+    {
+      "Index": 45,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -210442.7188,
+      "Y": 16.00001526,
+      "Z": -173061.9688,
+      "DistToRunway": 3066.655762,
+      "Occupied": false
+    },
+    {
+      "Index": 44,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -210415.8438,
+      "Y": 16.00001526,
+      "Z": -173107.4375,
+      "DistToRunway": 2139.693359,
+      "Occupied": false
+    },
+    {
+      "Index": 43,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -210392.375,
+      "Y": 16.00001526,
+      "Z": -173090.1875,
+      "DistToRunway": 2168.083496,
+      "Occupied": false
+    },
+    {
+      "Index": 42,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -210370,
+      "Y": 16.00001526,
+      "Z": -173070.9219,
+      "DistToRunway": 2199.141602,
+      "Occupied": false
+    },
+    {
+      "Index": 41,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -210348.2969,
+      "Y": 16.00001526,
+      "Z": -173051.2969,
+      "DistToRunway": 2230.31665,
+      "Occupied": false
+    },
+    {
+      "Index": 40,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -210380.9688,
+      "Y": 16.00001526,
+      "Z": -173152.0781,
+      "DistToRunway": 2083.079834,
+      "Occupied": false
+    },
+    {
+      "Index": 39,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -210357.0625,
+      "Y": 16.00001526,
+      "Z": -173135.2812,
+      "DistToRunway": 2110.778809,
+      "Occupied": false
+    },
+    {
+      "Index": 38,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -210335.0938,
+      "Y": 16.00001526,
+      "Z": -173115.8594,
+      "DistToRunway": 2141.9729,
+      "Occupied": false
+    },
+    {
+      "Index": 37,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -210312.625,
+      "Y": 16.00001526,
+      "Z": -173096.9375,
+      "DistToRunway": 2172.327881,
+      "Occupied": false
+    },
+    {
+      "Index": 36,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -210344.6094,
+      "Y": 16.00001526,
+      "Z": -173198.9375,
+      "DistToRunway": 2030.007202,
+      "Occupied": false
+    },
+    {
+      "Index": 35,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -210323,
+      "Y": 16.00001526,
+      "Z": -173179.1406,
+      "DistToRunway": 2061.704346,
+      "Occupied": false
+    },
+    {
+      "Index": 34,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -210301.4531,
+      "Y": 16.00001526,
+      "Z": -173158.7812,
+      "DistToRunway": 2093.53418,
+      "Occupied": false
+    },
+    {
+      "Index": 33,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -210277.4531,
+      "Y": 16.00001526,
+      "Z": -173142,
+      "DistToRunway": 2121.379639,
+      "Occupied": false
+    },
+    {
+      "Index": 32,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -210197.4844,
+      "Y": 16.00001526,
+      "Z": -173292.7812,
+      "DistToRunway": 1972.406128,
+      "Occupied": false
+    },
+    {
+      "Index": 31,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -210219.8125,
+      "Y": 16.00001526,
+      "Z": -173264.0312,
+      "DistToRunway": 2007.334839,
+      "Occupied": false
+    },
+    {
+      "Index": 30,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -210243.9062,
+      "Y": 16.00001526,
+      "Z": -173233.375,
+      "DistToRunway": 2046.560913,
+      "Occupied": false
+    },
+    {
+      "Index": 29,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -210264.8438,
+      "Y": 16.00001526,
+      "Z": -173205.9375,
+      "DistToRunway": 2080.757812,
+      "Occupied": false
+    },
+    {
+      "Index": 28,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -210293.9688,
+      "Y": 16.00001526,
+      "Z": -173216.1719,
+      "DistToRunway": 2005.088745,
+      "Occupied": false
+    },
+    {
+      "Index": 27,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -210267.5156,
+      "Y": 16.00001526,
+      "Z": -173249.625,
+      "DistToRunway": 1962.848511,
+      "Occupied": false
+    },
+    {
+      "Index": 26,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -210243.0625,
+      "Y": 16.00001526,
+      "Z": -173281.4688,
+      "DistToRunway": 1922.364014,
+      "Occupied": false
+    },
+    {
+      "Index": 25,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -210220.7656,
+      "Y": 16.00001526,
+      "Z": -173310.3906,
+      "DistToRunway": 1885.509399,
+      "Occupied": false
+    },
+    {
+      "Index": 24,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -210139,
+      "Y": 16.00001526,
+      "Z": -173319.6094,
+      "DistToRunway": 1896.127319,
+      "Occupied": false
+    },
+    {
+      "Index": 23,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -210161.8906,
+      "Y": 16.00001526,
+      "Z": -173337.8125,
+      "DistToRunway": 1866.69043,
+      "Occupied": false
+    },
+    {
+      "Index": 22,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -210183.7656,
+      "Y": 16.00001526,
+      "Z": -173357.5312,
+      "DistToRunway": 1835.112793,
+      "Occupied": false
+    },
+    {
+      "Index": 21,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -210207.3438,
+      "Y": 16.00001526,
+      "Z": -173375.0312,
+      "DistToRunway": 1806.606567,
+      "Occupied": false
+    },
+    {
+      "Index": 20,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -210170.4531,
+      "Y": 16.00001526,
+      "Z": -173422.1406,
+      "DistToRunway": 1813.388916,
+      "Occupied": false
+    },
+    {
+      "Index": 19,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -210148.2812,
+      "Y": 16.00001526,
+      "Z": -173403.0625,
+      "DistToRunway": 1840.692627,
+      "Occupied": false
+    },
+    {
+      "Index": 18,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -210124.6562,
+      "Y": 16.00001526,
+      "Z": -173385.5781,
+      "DistToRunway": 1870.762329,
+      "Occupied": false
+    },
+    {
+      "Index": 17,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -210102.4375,
+      "Y": 16.00001526,
+      "Z": -173366.6406,
+      "DistToRunway": 1898.770386,
+      "Occupied": false
+    },
+    {
+      "Index": 16,
+      "Index0": -1,
+      "TermType": 104,
+      "X": -209963.7031,
+      "Y": 16.00001526,
+      "Z": -173650.125,
+      "DistToRunway": 1435.034546,
+      "Occupied": false
+    },
+    {
+      "Index": 15,
+      "Index0": -1,
+      "TermType": 104,
+      "X": -209936.1562,
+      "Y": 16.00001526,
+      "Z": -173687.7031,
+      "DistToRunway": 1416.327148,
+      "Occupied": false
+    },
+    {
+      "Index": 14,
+      "Index0": -1,
+      "TermType": 104,
+      "X": -209906.7812,
+      "Y": 16.00001526,
+      "Z": -173724.0781,
+      "DistToRunway": 1434.478394,
+      "Occupied": false
+    },
+    {
+      "Index": 13,
+      "Index0": -1,
+      "TermType": 104,
+      "X": -209600.7812,
+      "Y": 16.00001526,
+      "Z": -173906.7344,
+      "DistToRunway": 1245.015381,
+      "Occupied": false
+    },
+    {
+      "Index": 12,
+      "Index0": -1,
+      "TermType": 104,
+      "X": -209577.5469,
+      "Y": 16.00001526,
+      "Z": -173939.9688,
+      "DistToRunway": 1283.962524,
+      "Occupied": false
+    },
+    {
+      "Index": 11,
+      "Index0": -1,
+      "TermType": 104,
+      "X": -209558.7656,
+      "Y": 16.00001526,
+      "Z": -173965.9688,
+      "DistToRunway": 1316.552979,
+      "Occupied": false
+    },
+    {
+      "Index": 10,
+      "Index0": -1,
+      "TermType": 104,
+      "X": -209540.3906,
+      "Y": 16.00001526,
+      "Z": -173990.9062,
+      "DistToRunway": 1350.43335,
+      "Occupied": false
+    },
+    {
+      "Index": 9,
+      "Index0": -1,
+      "TermType": 104,
+      "X": -210601.875,
+      "Y": 16.00001526,
+      "Z": -174985.1562,
+      "DistToRunway": 1461.984497,
+      "Occupied": false
+    },
+    {
+      "Index": 8,
+      "Index0": -1,
+      "TermType": 104,
+      "X": -210651.3594,
+      "Y": 16.00001526,
+      "Z": -175023.7344,
+      "DistToRunway": 1524.71167,
+      "Occupied": false
+    },
+    {
+      "Index": 7,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -210652.9531,
+      "Y": 16.00001526,
+      "Z": -174908.875,
+      "DistToRunway": 1475.6073,
+      "Occupied": false
+    },
+    {
+      "Index": 6,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -210666.6719,
+      "Y": 16.00001526,
+      "Z": -174920.8594,
+      "DistToRunway": 1492.752808,
+      "Occupied": false
+    },
+    {
+      "Index": 5,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -210682.4375,
+      "Y": 16.00001526,
+      "Z": -174931.9375,
+      "DistToRunway": 1512.897217,
+      "Occupied": false
+    },
+    {
+      "Index": 4,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -210696.1875,
+      "Y": 16.00001526,
+      "Z": -174943.125,
+      "DistToRunway": 1530.280396,
+      "Occupied": false
+    },
+    {
+      "Index": 3,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -210709.8438,
+      "Y": 16.00001526,
+      "Z": -174953.4844,
+      "DistToRunway": 1547.598877,
+      "Occupied": false
+    },
+    {
+      "Index": 2,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -210724.75,
+      "Y": 16.00001526,
+      "Z": -174964.0156,
+      "DistToRunway": 1566.823486,
+      "Occupied": false
+    },
+    {
+      "Index": 1,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -210738.8906,
+      "Y": 16.00001526,
+      "Z": -174976.1719,
+      "DistToRunway": 1584.474976,
+      "Occupied": false
+    },
+    {
+      "Index": 0,
+      "Index0": -1,
+      "TermType": 72,
+      "X": -210753.5938,
+      "Y": 16.00001526,
+      "Z": -174987.8281,
+      "DistToRunway": 1603.06311,
+      "Occupied": false
+    }
+  ]
+}

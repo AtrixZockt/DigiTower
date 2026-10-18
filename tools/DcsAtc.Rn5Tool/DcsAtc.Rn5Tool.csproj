@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\DcsAtc.Airfields\DcsAtc.Airfields.csproj" />
+    <ProjectReference Include="..\..\src\DcsAtc.Bridge\DcsAtc.Bridge.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

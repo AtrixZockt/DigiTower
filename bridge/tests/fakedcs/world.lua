@@ -5,8 +5,10 @@ local json = require('json')
 
 local M = {}
 
+-- Real Al Dhafra values (from an airbase_info dump of DCS 2.9.30), so the app can route on the real network.
 local FIELD_ELEVATION = 16
-local AL_DHAFRA = { x = -211900, z = -173250 }
+local AL_DHAFRA = { x = -209935.48, z = -174592.06 }
+local SPOT_106 = { x = -211546.62, z = -171721.41 }
 
 M.EVENTS = {
   S_EVENT_TAKEOFF = 3, S_EVENT_LAND = 4, S_EVENT_CRASH = 5, S_EVENT_EJECTION = 6, S_EVENT_DEAD = 8,
@@ -102,14 +104,16 @@ function M.new(opts)
   function Airbase:getRadioSilentMode() return self.silent or false end
 
   W.airbases['Al Dhafra AFB'] = setmetatable({
-    name = 'Al Dhafra AFB', id = 14, callsign = 'Al Dhafra', x = AL_DHAFRA.x, z = AL_DHAFRA.z,
+    name = 'Al Dhafra AFB', id = 4, callsign = 'Al Dhafra AFB', x = AL_DHAFRA.x, z = AL_DHAFRA.z,
     runways = {
-      { Name = '13L', course = -math.rad(130), width = 45, length = 3700, position = { x = AL_DHAFRA.x + 500, y = FIELD_ELEVATION, z = AL_DHAFRA.z - 300 } },
-      { Name = '13R', course = -math.rad(130), width = 45, length = 3700, position = { x = AL_DHAFRA.x - 500, y = FIELD_ELEVATION, z = AL_DHAFRA.z + 300 } },
+      { Name = '13', course = -2.233061075, width = 60, length = 3475.79, position = { x = -211027.78, y = FIELD_ELEVATION, z = -173240 } },
+      { Name = '31', course = -2.233127356, width = 60, length = 3475.79, position = { x = -212946.27, y = FIELD_ELEVATION, z = -172936.47 } },
     },
     parking = {
-      { Term_Index = 1, Term_Index_0 = 0, Term_Type = 104, vTerminalPos = { x = AL_DHAFRA.x + 100, y = FIELD_ELEVATION, z = AL_DHAFRA.z - 150 }, fDistToRW = 1200, TO_AC = false },
-      { Term_Index = 2, Term_Index_0 = 1, Term_Type = 40, vTerminalPos = { x = AL_DHAFRA.x + 130, y = FIELD_ELEVATION, z = AL_DHAFRA.z - 120 }, fDistToRW = 1250, TO_AC = true },
+      { Term_Index = 1, Term_Index_0 = -1, Term_Type = 72, vTerminalPos = { x = -210738.89, y = FIELD_ELEVATION, z = -174976.17 }, fDistToRW = 1584, TO_AC = false },
+      { Term_Index = 60, Term_Index_0 = -1, Term_Type = 72, vTerminalPos = { x = -210836.98, y = FIELD_ELEVATION, z = -172642.11 }, fDistToRW = 2933, TO_AC = false },
+      { Term_Index = 106, Term_Index_0 = -1, Term_Type = 104, vTerminalPos = { x = SPOT_106.x, y = FIELD_ELEVATION, z = SPOT_106.z }, fDistToRW = 3879, TO_AC = true },
+      { Term_Index = 200, Term_Index_0 = -1, Term_Type = 72, vTerminalPos = { x = -213318.59, y = FIELD_ELEVATION, z = -173205.12 }, fDistToRW = 4921, TO_AC = false },
     },
   }, Airbase)
 
@@ -142,6 +146,12 @@ function M.new(opts)
   }
 
   env.Airbase = { getByName = function(name) return W.airbases[name] end }
+  -- Wind from 310° at 5 m/s (DCS returns the direction the wind blows towards), ISA-ish 30 °C day.
+  W.wind = { x = -5 * math.cos(math.rad(310)), y = 0, z = -5 * math.sin(math.rad(310)) }
+  env.atmosphere = {
+    getWind = function() return W.wind end,
+    getTemperatureAndPressure = function() return 303.15, 101130 end,
+  }
   env.land = { getHeight = function() return FIELD_ELEVATION end }
   env.timer = { getTime = function() return W.time end, getAbsTime = function() return 8 * 3600 + W.time end }
   env.env = { mission = { theatre = 'PersianGulf', date = { Year = 2026, Month = 10, Day = 18 }, start_time = 8 * 3600 } }
@@ -150,12 +160,21 @@ function M.new(opts)
     W.texts[#W.texts + 1] = { target = target, text = text, seconds = seconds }
     W.print(string.format('[F10 text -> %s] %s', target, text))
   end
+  W.marks = {}   -- [id] = { kind = 'line' | 'text', ... }
   env.trigger = {
     action = {
       outText = function(t, s) recordText('all', t, s) end,
       outTextForGroup = function(g, t, s) recordText('group ' .. g, t, s) end,
       outTextForUnit = function(u, t, s) recordText('unit ' .. u, t, s) end,
       outTextForCoalition = function(c, t, s) recordText('coalition ' .. c, t, s) end,
+      lineToAll = function(coal, id, a, b) W.marks[id] = { kind = 'line', coalition = coal, from = a, to = b } end,
+      textToAll = function(coal, id, p, color, fill, size, readOnly, text)
+        W.marks[id] = { kind = 'text', coalition = coal, point = p, text = text }
+        local lines = 0
+        for _, m in pairs(W.marks) do if m.kind == 'line' then lines = lines + 1 end end
+        W.print(string.format('[F10 map] %d route lines on the map, text "%s"', lines, text))
+      end,
+      removeMark = function(id) W.marks[id] = nil end,
     },
   }
 
@@ -189,16 +208,29 @@ function M.new(opts)
 
   -- The "mission" Lua state, where DCS defines a_do_script ----------------------------------------------
 
-  W.missionState = {
-    a_do_script = function(code)
+  -- DCS 2.9.18+ (still 2.9.30) passes a_do_script() return values back shifted: a nil is prepended
+  -- and the last value dropped. Reproduced here unless opts.fixedReturns is set.
+  W.mangleReturns = not opts.fixedReturns
+
+  local function pack(...) return { n = select('#', ...), ... } end
+
+  W.missionState = setmetatable({}, { __index = _G })
+  W.missionState.a_do_script = function(code)
       local f, err = loadstring(code)
       if not f then W.print('[a_do_script] ' .. err) return nil end
       setfenv(f, env)
-      local ok, res = pcall(f)
-      if not ok then W.print('[a_do_script] ' .. tostring(res)) return nil end
-      return res
-    end,
-  }
+      local res = pack(pcall(f))
+      if not res[1] then W.print('[a_do_script] ' .. tostring(res[2])) return nil end
+      local values = { n = res.n - 1 }
+      for i = 2, res.n do values[i - 1] = res[i] end
+      if W.mangleReturns then
+        local shifted = { n = values.n }
+        for i = values.n, 2, -1 do shifted[i] = values[i - 1] end
+        shifted[1] = nil
+        values = shifted
+      end
+      return unpack(values, 1, values.n)
+  end
 
   W.net = {
     lua2json = function(v) return json.encode(v) end,
@@ -223,12 +255,13 @@ function M.new(opts)
   end
 
   --- Clicks every menu item that has been in the menu for at least `delay` seconds and was not clicked yet.
-  function W:clickMenus(delay)
+  function W:clickMenus(delay, filter)
     for gid, items in pairs(self.menuItems) do
       for _, item in ipairs(items) do
-        if not item.clicked and self.time - item.addedAt >= delay then
+        local label = table.concat(item.path, ' > ')
+        if not item.clicked and self.time - item.addedAt >= delay and (not filter or label:find(filter, 1, true)) then
           item.clicked = true
-          self.print(string.format('[F10 click group %d] %s', gid, table.concat(item.path, ' > ')))
+          self.print(string.format('[F10 click group %d] %s', gid, label))
           item.fn(item.arg)
         end
       end
@@ -237,9 +270,11 @@ function M.new(opts)
 
   --- A short scenario at Al Dhafra: a player F-16 starts, taxis and takes off, a tanker orbits,
   -- a player helicopter hovers.
-  function W:setupScenario()
+  --- opts.static: the jet stays parked (no scripted taxi and takeoff).
+  function W:setupScenario(opts)
+    opts = opts or {}
     self.viper = self:addUnit({ name = 'Viper 1-1', group = 'Viper 1', typeName = 'F-16C_50', cat = 0, coal = 2,
-      player = 'DiGii', x = AL_DHAFRA.x + 100, y = FIELD_ELEVATION, z = AL_DHAFRA.z - 150, hdg = 40 })
+      player = 'DiGii', x = SPOT_106.x, y = FIELD_ELEVATION, z = SPOT_106.z, hdg = 40 })
     self.tanker = self:addUnit({ name = 'Texaco 1-1', group = 'Texaco 1', typeName = 'KC-135', cat = 0, coal = 2,
       x = AL_DHAFRA.x + 20000, y = 6000, z = AL_DHAFRA.z, hdg = 90, speed = 200 })
     self.helo = self:addUnit({ name = 'Dustoff 1-1', group = 'Dustoff 1', typeName = 'UH-1H', cat = 1, coal = 2,
@@ -247,14 +282,16 @@ function M.new(opts)
     self.script = {
       { t = 0.5, run = function() self:fire('birth', self.viper); self:fire('birth', self.helo); self:fire('birth', self.tanker) end },
       { t = 3, run = function() self:fire('engine_startup', self.viper) end },
-      { t = 6, run = function() self.viper.speed = 7; self.viper.hdg = math.rad(130) end },
-      { t = 30, run = function() self.viper.speed = 80 end },
-      { t = 36, run = function()
-          self.viper.climb = 15
-          self:fire('runway_takeoff', self.viper, self.airbases['Al Dhafra AFB'])
-          self:fire('takeoff', self.viper, self.airbases['Al Dhafra AFB'])
-        end },
     }
+    if not opts.static then
+      table.insert(self.script, { t = 6, run = function() self.viper.speed = 7; self.viper.hdg = math.rad(130) end })
+      table.insert(self.script, { t = 30, run = function() self.viper.speed = 80 end })
+      table.insert(self.script, { t = 36, run = function()
+        self.viper.climb = 15
+        self:fire('runway_takeoff', self.viper, self.airbases['Al Dhafra AFB'])
+        self:fire('takeoff', self.viper, self.airbases['Al Dhafra AFB'])
+      end })
+    end
   end
 
   function W:step(dt)
