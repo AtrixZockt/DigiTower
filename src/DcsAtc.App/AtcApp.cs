@@ -15,11 +15,13 @@ public sealed record AppOptions
     public bool KeepStockAtc { get; init; }
     public string DumpDirectory { get; init; } = Path.Combine("data", "dcs");
     public TimeSpan StatusInterval { get; init; } = TimeSpan.FromSeconds(10);
+    /// <summary>Where controllers speak (SRS); null: text messages only.</summary>
+    public IAtcRadio? Radio { get; init; }
 }
 
 /// <summary>
 /// The ATC app: follows the mission through the bridge, gives every player group an "ATC" F10 menu and
-/// runs ground control.
+/// runs ground control and tower, in text and (with a radio) on SRS.
 /// </summary>
 public sealed class AtcApp
 {
@@ -44,8 +46,8 @@ public sealed class AtcApp
         _options = options;
         _airfields = new AirfieldCatalog(client, options.DcsDirectory, options.DataDirectory, Log);
         _flights = new FlightRegistry(client, Log);
-        _ground = new GroundControl(client, _airfields, _flights, Log);
-        _tower = new TowerControl(client, _airfields, _ground, _flights, Log);
+        _ground = new GroundControl(client, _airfields, _flights, Log, radio: options.Radio);
+        _tower = new TowerControl(client, _airfields, _ground, _flights, Log, radio: options.Radio);
     }
 
     public async Task RunAsync(CancellationToken ct)
@@ -127,8 +129,17 @@ public sealed class AtcApp
         var silence = new HashSet<string>(_options.SilenceAirbases);
         foreach (var airbase in airbases.Where(a => a.Category == 0 && _airfields.LabelsFor(a.Name) is not null))
         {
-            await _airfields.GetAsync(airbase, ct);
+            var airfield = await _airfields.GetAsync(airbase, ct);
             if (!_options.KeepStockAtc) silence.Add(airbase.Name);
+            if (airfield is not null && _options.Radio is { } radio)
+            {
+                // Everything the controllers say here, with today's weather, so calls only stitch cached clips.
+                var layout = airfield.Layout;
+                var weather = await _client.GetAirbaseWeatherAsync(airbase.Name, ct);
+                radio.Prepare(Phraseology.Samples(airfield.Facility, layout.Runways,
+                    layout.Labels?.Taxiways.Select(t => t.Name).Distinct() ?? [], layout.Labels?.Areas.Select(a => a.Name) ?? [],
+                    layout.Labels?.Frequencies, weather));
+            }
         }
         foreach (var name in silence)
             Log($"{name}: stock ATC silenced: {await _client.SetRadioSilentAsync(name, true, ct)}");
@@ -157,6 +168,7 @@ public sealed class AtcApp
             await _client.AddMenuAsync(groupId, FlightMenu, "Single ship", "flight.single", ct);
             await _client.AddMenuAsync(groupId, DebugMenu, "Where am I?", "debug.where", ct);
             Log($"ATC menu added for {u.Player} ({u.Group})");
+            _options.Radio?.Prepare(Phraseology.CallsignSamples(Phraseology.Callsign(u)), soon: true);
         }
 
         await _flights.OnUnitsAsync(_units, ct);

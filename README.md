@@ -17,11 +17,16 @@ behind it are in [RESEARCH.md](RESEARCH.md).
 | `data/dcs/` | Airbase data dumped from DCS by the app (`--dump`). |
 | `data/airfields/<theatre>/` | Hand-labelled airfields: taxiway names, areas, frequencies ([docs/labeling.md](docs/labeling.md)). |
 | `src/DcsAtc.Atc` | The ATC logic: ground control, tower, flights, phraseology, airfield catalog. |
-| `src/DcsAtc.App` | The ATC app (console): connects to DCS, F10 menus, runs the controllers. |
+| `src/DcsAtc.Srs` | Headless SRS client: the controllers' radio stations (TCP sync, UDP Opus voice). |
+| `src/DcsAtc.Voice` | The ATC voice: how text is said, TTS engines (Kokoro/Piper via sherpa-onnx, Windows), clip cache, stitching. |
+| `data/voice/` | `voices.json` (the voices); `models/` and `cache/` are downloaded / generated, not in git ([docs/voice.md](docs/voice.md)). |
+| `src/DcsAtc.App` | The ATC app (console): connects to DCS, F10 menus, runs the controllers, speaks on SRS. |
 | `tools/DcsAtc.Rn5Tool` | Inspects `.rn5` files, renders them as SVG, scans whole DCS installs. |
+| `tools/DcsAtc.VoiceTool` | Voice audition, test transmissions, SRS check without DCS, model download. |
 | `tests/DcsAtc.Tests` | C# tests. |
 | `docs/bridge-protocol.md` | The JSON protocol between DCS and the app. |
 | `docs/labeling.md` | How to add taxiway names for an airfield. |
+| `docs/voice.md` | The ATC voice on SRS: how it works, setup, choosing the voice, the SRS protocol. |
 
 ## Requirements
 
@@ -49,11 +54,15 @@ dotnet run --project src/DcsAtc.App                             # terminal 2
    ```powershell
    .\bridge\install.ps1 -Instance DCS.dcs_serverrelease
    ```
-2. Start the mission, then the app from the repository folder (it finds `D:\DCS\DCS World` and `data\`):
+2. Start the SRS server and the mission, then the app from the repository folder (it finds
+   `D:\DCS\DCS World` and `data\`):
    ```powershell
-   dotnet run --project src/DcsAtc.App
+   dotnet run --project tools/DcsAtc.VoiceTool -- fetch   # once: the voice models (else a Windows voice speaks)
+   dotnet run --project src/DcsAtc.App                    # options: --srs host:port, --voice <id>, --no-voice
    ```
-   At airfields with chart data (so far Al Dhafra) the stock ATC is silenced.
+   At airfields with chart data (so far Al Dhafra) the stock ATC is silenced. The controllers speak on SRS
+   (127.0.0.1:5002): at Al Dhafra **Ground 250.0** and **Tower 270.0** AM; every call is also shown as text.
+   Choosing the voice: [docs/voice.md](docs/voice.md).
 3. In the aircraft, F10 → Other → **ATC**:
 
    | Menu | What happens |

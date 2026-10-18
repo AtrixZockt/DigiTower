@@ -117,5 +117,129 @@ public static partial class Phraseology
     public static string ContactAfterDeparture(string callsign, double? approach) =>
         Frequency(approach) is { } f ? $"{callsign}, contact Approach on {f}, good day." : $"{callsign}, frequency change approved, good day.";
 
+    // Ground.
+
+    public static string UnableToRoute(string callsign, string facility) =>
+        $"{callsign}, {facility} Ground, unable to find a taxi route from your position.";
+
+    public static string NoFreeParking(string callsign, string facility) =>
+        $"{callsign}, {facility} Ground, no free parking found, hold position.";
+
+    public static string TaxiCancelled(string callsign, string facility) =>
+        $"{callsign}, {facility} Ground, taxi clearance cancelled, hold position.";
+
+    public static string OffRoute(string callsign, string facility) =>
+        $"{callsign}, {facility} Ground, you are off your cleared taxi route. Check route and hold position if unsure.";
+
+    public static string ReduceTaxiSpeed(string callsign, string facility) =>
+        $"{callsign}, {facility} Ground, reduce taxi speed.";
+
+    /// <summary>"…, hold short runway 31R, contact Tower on 270.0 when ready for departure."</summary>
+    public static string HoldShortContactTower(string callsign, string facility, RunwayEnd runway, double? tower) =>
+        $"{callsign}, {facility} Ground, hold short runway {runway.Name}, contact Tower{(Frequency(tower) is { } f ? $" on {f}" : "")} when ready for departure.";
+
+    public static string ParkingReached(string callsign, string facility) =>
+        $"{callsign}, {facility} Ground, parking reached.";
+
+    public static string GroundWhileAirborne(string callsign) =>
+        $"{callsign}, you are airborne. Ground control is for aircraft on the ground.";
+
+    public static string NoGroundControl(string callsign) =>
+        $"{callsign}, no ground control available at your position.";
+
+    // Tower.
+
+    /// <summary>Why a departure holds short or a landing waits.</summary>
+    public const string TrafficOnFinal = "traffic on final", LandingTraffic = "landing traffic", RunwayOccupied = "runway occupied",
+        TrafficDeparting = "traffic departing", NumberTwoForDeparture = "number two for departure", NumberTwoFollowTraffic = "number two, follow the traffic ahead";
+
+    public static readonly IReadOnlyList<string> HoldReasons = [TrafficOnFinal, LandingTraffic, RunwayOccupied, TrafficDeparting, NumberTwoForDeparture];
+    public static readonly IReadOnlyList<string> ApproachReasons = [RunwayOccupied, TrafficDeparting, NumberTwoFollowTraffic];
+
+    public static string AlreadyAirborne(string callsign) => $"{callsign}, you are already airborne.";
+
+    public static string NoTower(string callsign) => $"{callsign}, no tower available at your position.";
+
+    public static string NotAtHoldingPoint(string callsign, string facility, RunwayEnd runway) =>
+        $"{callsign}, {facility} Tower, you are not at a holding point for runway {runway.Name}. Request taxi from Ground.";
+
+    public static string OnTheGround(string callsign) => $"{callsign}, you are on the ground.";
+
+    public static string NoTowerWithin(string callsign, double miles) => $"{callsign}, no tower within {miles:F0} miles.";
+
+    /// <summary>"Viper 1-1, Al Dhafra Tower, runway 31R, wind 310 degrees, 10 knots, QNH 1013, report final."</summary>
+    public static string ReportFinal(string callsign, string facility, RunwayEnd runway, AirbaseWeather? weather, string unitType) =>
+        $"{callsign}, {facility} Tower, runway {runway.Name}{(weather is null ? "" : $", {Wind(weather)}, {Altimeter(weather, unitType)}")}, report final.";
+
+    public static string RequestLandingFirst(string callsign) => $"{callsign}, request landing first.";
+
+    public static string LineUpAndWait(string callsign, RunwayEnd runway) => $"{callsign}, runway {runway.Name}, line up and wait.";
+
+    public static string HoldShort(string callsign, string facility, RunwayEnd runway, string reason) =>
+        $"{callsign}, {facility} Tower, hold short runway {runway.Name}, {reason}.";
+
+    public static string ContinueApproach(string callsign, string reason) => $"{callsign}, continue approach, {reason}.";
+
+    public static string GoAround(string callsign, string reason) => $"{callsign}, go around, I say again, go around, {reason}.";
+
+    /// <summary>"Viper 1-1, welcome to Al Dhafra, vacate runway when able, contact Ground on 250.0."</summary>
+    public static string VacateContactGround(string callsign, string facility, double? ground) =>
+        $"{callsign}, welcome to {facility}, vacate runway when able, contact Ground{(Frequency(ground) is { } f ? $" on {f}" : "")}.";
+
+    /// <summary>
+    /// One example of every transmission Ground and Tower make at an airfield, with its runways, taxiways, parking
+    /// areas and frequencies, and the given weather: saying these once caches every clip a controller needs there,
+    /// except the pilots' callsigns.
+    /// </summary>
+    public static IEnumerable<string> Samples(string facility, IReadOnlyList<Runway> runways, IEnumerable<string> taxiways, IEnumerable<string> areas,
+        AirfieldFrequencies? frequencies, AirbaseWeather? weather)
+    {
+        const string cs = "Viper 1-1";
+        var via = taxiways.Select(t => new ViaItem(t)).ToList();
+        // Every runway crossed, named for every direction of departure.
+        var crossings = via.Take(1).Concat(runways.Select(r => new ViaItem(r.EndA.Name, r))).ToList();
+        foreach (var end in runways.SelectMany(r => new[] { r.EndA, r.EndB }))
+        {
+            yield return TaxiClearance(cs, facility, end, crossings, null, "");
+            // Altimeter in hPa only, and also in inches of mercury for US types.
+            foreach (var type in new[] { "", UsTypes.First() })
+            {
+                yield return TaxiClearance(cs, facility, end, via, weather, type);
+                yield return ReportFinal(cs, facility, end, weather, type);
+            }
+            yield return HoldShortContactTower(cs, facility, end, frequencies?.Tower);
+            yield return ClearedForTakeoff(cs, end, weather);
+            yield return ClearedToLand(cs, end, weather);
+            yield return LineUpAndWait(cs, end);
+            yield return NotAtHoldingPoint(cs, facility, end);
+            foreach (var reason in HoldReasons) yield return HoldShort(cs, facility, end, reason);
+        }
+        foreach (var area in areas.Append("parking"))
+        {
+            yield return TaxiToParking(cs, facility, area, via);
+            yield return TaxiToParking(cs, facility, area, []);
+        }
+        foreach (var reason in ApproachReasons)
+        {
+            yield return ContinueApproach(cs, reason);
+            yield return GoAround(cs, reason);
+        }
+        yield return UnableToRoute(cs, facility);
+        yield return NoFreeParking(cs, facility);
+        yield return TaxiCancelled(cs, facility);
+        yield return OffRoute(cs, facility);
+        yield return ReduceTaxiSpeed(cs, facility);
+        yield return ParkingReached(cs, facility);
+        yield return ContactAfterDeparture(cs, frequencies?.Approach);
+        yield return VacateContactGround(cs, facility, frequencies?.Ground);
+    }
+
+    /// <summary>What a pilot's callsign is said as, alone and as a flight ("Hangman 1-1", "Hangman 1 flight").</summary>
+    public static IEnumerable<string> CallsignSamples(string callsign)
+    {
+        yield return $"{callsign}, ";
+        if (FlightRegistry.Split(callsign) is { } split) yield return $"{split.Prefix} flight, ";
+    }
+
     private static string Capitalize(string s) => s.Length == 0 ? s : char.ToUpperInvariant(s[0]) + s[1..];
 }

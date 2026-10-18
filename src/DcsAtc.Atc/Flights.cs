@@ -8,12 +8,13 @@ namespace DcsAtc.Atc;
 /// go to every member, the lead's position drives clearances, members never count as traffic to each other).
 /// </summary>
 /// <param name="Key">Identifies the party in the controllers: the lead's group id.</param>
-public sealed record Party(string Callsign, int Key, string LeadUnit, IReadOnlyList<int> Groups, IReadOnlySet<string> Units)
+/// <param name="Coalition">The lead's coalition (who may hear the controller on a coalition-secure SRS server).</param>
+public sealed record Party(string Callsign, int Key, string LeadUnit, IReadOnlyList<int> Groups, IReadOnlySet<string> Units, int Coalition = 0)
 {
     public bool IsFlight => Units.Count > 1;
 
     public static Party Single(UnitState unit) =>
-        new(Phraseology.Callsign(unit), unit.GroupId ?? -1, unit.Name, unit.GroupId is int g ? [g] : [], new HashSet<string> { unit.Name });
+        new(Phraseology.Callsign(unit), unit.GroupId ?? -1, unit.Name, unit.GroupId is int g ? [g] : [], new HashSet<string> { unit.Name }, unit.Coal);
 }
 
 /// <summary>A declared flight: players sharing a callsign prefix ("Hangman 1-1", "Hangman 1-2" → "Hangman 1").</summary>
@@ -118,7 +119,7 @@ public sealed partial class FlightRegistry(IDcsCommands dcs, Action<string>? log
         var members = flight.Members.Values.Where(units.ContainsKey).Select(n => units[n]).ToList();
         var lead = members.FirstOrDefault() ?? unit;
         return new Party($"{flight.Name} flight", lead.GroupId ?? unit.GroupId ?? -1, lead.Name,
-            members.Select(m => m.GroupId).OfType<int>().Distinct().ToList(), members.Select(m => m.Name).ToHashSet());
+            members.Select(m => m.GroupId).OfType<int>().Distinct().ToList(), members.Select(m => m.Name).ToHashSet(), lead.Coal);
     }
 
     public void Reset() => _flights.Clear();

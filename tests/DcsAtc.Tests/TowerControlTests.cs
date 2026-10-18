@@ -3,6 +3,7 @@ using DcsAtc.Airfields;
 using DcsAtc.Airfields.Taxi;
 using DcsAtc.Atc;
 using DcsAtc.Bridge;
+using DcsAtc.Voice;
 
 namespace DcsAtc.Tests;
 
@@ -15,11 +16,13 @@ public class TowerControlTests
         public required GroundControl Ground { get; init; }
         public required TowerControl Tower { get; init; }
         public required FlightRegistry Flights { get; init; }
+        public required FakeRadio Radio { get; init; }
         public required Airfield Layout { get; init; }
         public Dictionary<string, UnitState> Units { get; } = [];
         public Runway Rwy31R => Layout.Runways.Single(r => r.End("31R") is not null);
         public RunwayEnd End31R => Rwy31R.End("31R")!;
         public string LastText => Dcs.Texts[^1].Text;
+        public required AirbaseWeather Weather { get; init; }
 
         public UnitState Put(UnitState u)
         {
@@ -47,10 +50,11 @@ public class TowerControlTests
         catalog.SetMission("PersianGulf", [airbase]);
         var now = new DateTime(2026, 10, 18, 12, 0, 0);
         var flights = new FlightRegistry(dcs);
-        var ground = new GroundControl(dcs, catalog, flights, clock: () => now);
-        var tower = new TowerControl(dcs, catalog, ground, flights, clock: () => now = now.AddSeconds(1));
+        var radio = new FakeRadio();
+        var ground = new GroundControl(dcs, catalog, flights, clock: () => now, radio: radio);
+        var tower = new TowerControl(dcs, catalog, ground, flights, clock: () => now = now.AddSeconds(1), radio: radio);
         var layout = (await catalog.GetAsync(airbase))!.Layout;
-        return new World { Dcs = dcs, Ground = ground, Tower = tower, Flights = flights, Layout = layout };
+        return new World { Dcs = dcs, Ground = ground, Tower = tower, Flights = flights, Radio = radio, Layout = layout, Weather = weather };
     }
 
     private static UnitState Aircraft(string name, int group, Vec2 p, bool inAir = false, double agl = 0, double hdg = 0, double speed = 0, string? player = null) => new()
@@ -287,4 +291,62 @@ public class TowerControlTests
         Assert.Equal(TowerPhase.ClearedToLand, w.Tower.Flights[11].Phase);
         Assert.DoesNotContain("go around", w.LastText);
     }
+
+    [SkippableFact]
+    public async Task Controllers_speak_on_their_frequencies_and_every_clip_is_prepared_in_advance()
+    {
+        var w = await CreateAsync();
+        Skip.If(w is null, "DCS install or Al Dhafra dump not available");
+
+        // A whole sortie: taxi, hold for traffic, take off, hand-off; arrival, go-around, landing, taxi in.
+        await TaxiToHoldingPointAsync(w!);
+        w!.Put(Aircraft("Hornet 1-1", 2, w.OnRunway31R(1500)));
+        await w.Tower.ReadyForDepartureAsync(w.Units["Viper 1-1"], w.Units);
+        w.Units.Remove("Hornet 1-1");
+        await w.Tower.OnUnitsAsync(w.Units);
+        w.Put(Viper(w.OnRunway31R(2500), inAir: true, agl: 60, hdg: 308, speed: 90));
+        await w.Tower.OnUnitsAsync(w.Units);
+        w.Put(Viper(w.OnRunway31R(9000), inAir: true, agl: 1200, hdg: 308, speed: 150));
+        await w.Tower.OnUnitsAsync(w.Units);
+
+        w.Put(Viper(w.OnFinal31R(15000), inAir: true, agl: 900, hdg: 308, speed: 120));
+        await w.Tower.RequestLandingAsync(w.Units["Viper 1-1"], w.Units);
+        w.Put(Viper(w.OnFinal31R(9000), inAir: true, agl: 450, hdg: 308, speed: 80));
+        await w.Tower.OnUnitsAsync(w.Units);
+        w.Put(Aircraft("Hornet 1-1", 2, w.OnRunway31R(300)));
+        w.Put(Viper(w.OnFinal31R(900), inAir: true, agl: 50, hdg: 308, speed: 75));
+        await w.Tower.OnUnitsAsync(w.Units);
+        w.Units.Remove("Hornet 1-1");
+        await w.Tower.ReportFinalAsync(w.Units["Viper 1-1"], w.Units);
+        w.Put(Viper(w.OnRunway31R(1200), hdg: 308, speed: 40));
+        await w.Tower.OnUnitsAsync(w.Units);
+        await w.Ground.RequestTaxiToParkingAsync(w.Units["Viper 1-1"], w.Units);
+
+        // Ground speaks on 250.0, Tower on 270.0, to the blue coalition; everything said is also shown.
+        var calls = w.Radio.Calls;
+        Assert.Contains(calls, c => c.Text.Contains("taxi to holding point runway 31R"));
+        Assert.Contains(calls, c => c.Text.Contains("go around"));
+        Assert.All(calls, c => Assert.Equal(2, c.Coalition));
+        Assert.All(calls.Where(c => c.Text.Contains(" Ground, ")), c => Assert.Equal(("Al Dhafra Ground", 250.0), (c.Station, c.FrequencyMhz)));
+        Assert.All(calls.Where(c => c.Text.Contains("cleared") || c.Text.Contains("go around")), c => Assert.Equal(("Al Dhafra Tower", 270.0), (c.Station, c.FrequencyMhz)));
+        Assert.All(calls, c => Assert.Contains(w.Dcs.Texts, t => t.Text == c.Text));
+
+        // What the app prepares at mission start (plus the callsign as the pilot spawns) covers every clip of every call.
+        var labels = w.Layout.Labels!;
+        var prepared = Phraseology.Samples("Al Dhafra", w.Layout.Runways, labels.Taxiways.Select(t => t.Name).Distinct(), labels.Areas.Select(a => a.Name), labels.Frequencies, w.Weather)
+            .Concat(Phraseology.CallsignSamples("Viper 1-1"))
+            .SelectMany(SpokenText.Units).Select(u => u.Text).ToHashSet();
+        var missing = calls.SelectMany(c => SpokenText.Units(c.Text)).Select(u => u.Text).Where(u => !prepared.Contains(u)).Distinct().ToList();
+        Assert.Empty(missing);
+    }
+}
+
+/// <summary>Records what controllers would say on the radio.</summary>
+internal sealed class FakeRadio : IAtcRadio
+{
+    public List<RadioCall> Calls { get; } = [];
+    public List<string> Prepared { get; } = [];
+
+    public void Transmit(RadioCall call) => Calls.Add(call);
+    public void Prepare(IEnumerable<string> texts, bool soon = false) => Prepared.AddRange(texts);
 }

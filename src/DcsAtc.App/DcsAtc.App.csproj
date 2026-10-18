@@ -4,6 +4,8 @@
     <ProjectReference Include="..\DcsAtc.Bridge\DcsAtc.Bridge.csproj" />
     <ProjectReference Include="..\DcsAtc.Airfields\DcsAtc.Airfields.csproj" />
     <ProjectReference Include="..\DcsAtc.Atc\DcsAtc.Atc.csproj" />
+    <ProjectReference Include="..\DcsAtc.Srs\DcsAtc.Srs.csproj" />
+    <ProjectReference Include="..\DcsAtc.Voice\DcsAtc.Voice.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

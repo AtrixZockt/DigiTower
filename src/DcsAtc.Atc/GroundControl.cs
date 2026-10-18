@@ -39,9 +39,10 @@ public sealed class TaxiClearance
 /// <summary>
 /// Ground control: taxi clearances to the active runway's holding point and to parking (route computed
 /// on the DCS taxi network, named from chart labels, drawn on the F10 map) and monitoring while taxiing.
-/// A declared flight gets one clearance; the lead's position drives it.
+/// A declared flight gets one clearance; the lead's position drives it. Everything said to a pilot at an
+/// airfield is also transmitted on its Ground frequency when a radio is given.
 /// </summary>
-public sealed class GroundControl(IDcsCommands dcs, AirfieldCatalog airfields, FlightRegistry flights, Action<string>? log = null, Func<DateTime>? clock = null)
+public sealed class GroundControl(IDcsCommands dcs, AirfieldCatalog airfields, FlightRegistry flights, Action<string>? log = null, Func<DateTime>? clock = null, IAtcRadio? radio = null)
 {
     /// <summary>Further than this from the cleared route counts as off route (metres).</summary>
     public const double OffRouteDistance = 35;
@@ -81,7 +82,7 @@ public sealed class GroundControl(IDcsCommands dcs, AirfieldCatalog airfields, F
             .MinBy(d => d.Route.Length);
         if (departure is null)
         {
-            await SayAsync(party, $"{party.Callsign}, {airfield.Facility} Ground, unable to find a taxi route from your position.", 15, ct);
+            await SayAsync(party, airfield, Phraseology.UnableToRoute(party.Callsign, airfield.Facility), 15, ct);
             return;
         }
 
@@ -108,7 +109,7 @@ public sealed class GroundControl(IDcsCommands dcs, AirfieldCatalog airfields, F
         var parking = airfield.Layout.RouteToParking(new Vec2(lead.X, lead.Z), lead.IsHelicopter, others);
         if (parking is not { } found)
         {
-            await SayAsync(party, $"{party.Callsign}, {airfield.Facility} Ground, no free parking found, hold position.", 15, ct);
+            await SayAsync(party, airfield, Phraseology.NoFreeParking(party.Callsign, airfield.Facility), 15, ct);
             return;
         }
         var (spot, route) = found;
@@ -132,7 +133,7 @@ public sealed class GroundControl(IDcsCommands dcs, AirfieldCatalog airfields, F
         if (ClearanceFor(unit, units) is not { } c) return;
         _clearances.Remove(c.Key);
         await dcs.ClearDrawingAsync(c.DrawingKey, ct);
-        await SayAsync(c.Party, $"{c.Callsign}, {c.Airfield.Facility} Ground, taxi clearance cancelled, hold position.", 15, ct);
+        await SayAsync(c.Party, c.Airfield, Phraseology.TaxiCancelled(c.Callsign, c.Airfield.Facility), 15, ct);
     }
 
     /// <summary>Ends a clearance without a message (e.g. when Tower takes over).</summary>
@@ -144,7 +145,10 @@ public sealed class GroundControl(IDcsCommands dcs, AirfieldCatalog airfields, F
     public async Task SayAgainAsync(UnitState unit, IReadOnlyDictionary<string, UnitState> units, CancellationToken ct = default)
     {
         if (ClearanceFor(unit, units) is { } c && unit.GroupId is int g)
+        {
             await dcs.ShowTextAsync(g, c.Text, 30, ct: ct);
+            Transmit(c.Airfield, c.Coalition, c.Text);
+        }
     }
 
     /// <summary>Checks every taxiing flight against its clearance.</summary>
@@ -174,7 +178,7 @@ public sealed class GroundControl(IDcsCommands dcs, AirfieldCatalog airfields, F
                 if (c.OffRouteSamples >= 3 && now - c.LastOffRouteWarning >= WarningInterval)
                 {
                     c.LastOffRouteWarning = now;
-                    await SayAsync(c.Party, $"{c.Callsign}, {c.Airfield.Facility} Ground, you are off your cleared taxi route. Check route and hold position if unsure.", 15, ct);
+                    await SayAsync(c.Party, c.Airfield, Phraseology.OffRoute(c.Callsign, c.Airfield.Facility), 15, ct);
                 }
             }
             else
@@ -188,7 +192,9 @@ public sealed class GroundControl(IDcsCommands dcs, AirfieldCatalog airfields, F
                 if (!units.TryGetValue(name, out var member) || member.InAir || member.GroundSpeed <= TaxiSpeedLimit || member.GroupId is not int g) continue;
                 if (now - c.LastSpeedWarning.GetValueOrDefault(name, DateTime.MinValue) < WarningInterval) continue;
                 c.LastSpeedWarning[name] = now;
-                await dcs.ShowTextAsync(g, $"{Phraseology.Callsign(member)}, {c.Airfield.Facility} Ground, reduce taxi speed.", 10, ct: ct);
+                string slow = Phraseology.ReduceTaxiSpeed(Phraseology.Callsign(member), c.Airfield.Facility);
+                await dcs.ShowTextAsync(g, slow, 10, ct: ct);
+                Transmit(c.Airfield, member.Coal, slow);
             }
         }
     }
@@ -209,28 +215,35 @@ public sealed class GroundControl(IDcsCommands dcs, AirfieldCatalog airfields, F
         if (c.Departure is { } d)
         {
             c.Phase = TaxiPhase.HoldingShort;
-            string tower = Phraseology.Frequency(c.Airfield.Layout.Labels?.Frequencies?.Tower) is { } f ? $" on {f}" : "";
-            await SayAsync(c.Party, $"{c.Callsign}, {c.Airfield.Facility} Ground, hold short runway {d.End.Name}, contact Tower{tower} when ready for departure.", 20, ct);
+            await SayAsync(c.Party, c.Airfield, Phraseology.HoldShortContactTower(c.Callsign, c.Airfield.Facility, d.End, c.Airfield.Layout.Labels?.Frequencies?.Tower), 20, ct);
         }
         else
         {
             _clearances.Remove(c.Key);
-            await SayAsync(c.Party, $"{c.Callsign}, {c.Airfield.Facility} Ground, parking reached.", 10, ct);
+            await SayAsync(c.Party, c.Airfield, Phraseology.ParkingReached(c.Callsign, c.Airfield.Facility), 10, ct);
         }
     }
 
     private async Task StartAsync(TaxiClearance clearance, double[] color, string label, CancellationToken ct)
     {
         _clearances[clearance.Key] = clearance;
-        await SayAsync(clearance.Party, clearance.Text, 30, ct);
+        await SayAsync(clearance.Party, clearance.Airfield, clearance.Text, 30, ct);
         var line = Polyline.Simplify(clearance.Route.Geometry, 3).Select(p => (p.X, p.Z));
         await dcs.DrawRouteAsync(clearance.DrawingKey, clearance.Coalition, line, color, label, ct);
         log?.Invoke($"{clearance.Callsign}: {clearance.Text} ({clearance.Route.Length:F0} m)");
     }
 
-    private async Task SayAsync(Party party, string text, int seconds, CancellationToken ct)
+    /// <summary>Text to every member; on the radio too when it comes from an airfield's Ground.</summary>
+    private async Task SayAsync(Party party, GroundAirfield? airfield, string text, int seconds, CancellationToken ct)
     {
         foreach (var g in party.Groups) await dcs.ShowTextAsync(g, text, seconds, ct: ct);
+        Transmit(airfield, party.Coalition, text);
+    }
+
+    private void Transmit(GroundAirfield? airfield, int coalition, string text)
+    {
+        if (radio is not null && airfield?.Layout.Labels?.Frequencies?.Ground is double mhz)
+            radio.Transmit(new RadioCall($"{airfield.Facility} Ground", mhz, coalition, text));
     }
 
     /// <summary>The unit's party, its lead and the airfield if the lead is on the ground at an airfield we control; tells it otherwise.</summary>
@@ -241,13 +254,13 @@ public sealed class GroundControl(IDcsCommands dcs, AirfieldCatalog airfields, F
         var lead = units.GetValueOrDefault(party.LeadUnit) ?? unit;
         if (lead.InAir)
         {
-            await SayAsync(party, $"{party.Callsign}, you are airborne. Ground control is for aircraft on the ground.", 10, ct);
+            await SayAsync(party, null, Phraseology.GroundWhileAirborne(party.Callsign), 10, ct);
             return null;
         }
         var airfield = await airfields.NearestAsync(new Vec2(lead.X, lead.Z), ct: ct);
         if (airfield is null)
         {
-            await SayAsync(party, $"{party.Callsign}, no ground control available at your position.", 10, ct);
+            await SayAsync(party, null, Phraseology.NoGroundControl(party.Callsign), 10, ct);
             return null;
         }
         return (party, lead, airfield);

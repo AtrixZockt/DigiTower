@@ -46,8 +46,9 @@ public sealed class TowerFlight
 /// land, go around) and the hand-offs to Approach and Ground. Every aircraft in the mission counts as
 /// traffic, AI included: one aircraft on a runway at a time, departures wait for landing traffic.
 /// Parallel runways are independent. A declared flight is one client: its own members are never traffic to it.
+/// Everything said to a pilot at an airfield is also transmitted on its Tower frequency when a radio is given.
 /// </summary>
-public sealed class TowerControl(IDcsCommands dcs, AirfieldCatalog airfields, GroundControl ground, FlightRegistry flights, Action<string>? log = null, Func<DateTime>? clock = null)
+public sealed class TowerControl(IDcsCommands dcs, AirfieldCatalog airfields, GroundControl ground, FlightRegistry flights, Action<string>? log = null, Func<DateTime>? clock = null, IAtcRadio? radio = null)
 {
     private const double NauticalMile = 1852;
 
@@ -84,7 +85,7 @@ public sealed class TowerControl(IDcsCommands dcs, AirfieldCatalog airfields, Gr
         var lead = units.GetValueOrDefault(party.LeadUnit) ?? unit;
         if (lead.InAir)
         {
-            await SayAsync(party, $"{callsign}, you are already airborne.", ct);
+            await SayAsync(party, null, Phraseology.AlreadyAirborne(callsign), ct);
             return;
         }
 
@@ -101,7 +102,7 @@ public sealed class TowerControl(IDcsCommands dcs, AirfieldCatalog airfields, Gr
             airfield = await airfields.NearestAsync(position, ct: ct);
             if (airfield is null)
             {
-                await SayAsync(party, $"{callsign}, no tower available at your position.", ct);
+                await SayAsync(party, null, Phraseology.NoTower(callsign), ct);
                 return;
             }
             // Not cleared by Ground: the nearest runway, in the direction of the wind.
@@ -114,7 +115,7 @@ public sealed class TowerControl(IDcsCommands dcs, AirfieldCatalog airfields, Gr
 
         if (runway.DistanceFrom(position) > 400)
         {
-            await SayAsync(party, $"{callsign}, {airfield.Facility} Tower, you are not at a holding point for runway {end.Name}. Request taxi from Ground.", ct);
+            await SayAsync(party, airfield, Phraseology.NotAtHoldingPoint(callsign, airfield.Facility, end), ct);
             return;
         }
 
@@ -132,14 +133,14 @@ public sealed class TowerControl(IDcsCommands dcs, AirfieldCatalog airfields, Gr
         var lead = units.GetValueOrDefault(party.LeadUnit) ?? unit;
         if (!lead.InAir)
         {
-            await SayAsync(party, $"{callsign}, you are on the ground.", ct);
+            await SayAsync(party, null, Phraseology.OnTheGround(callsign), ct);
             return;
         }
         var position = new Vec2(lead.X, lead.Z);
         var airfield = await airfields.NearestAsync(position, InboundRange, ct);
         if (airfield is null)
         {
-            await SayAsync(party, $"{callsign}, no tower within {InboundRange / NauticalMile:F0} miles.", ct);
+            await SayAsync(party, null, Phraseology.NoTowerWithin(callsign, InboundRange / NauticalMile), ct);
             return;
         }
 
@@ -150,8 +151,7 @@ public sealed class TowerControl(IDcsCommands dcs, AirfieldCatalog airfields, Gr
         if (runway is null) return;
 
         var flight = Track(party, lead, airfield, runway, end, TowerPhase.Inbound);
-        string info = weather is null ? "" : $", {Phraseology.Wind(weather)}, {Phraseology.Altimeter(weather, lead.Type)}";
-        await SayAsync(flight, $"{callsign}, {airfield.Facility} Tower, runway {end.Name}{info}, report final.", ct);
+        await SayAsync(flight, Phraseology.ReportFinal(callsign, airfield.Facility, end, weather, lead.Type), ct);
     }
 
     /// <summary>"Final": the pilot reports being on final; landing clearance follows as soon as the runway allows.</summary>
@@ -161,7 +161,7 @@ public sealed class TowerControl(IDcsCommands dcs, AirfieldCatalog airfields, Gr
         var party = flights.PartyFor(unit, units);
         if (!_flights.TryGetValue(party.Key, out var flight) || flight.Phase != TowerPhase.Inbound)
         {
-            await dcs.ShowTextAsync(groupId, $"{party.Callsign}, request landing first.", 10, ct: ct);
+            await dcs.ShowTextAsync(groupId, Phraseology.RequestLandingFirst(party.Callsign), 10, ct: ct);
             return;
         }
         flight.ReportedFinal = true;
@@ -172,7 +172,10 @@ public sealed class TowerControl(IDcsCommands dcs, AirfieldCatalog airfields, Gr
     public async Task SayAgainAsync(UnitState unit, IReadOnlyDictionary<string, UnitState> units, CancellationToken ct = default)
     {
         if (unit.GroupId is int g && _flights.TryGetValue(flights.PartyFor(unit, units).Key, out var flight) && flight.LastText != "")
+        {
             await dcs.ShowTextAsync(g, flight.LastText, 20, ct: ct);
+            Transmit(flight.Airfield, flight.Party.Coalition, flight.LastText);
+        }
     }
 
     public async Task OnUnitsAsync(IReadOnlyDictionary<string, UnitState> units, CancellationToken ct = default)
@@ -238,12 +241,12 @@ public sealed class TowerControl(IDcsCommands dcs, AirfieldCatalog airfields, Gr
                 else if (f.Phase == TowerPhase.WaitingForDeparture && departingAhead && !LandingTrafficWithin(f, units, LandingClearanceRange))
                 {
                     Enter(f, TowerPhase.LineUpAndWait);
-                    await SayAsync(f, $"{f.Callsign}, runway {f.End.Name}, line up and wait.", ct);
+                    await SayAsync(f, Phraseology.LineUpAndWait(f.Callsign, f.End), ct);
                 }
                 else if (f.Phase == TowerPhase.WaitingForDeparture && (requested || f.LastReason != reason))
                 {
                     f.LastReason = reason;
-                    await SayAsync(f, $"{f.Callsign}, {f.Airfield.Facility} Tower, hold short runway {f.End.Name}, {reason}.", ct);
+                    await SayAsync(f, Phraseology.HoldShort(f.Callsign, f.Airfield.Facility, f.End, reason), ct);
                 }
                 break;
             }
@@ -278,7 +281,7 @@ public sealed class TowerControl(IDcsCommands dcs, AirfieldCatalog airfields, Gr
                 else if (requested || f.LastReason != reason)
                 {
                     f.LastReason = reason;
-                    await SayAsync(f, $"{f.Callsign}, continue approach, {reason}.", ct);
+                    await SayAsync(f, Phraseology.ContinueApproach(f.Callsign, reason), ct);
                 }
                 break;
             }
@@ -294,7 +297,7 @@ public sealed class TowerControl(IDcsCommands dcs, AirfieldCatalog airfields, Gr
                 {
                     Enter(f, TowerPhase.Inbound);
                     f.ReportedFinal = false;
-                    await SayAsync(f, $"{f.Callsign}, go around, I say again, go around, {occupied}.", ct);
+                    await SayAsync(f, Phraseology.GoAround(f.Callsign, occupied), ct);
                 }
                 break;
             }
@@ -307,8 +310,7 @@ public sealed class TowerControl(IDcsCommands dcs, AirfieldCatalog airfields, Gr
     private async Task LandedAsync(TowerFlight f, CancellationToken ct)
     {
         Enter(f, TowerPhase.Landed);
-        string groundFreq = Phraseology.Frequency(f.Airfield.Layout.Labels?.Frequencies?.Ground) is { } g ? $" on {g}" : "";
-        await SayAsync(f, $"{f.Callsign}, welcome to {f.Airfield.Facility}, vacate runway when able, contact Ground{groundFreq}.", ct);
+        await SayAsync(f, Phraseology.VacateContactGround(f.Callsign, f.Airfield.Facility, f.Airfield.Layout.Labels?.Frequencies?.Ground), ct);
     }
 
     private void Enter(TowerFlight f, TowerPhase phase)
@@ -320,13 +322,21 @@ public sealed class TowerControl(IDcsCommands dcs, AirfieldCatalog airfields, Gr
     private async Task SayAsync(TowerFlight f, string text, CancellationToken ct)
     {
         f.LastText = text;
-        await SayAsync(f.Party, text, ct);
+        await SayAsync(f.Party, f.Airfield, text, ct);
         log?.Invoke($"{f.Callsign}: {text}");
     }
 
-    private async Task SayAsync(Party party, string text, CancellationToken ct)
+    /// <summary>Text to every member; on the radio too when it comes from an airfield's Tower.</summary>
+    private async Task SayAsync(Party party, GroundAirfield? airfield, string text, CancellationToken ct)
     {
         foreach (var g in party.Groups) await dcs.ShowTextAsync(g, text, 20, ct: ct);
+        Transmit(airfield, party.Coalition, text);
+    }
+
+    private void Transmit(GroundAirfield? airfield, int coalition, string text)
+    {
+        if (radio is not null && airfield?.Layout.Labels?.Frequencies?.Tower is double mhz)
+            radio.Transmit(new RadioCall($"{airfield.Facility} Tower", mhz, coalition, text));
     }
 
     /// <summary>
@@ -335,8 +345,8 @@ public sealed class TowerControl(IDcsCommands dcs, AirfieldCatalog airfields, Gr
     /// </summary>
     private (string? Reason, bool DepartingAhead) DepartureBlocker(TowerFlight f, IReadOnlyDictionary<string, UnitState> units)
     {
-        if (LandingTrafficWithin(f, units, DepartureBlockingFinal)) return ("traffic on final", false);
-        if (_flights.Values.Any(o => o != f && o.Runway == f.Runway && o.Phase == TowerPhase.ClearedToLand)) return ("landing traffic", false);
+        if (LandingTrafficWithin(f, units, DepartureBlockingFinal)) return (Phraseology.TrafficOnFinal, false);
+        if (_flights.Values.Any(o => o != f && o.Runway == f.Runway && o.Phase == TowerPhase.ClearedToLand)) return (Phraseology.LandingTraffic, false);
 
         bool departingAhead = false;
         foreach (var other in units.Values)
@@ -344,14 +354,14 @@ public sealed class TowerControl(IDcsCommands dcs, AirfieldCatalog airfields, Gr
             if (f.Party.Units.Contains(other.Name) || other.InAir || !f.Runway.IsOnRunway(new Vec2(other.X, other.Z))) continue;
             var o = _flights.Values.FirstOrDefault(x => x.Party.Units.Contains(other.Name));
             if (o is { Phase: TowerPhase.ClearedForTakeoff or TowerPhase.LineUpAndWait }) departingAhead = true;
-            else return ("runway occupied", false);
+            else return (Phraseology.RunwayOccupied, false);
         }
-        if (departingAhead) return ("traffic departing", true);
+        if (departingAhead) return (Phraseology.TrafficDeparting, true);
 
         // An earlier departure cleared for this runway but not yet on it goes first.
         if (_flights.Values.Any(o => o != f && o.Runway == f.Runway && o.Phase is TowerPhase.ClearedForTakeoff or TowerPhase.LineUpAndWait
                                      && units.TryGetValue(o.UnitName, out var u) && !u.InAir))
-            return ("number two for departure", false);
+            return (Phraseology.NumberTwoForDeparture, false);
         return (null, false);
     }
 
@@ -361,20 +371,20 @@ public sealed class TowerControl(IDcsCommands dcs, AirfieldCatalog airfields, Gr
         if (RunwayOccupied(f, units) is { } occupied) return occupied;
         if (_flights.Values.Any(o => o != f && o.Runway == f.Runway && o.Phase is TowerPhase.LineUpAndWait or TowerPhase.ClearedForTakeoff
                                      && units.TryGetValue(o.UnitName, out var u) && !u.InAir))
-            return "traffic departing";
+            return Phraseology.TrafficDeparting;
         // Another aircraft cleared to land on this runway and still airborne goes first.
         double? mine = units.TryGetValue(f.UnitName, out var me) ? DistanceOnFinal(f.Runway, f.End, me) : null;
         foreach (var o in _flights.Values.Where(o => o != f && o.Runway == f.Runway && o.Phase == TowerPhase.ClearedToLand))
         {
             if (units.TryGetValue(o.UnitName, out var u) && u.InAir && (mine is null || DistanceOnFinal(f.Runway, o.End, u) is not double theirs || theirs < mine))
-                return "number two, follow the traffic ahead";
+                return Phraseology.NumberTwoFollowTraffic;
         }
         return null;
     }
 
     /// <summary>Any other aircraft on the ground on the runway.</summary>
     private static string? RunwayOccupied(TowerFlight f, IReadOnlyDictionary<string, UnitState> units) =>
-        units.Values.Any(u => !f.Party.Units.Contains(u.Name) && !u.InAir && f.Runway.IsOnRunway(new Vec2(u.X, u.Z))) ? "runway occupied" : null;
+        units.Values.Any(u => !f.Party.Units.Contains(u.Name) && !u.InAir && f.Runway.IsOnRunway(new Vec2(u.X, u.Z))) ? Phraseology.RunwayOccupied : null;
 
     /// <summary>Any other aircraft on final for either end of the runway, closer than <paramref name="range"/>.</summary>
     private static bool LandingTrafficWithin(TowerFlight f, IReadOnlyDictionary<string, UnitState> units, double range) =>
