@@ -8,3 +8,4 @@ out/
 data/voice/models/
 data/voice/cache/
 data/voice/voices.local.json
+data/voice/recognition.local.json

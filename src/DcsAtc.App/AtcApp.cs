@@ -2,6 +2,7 @@ using System.Text.Json;
 using DcsAtc.Airfields;
 using DcsAtc.Atc;
 using DcsAtc.Bridge;
+using DcsAtc.Recognition;
 
 namespace DcsAtc.App;
 
@@ -17,6 +18,8 @@ public sealed record AppOptions
     public TimeSpan StatusInterval { get; init; } = TimeSpan.FromSeconds(10);
     /// <summary>Where controllers speak (SRS); null: text messages only.</summary>
     public IAtcRadio? Radio { get; init; }
+    /// <summary>Mishearings to correct before a voice request is read ("one way" → "runway").</summary>
+    public IReadOnlyDictionary<string, string>? VoiceAliases { get; init; }
 }
 
 /// <summary>
@@ -37,6 +40,9 @@ public sealed class AtcApp
     private readonly Dictionary<string, UnitState> _units = [];
     /// <summary>The F10 menu each player group has now (entry ids), so it is only rebuilt when it changes.</summary>
     private readonly Dictionary<int, IReadOnlyList<string>> _menus = [];
+    private readonly PilotCallReader _reader;
+    // DCS messages and voice requests are handled one at a time.
+    private readonly SemaphoreSlim _gate = new(1, 1);
     private DateTime _lastStatus = DateTime.MinValue;
 
     public AtcApp(BridgeClient client, AppOptions options)
@@ -50,12 +56,14 @@ public sealed class AtcApp
         _approach = new ApproachControl(client, _airfields, _tower, _flights, Log, radio: options.Radio);
         _atis = new AtisService(client, _airfields, options.Radio, Log);
         _menu = new AtcMenu(_airfields, _ground, _tower, _approach, _flights);
+        _reader = new PilotCallReader(options.VoiceAliases);
     }
 
     public async Task RunAsync(CancellationToken ct)
     {
         await foreach (var message in _client.Messages.ReadAllAsync(ct))
         {
+            await _gate.WaitAsync(ct);
             try
             {
                 await HandleAsync(message, ct);
@@ -64,7 +72,140 @@ public sealed class AtcApp
             {
                 Log($"error: {ex.Message}");
             }
+            finally
+            {
+                _gate.Release();
+            }
         }
+    }
+
+    /// <summary>
+    /// A pilot's transmission to a station, as text (a voice request): ATC acts as if the matching F10 entry had been
+    /// picked. A request for another controller of the airfield is sent there ("contact Approach on 257.0"); a call
+    /// that is not understood gets "say again" if it was aimed at ATC; readbacks and chatter get no answer.
+    /// </summary>
+    /// <param name="station">The station that heard it ("Al Dhafra Ground").</param>
+    /// <param name="sender">The SRS client name (the player name) and its DCS unit id, from SRS.</param>
+    public async Task OnVoiceAsync(string station, string? sender, uint? unitId, string text, CancellationToken ct)
+    {
+        await _gate.WaitAsync(ct);
+        try
+        {
+            await VoiceAsync(station, sender, unitId, text, ct);
+        }
+        catch (Exception ex) when (ex is BridgeCommandException or InvalidOperationException or IOException or TimeoutException or InvalidDataException)
+        {
+            Log($"voice: {ex.Message}");
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    private async Task VoiceAsync(string station, string? sender, uint? unitId, string text, CancellationToken ct)
+    {
+        var unit = _units.Values.FirstOrDefault(u => unitId is > 0 && u.Id == unitId && u.IsPlayer)
+            ?? _units.Values.FirstOrDefault(u => u.IsPlayer && u.Player == sender);
+        if (unit?.GroupId is null)
+        {
+            Log($"voice: {sender ?? "?"} is not in an aircraft, not answered");
+            return;
+        }
+        int space = station.LastIndexOf(' ');
+        if (space < 0) return;
+        string facility = station[..space], role = station[(space + 1)..];
+        var airbase = _airfields.Airbases.FirstOrDefault(a => a.Category == 0 && Phraseology.Facility(a.Name) == facility);
+        if (airbase is null || await _airfields.GetAsync(airbase, ct) is not { } airfield) return;
+
+        var party = _flights.PartyFor(unit, _units);
+        var reading = _reader.Read(text, station);
+        if (reading.Call is not { } call)
+        {
+            if (reading.Readback || !reading.AimedAtAtc)
+            {
+                Log($"voice: {party.Callsign} to {station}: {(reading.Readback ? "readback" : "not a call to ATC")}, no answer");
+                return;
+            }
+            Log($"voice: {party.Callsign} to {station}: not understood");
+            await ReplyAsync(party, airfield, role, unit.Coal, Phraseology.SayAgainPlease(party.Callsign, station), ct);
+            return;
+        }
+
+        // "Inbound" or "request landing" to Approach asks for an approach: Approach brings arrivals to Tower.
+        if (role == "Approach" && call.Intent == PilotIntent.RequestLanding) call = call with { Intent = PilotIntent.RequestApproach };
+        string owner = call.Intent switch
+        {
+            PilotIntent.RequestTaxi or PilotIntent.TaxiToParking or PilotIntent.CancelTaxi or PilotIntent.RequestStartup => "Ground",
+            PilotIntent.ReadyForDeparture or PilotIntent.RequestLanding or PilotIntent.ReportFinal or PilotIntent.ReportInitial => "Tower",
+            PilotIntent.RequestApproach or PilotIntent.FieldInSight or PilotIntent.CancelApproach => "Approach",
+            _ => role,
+        };
+        Log($"voice: {party.Callsign} to {station}: {call.Intent}{(call.Option is { } o ? $" ({o})" : "")}, match {call.Match:P0}");
+        if (owner != role && FrequencyOf(airfield, owner) is double mhz)
+        {
+            await ReplyAsync(party, airfield, role, unit.Coal, Phraseology.ContactStation(party.Callsign, station, owner, mhz), ct);
+            return;
+        }
+        switch (call.Intent)
+        {
+            case PilotIntent.RadioCheck:
+                await ReplyAsync(party, airfield, role, unit.Coal, Phraseology.ReadYouFive(party.Callsign, station), ct);
+                return;
+            case PilotIntent.RequestStartup:
+                await ReplyAsync(party, airfield, role, unit.Coal, Phraseology.StartupApproved(party.Callsign, station), ct);
+                return;
+        }
+        if (ActionFor(call, role, airfield) is not { } action)
+        {
+            await ReplyAsync(party, airfield, role, unit.Coal, Phraseology.SayAgainPlease(party.Callsign, station), ct);
+            return;
+        }
+        await DispatchAsync(unit, action, airfield, ct);
+        foreach (var u in PlayerGroups()) await UpdateMenuAsync(u, ct);
+    }
+
+    /// <summary>The F10 action for a voice request to <paramref name="role"/>; the details not said get defaults.</summary>
+    private static string? ActionFor(PilotCall call, string role, GroundAirfield airfield) => call.Intent switch
+    {
+        PilotIntent.RequestTaxi => "ground.taxi",
+        PilotIntent.TaxiToParking => "ground.parking",
+        PilotIntent.CancelTaxi => "ground.cancel",
+        PilotIntent.SayAgain => $"{role.ToLowerInvariant()}.repeat",
+        // Ready for departure without a direction: own navigation.
+        PilotIntent.ReadyForDeparture => $"tower.ready.{call.Option ?? "own"}",
+        PilotIntent.RequestLanding => "tower.landing",
+        PilotIntent.CheckIn => role switch { "Tower" => "tower.landing", "Approach" => "approach.checkin", _ => null },
+        PilotIntent.ReportFinal => "tower.final",
+        PilotIntent.ReportInitial => "tower.initial",
+        // An approach without a type, or one the airfield does not have: ILS, else TACAN, else visual.
+        PilotIntent.RequestApproach => $"approach.{call.Option switch
+        {
+            "ils" when airfield.Radio.HasIls => "ils",
+            "tacan" when airfield.Radio.Tacan is not null => "tacan",
+            "visual" or "overhead" => call.Option,
+            _ => airfield.Radio.HasIls ? "ils" : airfield.Radio.Tacan is not null ? "tacan" : "visual",
+        }}",
+        PilotIntent.FieldInSight => "approach.field",
+        PilotIntent.CancelApproach => "approach.cancel",
+        _ => null,
+    };
+
+    private static double? FrequencyOf(GroundAirfield airfield, string role) => airfield.Layout.Labels?.Frequencies is not { } f ? null : role switch
+    {
+        "Ground" => f.Ground,
+        "Tower" => f.Tower,
+        "Approach" => f.Approach,
+        _ => null,
+    };
+
+    /// <summary>A station's own answer to a voice request: as text to the flight, and on its frequency.</summary>
+    private async Task ReplyAsync(Party party, GroundAirfield airfield, string role, int coalition, string text, CancellationToken ct)
+    {
+        foreach (var group in party.Groups) await _client.ShowTextAsync(group, text, 10, ct: ct);
+        if (_options.Radio is { } radio && FrequencyOf(airfield, role) is double mhz)
+            radio.Transmit(new RadioCall($"{airfield.Facility} {role}", mhz, coalition, text));
+        Log($"{party.Callsign}: {text}");
     }
 
     private async Task HandleAsync(BridgeMessage message, CancellationToken ct)
@@ -163,6 +304,7 @@ public sealed class AtcApp
             if (_menus.ContainsKey(u.GroupId!.Value)) continue;
             Log($"ATC menu for {u.Player} ({u.Group})");
             _options.Radio?.Prepare(Phraseology.CallsignSamples(Phraseology.Callsign(u)), soon: true);
+            ListenFor(u.Coal);
         }
 
         await _flights.OnUnitsAsync(_units, ct);
@@ -192,6 +334,34 @@ public sealed class AtcApp
         // Airfield calls carry the airfield ("ab4:ground.taxi"): the controllers work that one, not the nearest.
         var (airbaseId, action) = AtcMenu.ParseId(m.Id);
         var at = airbaseId is int id && _airfields.Airbases.FirstOrDefault(a => a.Id == id) is { } airbase ? await _airfields.GetAsync(airbase, ct) : null;
+        switch (action)
+        {
+            case "atis" when at is not null:
+                await _client.ShowTextAsync(m.GroupId, await _atis.TextAsync(at, ct), 30, ct: ct);
+                break;
+            case "frequencies" when at is not null:
+                await _client.ShowTextAsync(m.GroupId, Phraseology.FrequencyList(at), 20, ct: ct);
+                break;
+            case "flight.2" or "flight.3" or "flight.4":
+                await _flights.DeclareAsync(unit, action[^1] - '0', _units, ct);
+                break;
+            case "flight.single":
+                await _flights.LeaveAsync(unit, _units, ct);
+                break;
+            case "debug.where":
+                await _client.ShowTextAsync(m.GroupId, DescribePosition(unit), 15, ct: ct);
+                break;
+            default:
+                await DispatchAsync(unit, action, at, ct);
+                break;
+        }
+        // What the pilot can do next changed: show it now rather than on the next update. A flight's call changes its members' menus too.
+        foreach (var u in PlayerGroups()) await UpdateMenuAsync(u, ct);
+    }
+
+    /// <summary>An airfield call to Ground, Tower or Approach, picked in the F10 menu or said on the radio.</summary>
+    private async Task DispatchAsync(UnitState unit, string action, GroundAirfield? at, CancellationToken ct)
+    {
         switch (action)
         {
             case "ground.taxi":
@@ -236,24 +406,24 @@ public sealed class AtcApp
             case "approach.repeat":
                 await _approach.SayAgainAsync(unit, _units, ct);
                 break;
-            case "atis" when at is not null:
-                await _client.ShowTextAsync(m.GroupId, await _atis.TextAsync(at, ct), 30, ct: ct);
-                break;
-            case "frequencies" when at is not null:
-                await _client.ShowTextAsync(m.GroupId, Phraseology.FrequencyList(at), 20, ct: ct);
-                break;
-            case "flight.2" or "flight.3" or "flight.4":
-                await _flights.DeclareAsync(unit, action[^1] - '0', _units, ct);
-                break;
-            case "flight.single":
-                await _flights.LeaveAsync(unit, _units, ct);
-                break;
-            case "debug.where":
-                await _client.ShowTextAsync(m.GroupId, DescribePosition(unit), 15, ct: ct);
-                break;
         }
-        // What the pilot can do next changed: show it now rather than on the next update. A flight's call changes its members' menus too.
-        foreach (var u in PlayerGroups()) await UpdateMenuAsync(u, ct);
+    }
+
+    /// <summary>
+    /// Puts the controllers of every airfield with frequencies on the air for a coalition, so they hear pilots calling
+    /// before they first speak (only when the radio listens: --transcribe).
+    /// </summary>
+    private void ListenFor(int coalition)
+    {
+        if (_options.Radio is not { } radio) return;
+        foreach (var airbase in _airfields.Airbases.Where(a => a.Category == 0))
+        {
+            if (_airfields.LabelsFor(airbase.Name)?.Frequencies is not { } f) continue;
+            string facility = Phraseology.Facility(airbase.Name);
+            if (f.Ground is double ground) radio.Listen($"{facility} Ground", ground, coalition);
+            if (f.Tower is double tower) radio.Listen($"{facility} Tower", tower, coalition);
+            if (f.Approach is double approach) radio.Listen($"{facility} Approach", approach, coalition);
+        }
     }
 
     /// <summary>One player unit per group with players (the menu is per group).</summary>

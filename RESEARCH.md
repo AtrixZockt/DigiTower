@@ -27,7 +27,7 @@ Preferably **without AI**.
 | Where it runs | **Own DCS server with friends** ("DiGiis Server", private) | The ATC app runs on the machine that hosts the server. Friends need only SRS. Today that is your gaming PC: DCS client + DCS server + SRS server + ATC app on one machine (Ryzen 5 5600X 6C/12T, 32 GB, Radeon RX 9060 XT, VR via Virtual Desktop). |
 | "No AI" rule | **No AI at runtime for ATC logic and ATC voice.** Clips may be generated once, offline, with any TTS. | ATC speech = stitched sound files. No TTS or LLM while flying, except the speech-recognition exception below. |
 | Pilot input | **F10 menu + real voice over SRS** | F10 is the guaranteed path. Voice = pilots press their normal SRS PTT on the ATC frequency. |
-| Speech recognition | **Local Whisper (whisper.cpp via Whisper.net), offline**, behind a pluggable interface. The Windows grammar engine stays as an alternative backend. | A contained exception to the no-AI rule, for listening only. See §6. |
+| Speech recognition | **Local and offline**, behind a pluggable interface. Candidates: **Whisper** (whisper.cpp via Whisper.net) and **NVIDIA Parakeet TDT** (sherpa-onnx); the S5 bake-off on your recorded calls picks one. The Windows grammar engine is out (your choice, 2026-10-19). | A contained exception to the no-AI rule, for listening only. See §6. |
 | Architecture | **External app + thin Lua bridge** | §10 option B. |
 | Language | **C# / .NET** | SRS is C#; Whisper.net, System.Speech and NAudio are native .NET. |
 | Phraseology | **ICAO base + military procedures** (overhead break, closed traffic, formation takeoff, …) | Defines the clip list. |
@@ -267,7 +267,14 @@ You have **VAICOM PRO** installed (`Saved Games\DCS\Mods\tech\VAICOMPRO`). VAICO
 
 ### Decision: speech recognition for "real voice over SRS"
 
-**Choice:** local **Whisper** (whisper.cpp through the **Whisper.net** NuGet package; CPU/CUDA/Vulkan backends, GGML model files), behind a pluggable `IRecognizer` interface. The Windows grammar engine (`System.Speech`) is implemented as a second backend for comparison.
+**Choice:** a local recognizer behind a pluggable interface (`ISpeechRecognizer`), picked by the S5 bake-off between **Whisper** (whisper.cpp through the **Whisper.net** NuGet package; CPU and Vulkan backends, GGML model files) and **NVIDIA Parakeet TDT 0.6B** (through sherpa-onnx, which already makes the ATC voice). The Windows grammar engine (`System.Speech`) was dropped before the bake-off (your choice, 2026-10-19).
+
+**Research for S5 (2026-10-19):**
+- **Whisper.net 1.9.1** (June 2026): CPU and Vulkan runtimes side by side, one per process. The Vulkan runtime needs loader 1.4.321+; your AMD driver has 1.4.341, and it **works on the RX 9060 XT** (small.en 1.0–2.4 s per call with DCS running, against ~4.5 s on 4 CPU threads). Grammar-constrained decoding (`WithGrammar`) and Parakeet support exist only on Whisper.net's unreleased main branch.
+- **Parakeet TDT 0.6B v2** (English, CC-BY-4.0): runs int8 on the CPU in sherpa-onnx 1.13.8. Its work grows with the length of the call; Whisper always encodes 30 s, which sets a floor under its time per call. Since February 2026 sherpa-onnx supports **hotwords** (contextual biasing) for NeMo/TDT models with beam search: "Al Dhafra" comes out right with them, "Aldafra" / "Al-Dafa" without.
+- **Whisper on real ATC radio** does poorly out of the box (24–63 % word error rate in papers on ATCO2 / ATCOSIM); fine-tuned models do much better. Apache-2.0 / MIT fine-tunes exist (e.g. `jlvdoorn/whisper-small.en-atcosim`, `tclin/whisper-large-v3-turbo-atcosim-finetune`; ATCOSIM was recorded at EUROCONTROL with German, Swiss and French controllers). Tried on your calls: worse than the stock model (S5 status).
+- **Prompts** can make Whisper invent text on silence: near-silent transmissions are skipped, the prompt is short, and every engine is measured with and without its vocabulary.
+- **SRS adds radio effects and cockpit noise on the receiving client** (`ClientAudioProvider`, SRS source): the stations get the pilot's microphone after the pilot's own SRS AGC and noise reduction. So test calls recorded at the desk in External AWACS Mode (enabled on your server) sound to the recognizer like calls from the cockpit.
 
 **Why not the Windows grammar engine as the default:**
 - Its en-US acoustic model is weak with a **strong German accent**.
@@ -289,7 +296,7 @@ You have **VAICOM PRO** installed (`Saved Games\DCS\Mods\tech\VAICOMPRO`). VAICO
    - **Upgrades if needed:** `small.en` if accuracy is poor. Vulkan only if it does not cause VR frame-time spikes.
    - **Reference:** SkyEye reports ~3 s for `small.en` on a 4-core cloud VM. 1–3 s is about a real controller's reaction time.
    - **In VR, voice is the most comfortable input** (no menus to walk), so it is worth getting right.
-6. **Measure, don't guess:** Spike S5 (§11) records your own transmissions through SRS and compares Whisper (`base.en` / `small.en`) against the Windows grammar engine before we commit.
+6. **Measure, don't guess:** Spike S5 (§11) records your own transmissions through SRS and compares the candidates (Whisper base.en / small.en / large-v3-turbo on CPU and Vulkan, Parakeet with and without hotwords) before we commit.
 
 ---
 
@@ -440,15 +447,15 @@ Brain as in B. The mission-side bridge script is also usable as a normal mission
                     ├─ Phraseology       (intent → word sequence → clip list)
                     ├─ Audio             (clip stitching → Opus → SRS)
                     ├─ SRS client        (connects to the SRS server like a player; TX + RX on ATC frequencies)
-                    └─ Recognizer        (Whisper.net or System.Speech → text → deterministic intent parser)
+                    └─ Recognizer        (Whisper.net or Parakeet/sherpa-onnx → text → deterministic intent parser)
 
  Friends: DCS + SRS only. F10 menu or real PTT on the ATC frequency.
 ```
 
 **Main libraries:**
 - .NET 10 (LTS)
-- Whisper.net + Whisper.net.Runtime
-- System.Speech (alternative recognizer)
+- Whisper.net + Whisper.net.Runtime (+ .Vulkan); sherpa-onnx (Parakeet, and the TTS)
+- System.Speech (Windows voices)
 - NAudio (resampling, mixing)
 - Opus: Concentus (pure C#) or the `opus.dll` that SRS ships
 
@@ -491,7 +498,7 @@ Brain as in B. The mission-side bridge script is also usable as a normal mission
 | S2 | **SRS client.** The C# app joins your SRS server as a headless client. | It transmits a stitched ~10-clip sentence on a frequency, receives a player's transmission on that frequency, and knows who sent it. Gaps and latency measured. |
 | S3 | **Taxi data.** Decode the Al Dhafra `.rn5` into a graph and render it as SVG. | Overlaid on a chart; stage 1–2 labeled; A* routes from a stand to both runways. |
 | S4 | **Silence stock ATC** at Al Dhafra and read the runway data. | `getRunways()` names confirmed; AI still starts, taxis, takes off and lands normally. |
-| S5 | **Recognition bake-off.** Record ~50 of your own ATC calls through SRS. | Whisper `base.en` / `small.en` (CPU, and Vulkan if it works) vs. System.Speech grammar compared: accuracy, latency and VR frame-time impact, while DCS is running. |
+| S5 | **Recognition bake-off.** Record ~50 of your own ATC calls through SRS. | Whisper `base.en` / `small.en` / large-v3-turbo (CPU, and Vulkan) vs. Parakeet compared: accuracy, latency and VR frame-time impact, while DCS is running. |
 | S6 | **Voice audition.** Kokoro vs. Piper vs. Google free tier vs. Windows voice, stitched and sent through SRS. | You pick the ATC voice. |
 
 **Status (2026-10-18):**
@@ -510,7 +517,8 @@ Brain as in B. The mission-side bridge script is also usable as a normal mission
 | S6 (voice) | **Done: you picked Piper "Alan" (British male)**, now the default. Audition of 15 voices: Kokoro v1.0 (10), Piper (3), Windows (2), all local and free (`out/audition/index.html`). Clips are made once and cached; a new clip takes 0.4–0.8 s (Kokoro fp32, 4 threads; the int8 model is 2.5× slower on this CPU), 0.1–0.4 s (Piper). At mission start everything Ground and Tower say at Al Dhafra is prepared in the background; a callsign when its pilot spawns. Details: `docs/voice.md`. |
 | M3 (approach) | **Built and tested with simulated pilots (real Al Dhafra layout and DCS navaids); not yet flown in game.** "Al Dhafra Approach" on 257.0.<br>• **Navaids** from the terrain's `beacons.lua` (any map): an ILS for each Al Dhafra runway end, MA TACAN 96X.<br>• **Arrivals:** ILS, TACAN, visual or overhead on request within 60 NM. Radar vectors: join, downwind (5 NM beside final), base, intercept (30°, or aimed for a straight-in), clearance within 15 NM, hand-off to Tower at 8 NM; visual after *field in sight*; overhead to the initial point, then Tower approves the break and clears on the downwind.<br>• **Spacing:** base turns wait until the traffic ahead (clients, Tower's, AI on final) is 5 NM (+1.5 NM for compression) ahead; *extend downwind*. More than three arrivals: a stack over the TACAN from 7000 ft, released in turn.<br>• **Departures:** check-in after Tower, held below descending arrivals within 10 NM, released when clear, service ends at 40 NM.<br>• **Traffic advisories** for every client (not between aircraft on the parallel finals); **check altitude / heading**.<br>• **Simulated pilots:** five arrivals (two holding) all reach final established ~8 NM out at ~2600 ft; on the same runway at least 90 s apart at 6 NM. |
 | ATIS | **Built and tested (fake DCS, real SRS loop); not yet heard in game.** On the airfield's ATIS frequency (Al Dhafra 270.5), only while someone is tuned in (SRS tells every client the others' radios). Information letter, Zulu time (map time zones as in MOOSE), runway in use, expected approach (ILS / TACAN / visual from the navaids), wind, CAVOK or visibility with fog / mist / dust / rain / snow / thunderstorm, clouds from the DCS preset layers (`Config/Effects/clouds.lua`, moved with the mission's cloud base) or legacy clouds, temperature, QNH and altimeter. New letter on significant changes (runway, approach, sky, QNH, wind 30° / 5 kt) and every hour. Text for every airfield in the menu. Needs the updated bridge (`mission_weather`); with an old one, no time, visibility or clouds. Controllers do not refer to it (your choice). |
-| S5 | Not started (the stations already receive what is said on their frequency). |
+| S5 | **Bake-off done on your 51 calls** (recorded at the desk through SRS External AWACS Mode, PTT, headset mic). Understood = every `[key phrase]` came through exactly; tolerant = near-misses a parser could take ("one way three one right" for "runway three one right"; the tolerance accepted a phrase that was not said 2 times in about 4,000 checks):<br>• **Whisper large-v3-turbo + prompt, GPU (Vulkan): 33/51, tolerant 41/51, 13 % WER, 0.54 s per call, 0.25 CPU-s.** The same on the CPU: 21 s per call (60 % of the CPU): unusable.<br>• Whisper small.en + prompt: 25/51 (31 tolerant), 0.38 s on the GPU, 3.7 s on the CPU. Parakeet: 20/51 (26), 0.33 s, CPU. Whisper base.en: 14/51. Without the vocabulary prompt every Whisper is clearly worse.<br>• **ATC fine-tune tried, set aside:** large-v3-turbo fine-tuned on ATCO2 + ATCOSIM (tclin, MIT; converted with `tools/Convert-WhisperModel.ps1`) understood only 26-27/51 (25 % WER): it turns words into European airline callsigns ("Alitalia", "Sabena", "Hapag Lloyd", "England" for "Hangman").<br>• **What goes wrong is your pronunciation, consistently, in every model:** "runway" → "one way", "right" → "white", "cleared" → "hit / we had / did", "field in sight" → "healed inside", "Tower" → "Power", "heading" → "adding". Not clipping: every recording starts with 0.6-1.5 s of near-silence after the key press. The SRS mic noise reduction (background around -80 dB) may soften /h t k f/: A/B test pending.<br>**Decided: `whisper-turbo-vulkan`.** Flown with `--transcribe`: GPU usage spikes, no noticeable frame drops, 0.8–1.4 s per call in flight. |
+| Voice requests | **Built, tested end to end (fake DCS, isolated SRS, a TTS pilot); not yet flown.** With `--transcribe`, ATC answers what pilots say on its frequencies like the F10 entries (docs/voice.md, Voice requests): the call is read in plain code (normalized, your mishearings corrected by `"aliases"`, near-misses accepted, "cleared …" always a readback), the sender comes from SRS, the station from the frequency. A request for another controller gets "contact Approach on 257.0"; a call to ATC not understood "say again"; readbacks and chatter nothing (your choices). Defaults: departure own navigation, approach ILS / TACAN / visual. Radio check and start up are answered. **On the 51 recorded calls ATC would react right to 50** (29 of 30 requests). Next: readback checking (M6); later a LoRA fine-tune on your own recordings, run overnight on your PC. |
 
 **C# tests:** bridge client over TCP, integration with the fake DCS, `.rn5` reader (synthetic file, plus Batumi / Al Dhafra / Guam from your install). All passing.
 
@@ -568,6 +576,9 @@ All planning questions are answered (see "Decisions so far"). Items that will be
 - [Master Arms wiki — Charts (Persian Gulf)](https://wiki.masterarms.se/index.php/Charts)
 - [VNSAWC Kneeboards (DCS user files)](https://www.digitalcombatsimulator.com/fr/files/3334727)
 - [Whisper.net — NuGet](https://www.nuget.org/packages/Whisper.net) · [GitHub](https://github.com/sandrohanea/whisper.net) · [Vulkan runtime — NuGet](https://www.nuget.org/packages/whisper.net.runtime.vulkan)
+- [sherpa-onnx NeMo transducer models (Parakeet)](https://k2-fsa.github.io/sherpa/onnx/pretrained_models/offline-transducer/nemo-transducer-models.html) · [hotwords for NeMo/TDT transducers (PR #3077)](https://github.com/k2-fsa/sherpa-onnx/pull/3077) · [NVIDIA Parakeet TDT 0.6B v2](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v2)
+- [Adapting ASR for accented ATC communications (arXiv 2502.20311)](https://arxiv.org/pdf/2502.20311) · [Whisper fine-tuned on ATCO2/ATCOSIM (jlvdoorn)](https://huggingface.co/jlvdoorn/whisper-small.en-atcosim) · [Investigation of Whisper hallucinations (arXiv 2501.11378)](https://arxiv.org/html/2501.11378v1)
+- [SRS receive-side effects: `ClientAudioProvider.cs`](https://github.com/ciribob/DCS-SimpleRadioStandalone/blob/master/Common/Audio/Providers/ClientAudioProvider.cs)
 - [Phoronix — whisper.cpp 1.8.3 Vulkan speed-up](https://www.phoronix.com/news/Whisper-cpp-1.8.3-12x-Perf) · [Whisper.net setup guide (AMD caveat)](https://en.pyvideotrans.com/whisper_net_setup)
 - [Costbench — Google Cloud TTS free plan 2026](https://costbench.com/software/ai-voice-tools/google-cloud-text-to-speech/free-plan/) (third-party; verify on Google's pricing page)
 - [Kokoro TTS guide](https://soniqo.audio/guides/kokoro) · [Kokoro-82M](https://together.ai/models/kokoro-82m)

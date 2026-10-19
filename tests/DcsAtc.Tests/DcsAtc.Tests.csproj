@@ -23,6 +23,7 @@
     <ProjectReference Include="..\..\src\DcsAtc.Bridge\DcsAtc.Bridge.csproj" />
     <ProjectReference Include="..\..\src\DcsAtc.Airfields\DcsAtc.Airfields.csproj" />
     <ProjectReference Include="..\..\src\DcsAtc.Atc\DcsAtc.Atc.csproj" />
+    <ProjectReference Include="..\..\src\DcsAtc.Recognition\DcsAtc.Recognition.csproj" />
     <ProjectReference Include="..\..\src\DcsAtc.Srs\DcsAtc.Srs.csproj" />
     <ProjectReference Include="..\..\src\DcsAtc.Voice\DcsAtc.Voice.csproj" />
   </ItemGroup>

@@ -234,6 +234,19 @@ public static partial class Phraseology
     public static string VacateContactGround(string callsign, string facility, double? ground) =>
         $"{callsign}, welcome to {facility}, vacate runway when able, contact Ground{(Frequency(ground) is { } f ? $" on {f}" : "")}.";
 
+    /// <summary>A call ATC did not understand: "Hangman 1-2, Al Dhafra Ground, say again."</summary>
+    public static string SayAgainPlease(string callsign, string station) => $"{callsign}, {station}, say again.";
+
+    /// <summary>A request for another controller: "Hangman 1-2, Al Dhafra Ground, contact Approach on 257.0."</summary>
+    public static string ContactStation(string callsign, string station, string other, double mhz) =>
+        $"{callsign}, {station}, contact {other} on {Frequency(mhz)}.";
+
+    /// <summary>"Hangman 1-2, Al Dhafra Ground, read you five."</summary>
+    public static string ReadYouFive(string callsign, string station) => $"{callsign}, {station}, read you five.";
+
+    /// <summary>"Hangman 1-2, Al Dhafra Ground, start up approved, report ready to taxi."</summary>
+    public static string StartupApproved(string callsign, string station) => $"{callsign}, {station}, start up approved, report ready to taxi.";
+
     /// <summary>
     /// One example of every transmission Ground and Tower make at an airfield, with its runways, taxiways, parking
     /// areas and frequencies, and the given weather: saying these once caches every clip a controller needs there,
@@ -289,6 +302,18 @@ public static partial class Phraseology
         yield return CheckAltitudeMaintain(cs, procedures ?? DepartureProcedures.Default);
         yield return CheckHeading(cs);
         yield return VacateContactGround(cs, facility, frequencies?.Ground);
+
+        // Answers to voice requests, from each station: say again, read you five, start up, contact another station.
+        var stations = new[] { ("Ground", frequencies?.Ground), ("Tower", frequencies?.Tower), ("Approach", frequencies?.Approach) };
+        foreach (var (role, mhz) in stations.Where(s => s.Item2 is not null))
+        {
+            string station = $"{facility} {role}";
+            yield return SayAgainPlease(cs, station);
+            yield return ReadYouFive(cs, station);
+            yield return StartupApproved(cs, station);
+            foreach (var (other, otherMhz) in stations.Where(s => s.Item1 != role && s.Item2 is not null))
+                yield return ContactStation(cs, station, other, otherMhz!.Value);
+        }
     }
 
     /// <summary>Every climb-out Tower can give from this runway end: each intent, with and without each restriction.</summary>
