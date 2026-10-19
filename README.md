@@ -65,12 +65,16 @@ dotnet run --project src/DcsAtc.App                             # terminal 2
    dotnet run --project tools/DcsAtc.VoiceTool -- fetch   # once: the voice model (else a Windows voice speaks)
    dotnet run --project src/DcsAtc.App                    # options: --srs host:port, --voice <id>, --no-voice, --transcribe [<id>], --no-ai
    ```
-   At airfields with chart data (so far Al Dhafra) the stock ATC is silenced. The controllers speak on SRS
-   (127.0.0.1:5002): at Al Dhafra **Ground 250.0**, **Tower 270.0** and **Approach 257.0** AM; every call is also
-   shown as text. ILS frequencies and TACAN channels come from the DCS terrain (`beacons.lua`). The **ATIS** loops on
-   **270.5** while anyone is tuned in: information letter, Zulu time, runway in use, expected approach, wind,
-   visibility and weather, clouds (from the DCS weather preset), temperature, QNH and altimeter; a new letter with every
-   significant change and every hour. Every airfield's ATIS can also be read in the menu.
+   The controllers speak on SRS (127.0.0.1:5002) at **every airfield**, on the ATC frequencies DCS gives it, the
+   ones in your briefing: Ground, Tower and Approach share them (VHF and UHF AM, e.g. Al Minhad **118.55** and
+   **250.1**), and DCS's own ATC there is silenced. Al Dhafra also has its own positions from chart data: **Ground
+   250.0**, **Tower 270.0**, **Approach 257.0**. Every call is also shown as text. An airfield goes on the air (its
+   ATIS broadcasts, voice requests are heard, its phrases are prepared) when a player comes within 60 NM. ILS
+   frequencies and TACAN channels come from the DCS terrain (`beacons.lua`). The **ATIS** loops while anyone is tuned
+   in, on the ATC UHF frequency + 10 MHz and the VHF + 1 MHz (Al Minhad 260.1 and 119.55; Al Dhafra 270.5): information
+   letter, Zulu time, runway in use, expected approach, wind, visibility and weather, clouds (from the DCS weather
+   preset), temperature, QNH and altimeter; a new letter with every significant change and every hour. Every
+   airfield's ATIS can also be read in the menu, and *Frequencies* lists them all.
    The default voice is Kokoro "Michael"; the other voices and how to pick one (`data/voice/voices.local.json`):
    [docs/voice.md](docs/voice.md#voices).
 3. In the aircraft, F10 → Other → **ATC** → *airfield* → the call. On the ground the airfield is the one you are
@@ -116,7 +120,7 @@ dotnet run --project src/DcsAtc.App                             # terminal 2
    bridge: run `bridge\install.ps1` again and restart the DCS server.
 
    Every aircraft counts as traffic for Tower, AI included. Airfields without chart data get routes and
-   map drawings without taxiway names, and text messages only (we have no frequencies for them). Callsigns come from the player name before "|"
+   map drawings without taxiway names; airfields DCS gives no ATC frequency (a few small ones) get text messages only. Callsigns come from the player name before "|"
    ("Hangman 1-1 | DiGii" → "Hangman 1-1"), otherwise the whole name; flights need the
    "Name 1-1" form.
 

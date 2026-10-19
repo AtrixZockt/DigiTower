@@ -90,7 +90,7 @@ var app = new AtcApp(client, new AppOptions
     ManageAi = manageAi,
 });
 if (transcriber is not null)
-    transcriber.Recognized += (station, t, text) => _ = app.OnVoiceAsync(station, t.Sender?.Name, t.Sender?.UnitId, text, cts.Token);
+    transcriber.Recognized += (facility, t, text) => _ = app.OnVoiceAsync(facility, t.Frequency.Hz / 1e6, t.Sender?.Name, t.Sender?.UnitId, text, cts.Token);
 
 Console.WriteLine($"DCS-ATC: waiting for the DCS bridge on {host}:{port} (Ctrl+C to quit)");
 var connection = client.RunAsync(cts.Token);

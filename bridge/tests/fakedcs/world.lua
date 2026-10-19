@@ -154,6 +154,19 @@ function M.new(opts)
     },
   }, Airbase)
 
+  -- The terrain's airdromes (GUI side, for airbase_radios), as on the Persian Gulf map: radio ids, and each radio's
+  -- frequencies { hz, modulation } (index 0 first, as DCS returns them).
+  W.airdromes = {
+    [4] = { display_name = 'Al Dhafra AFB', radio = { 'airfield4_0' } },
+    [8] = { display_name = 'Tunb Island AFB' },
+    [12] = { display_name = 'Al Minhad AFB', radio = { 'airfield12_0' } },
+    [30] = { abandoned = true },
+  }
+  W.atcRadios = {
+    airfield4_0 = { [0] = { 4300000, 0 }, [1] = { 39500000, 0 }, [2] = { 126500000, 0 }, [3] = { 251100000, 0 } },
+    airfield12_0 = { [0] = { 3800000, 0 }, [1] = { 38500000, 0 }, [2] = { 118550000, 0 }, [3] = { 250100000, 0 } },
+  }
+
   -- The scripting environment ------------------------------------------------------------------------
 
   local env = setmetatable({}, { __index = _G })
@@ -426,6 +439,9 @@ function M.loadHook(W, bridgeRoot, port, startTime, config)
     getRealTime = function() return require('socket').gettime() - startTime end,
     setUserCallbacks = function(cb) callbacks = cb end,
   }
+  -- The terrain's airdromes and DCS's ATC radio data, as the probe on the real Persian Gulf map returned them.
+  package.loaded['terrain'] = { GetTerrainConfig = function(what) if what == 'Airdromes' then return W.airdromes end end }
+  package.loaded['DCS'] = { getATCradiosData = function(radioId) return W.atcRadios[radioId] end }
   local hookEnv = setmetatable({
     Sim = sim,
     net = W.net,

@@ -71,8 +71,8 @@ public partial class TowerControlTests
         var atis = new AtisService(w.Dcs, w.Catalog, w.Radio);
 
         await atis.UpdateAsync();
-        var (mhz, coalition, text) = w.Radio.Broadcasts["Al Dhafra ATIS"];
-        Assert.Equal((270.5, 2), (mhz, coalition));
+        var (frequencies, coalition, text) = w.Radio.Broadcasts["Al Dhafra ATIS"];
+        Assert.Equal(("270.5", 2), (string.Join(" ", frequencies), coalition));
         Assert.Equal("Al Dhafra information Alpha, time 0450 Zulu. Runway in use 31L and 31R. Expect ILS approach. Wind 310 degrees, 10 knots. " +
                      "CAVOK. Temperature 30. QNH 1013, altimeter 29.92. Advise on initial contact you have information Alpha.", text);
 

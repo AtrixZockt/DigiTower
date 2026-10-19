@@ -2,7 +2,16 @@ namespace DcsAtc.Atc;
 
 /// <summary>A controller transmission: what <paramref name="Station"/> ("Al Dhafra Ground") says on a frequency.</summary>
 /// <param name="Coalition">Who it is for: on a coalition-secure SRS server only that coalition hears it.</param>
-public sealed record RadioCall(string Station, double FrequencyMhz, int Coalition, string Text);
+/// <summary>
+/// A controller's transmission: <see cref="Station"/> ("Al Dhafra Ground") says <see cref="Text"/> on every frequency of
+/// its position (<see cref="Frequencies"/>). The positions of an airfield share frequencies, so one radio per airfield
+/// says their calls one after another and listens on all of the airfield's frequencies (<see cref="Stations"/>).
+/// </summary>
+public sealed record RadioCall(string Facility, string Role, int Coalition, string Text, AirfieldStations Stations)
+{
+    public string Station => $"{Facility} {Role}";
+    public IReadOnlyList<double> Frequencies => Stations.For(Role);
+}
 
 /// <summary>Where controllers' transmissions go to be spoken (SRS). Text messages are sent separately.</summary>
 public interface IAtcRadio
@@ -17,13 +26,13 @@ public interface IAtcRadio
     void Prepare(IEnumerable<string> texts, bool soon = false);
 
     /// <summary>
-    /// Keeps saying <paramref name="text"/> on a frequency, again and again, while anyone is listening (an ATIS);
+    /// Keeps saying <paramref name="text"/> on these frequencies, again and again, while anyone is listening (an ATIS);
     /// a new text replaces the old one, null stops the broadcast.
     /// </summary>
-    void Broadcast(string station, double frequencyMhz, int coalition, string? text);
+    void Broadcast(string station, IReadOnlyList<double> frequencies, int coalition, string? text);
 
-    /// <summary>Puts a station on the air before it first speaks, so it hears pilots calling it (voice requests).</summary>
-    void Listen(string station, double frequencyMhz, int coalition)
+    /// <summary>Puts an airfield's controllers on the air before they first speak, so they hear pilots calling them (voice requests).</summary>
+    void Listen(string facility, AirfieldStations stations, int coalition)
     {
     }
 }

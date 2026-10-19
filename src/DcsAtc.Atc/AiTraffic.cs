@@ -268,9 +268,7 @@ public sealed class AiTraffic(IDcsCommands dcs, AirfieldCatalog airfields, Groun
 
     private void Say(AiDeparture d, string role, string text)
     {
-        var f = d.Airfield.Layout.Labels?.Frequencies;
-        double? mhz = role == "Ground" ? f?.Ground : f?.Tower;
-        if (radio is not null && mhz is double m) radio.Transmit(new RadioCall($"{d.Airfield.Facility} {role}", m, d.Coalition, text));
+        if (radio is not null && d.Airfield.Call(role, d.Coalition, text) is { } call) radio.Transmit(call);
         log?.Invoke($"AI {d.Callsign}: {text}");
     }
 

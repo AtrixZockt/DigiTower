@@ -337,6 +337,49 @@ test('hook: a broken settings file is reported and the defaults are used', funct
   eq(hello.manageAi, true, 'defaults')
 end)
 
+test('hook: airdrome ATC frequencies from the terrain', function()
+  local port = 42795
+  local W = fake.new({})
+  W:setupScenario({ static = true })
+  local cb = fake.loadHook(W, root, port, socket.gettime())
+  local client = assert(socket.connect('127.0.0.1', port))
+  client:settimeout(0)
+  local reply
+  local function pump(seconds)
+    local untilTime = socket.gettime() + seconds
+    while socket.gettime() < untilTime and not reply do
+      W:step(0.05)
+      cb.onSimulationFrame()
+      repeat
+        local line = client:receive('*l')
+        if line then
+          local m = json.decode(line)
+          for _, x in ipairs(m.msgs or { m }) do
+            if x.type == 'reply' and x.req == 3 then reply = x end
+          end
+        end
+      until not line
+      socket.sleep(0.01)
+    end
+  end
+  cb.onSimulationStart()
+  pump(0.2)
+  client:send('{"cmd":"airbase_radios","req":3}\n')
+  pump(0.5)
+  client:close()
+  cb.onSimulationFrame()
+  eq(reply.ok, true, 'answered by the hook')
+  local byId = {}
+  for _, a in ipairs(reply.data) do byId[a.id] = a end
+  eq(#reply.data, 3, 'abandoned airdromes left out')
+  eq(byId[4].name, 'Al Dhafra AFB', 'name')
+  local hz = {}
+  for _, f in ipairs(byId[4].frequencies) do hz[#hz + 1] = f.hz end
+  table.sort(hz)
+  eq(table.concat(hz, ' '), '4300000 39500000 126500000 251100000', 'every radio frequency, index 0 included')
+  eq(next(byId[8].frequencies), nil, 'no radio: no frequencies')
+end)
+
 test('commands: weather and F10 map drawings', function()
   local W, ATCB = missionWorld()
   ATCB.command({ cmd = 'airbase_weather', req = 1, name = 'Al Dhafra AFB' })

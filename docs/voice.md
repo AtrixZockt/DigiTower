@@ -8,7 +8,7 @@ on disk. The text messages stay as they are (they work as subtitles).
 
 ```
 Ground / Tower ──text──► SpokenText ──clips──► AtcVoice ──16 kHz PCM──► SrsRadio station ──Opus/UDP──► SRS server ──► pilots tuned in
-                 "31R"     "three one right"     cache: data/voice/cache/<voice>/   "Al Dhafra Ground" on 250.0
+                 "31R"     "three one right"     cache: data/voice/cache/<voice>/   "Al Dhafra ATC" on 250.0, 126.5, 251.1
 ```
 
 1. **What is said** (`src/DcsAtc.Voice/SpokenText.cs`). A controller's text becomes clips, the ICAO way:
@@ -20,22 +20,29 @@ Ground / Tower ──text──► SpokenText ──clips──► AtcVoice ─�
 2. **Clips** (`AtcVoice`). A clip not in the cache is synthesized once, resampled to 16 kHz, trimmed of
    silence, levelled, and saved as a WAV file. The fixed phrases and the number readings come from small
    sets, so after a short warm-up everything is cached; only new callsign words ever need the TTS.
-3. **Warm-up** (`Phraseology.Samples`, `SrsRadio.Prepare`). At mission start the app prepares one sample of
-   every transmission Ground and Tower make at each labelled airfield, with its runways, taxiways, parking
-   areas, frequencies and the day's weather; a pilot's callsign is prepared when they spawn, ahead of the
+3. **Warm-up** (`Phraseology.Samples`, `SrsRadio.Prepare`). When an airfield goes on the air (a player within
+   60 NM) the app prepares one sample of every transmission its controllers make, with its runways, taxiways,
+   parking areas, frequencies and the day's weather; a pilot's callsign is prepared when they spawn, ahead of the
    rest. This runs one clip at a time on a low-priority thread that steps aside while a call is being
    rendered, so a call normally only stitches cached clips. A test checks that every clip of a full sortie
    is covered. The very first mission with a new voice needs about 100 clips for Al Dhafra (about 1.5 minutes
    in the background); a call made before that is done makes its missing clips first (about 0.6 s each).
-4. **SRS** (`src/DcsAtc.Srs`). Every position is an SRS client of its own ("Al Dhafra Ground",
-   "Al Dhafra Tower"), with the airfield's coalition, listening on its own frequency (for voice requests,
-   later). A station says its calls one after another, 0.7 s apart; a call that waited longer than 60 s (a
-   backlog after SRS was away) is dropped. Audio goes out as 40 ms Opus frames at the pace they play.
+4. **SRS** (`src/DcsAtc.Srs`). Every airfield's controllers are one SRS client ("Al Dhafra ATC", per
+   coalition), since its positions share frequencies: it says their calls one after another, 0.7 s apart, each
+   on all frequencies of the position calling, and listens on all of the airfield's frequencies (voice
+   requests). A call that waited longer than 60 s (a backlog after SRS was away) is dropped. Audio goes out as
+   40 ms Opus frames at the pace they play.
 
-Frequencies come from the airfield's labels (`data/airfields/<theatre>/*.labels.json`). At Al Dhafra:
-**Ground 250.0, Tower 270.0, Approach 257.0** (AM), and the **ATIS on 270.5**: a broadcast station of its own that
-repeats its text, 3 s apart, while any SRS client has a radio on that frequency (SRS tells every client the others'
-radios), and is silent otherwise.
+**Frequencies.** DCS gives every airfield a few ATC frequencies, the ones the briefing shows; the bridge reads
+them from the terrain (`airbase_radios`). Ground, Tower and Approach all work on the VHF (118-137 MHz) and UHF
+(225-400 MHz) AM ones, so VHF-only and UHF-only radios both reach them; HF and the 30-40 MHz one DCS also lists are
+not used. Chart data (`data/airfields/<theatre>/*.labels.json`) can give a position a frequency of its own: at Al
+Dhafra **Ground 250.0, Tower 270.0, Approach 257.0**, and DCS's 126.5 and 251.1 carry all three. Handoffs name a
+position's own frequency ("contact Tower on 270.0"), and none on a shared one ("contact Tower"). The **ATIS** is a
+broadcast station of its own that repeats its text, 3 s apart, while any SRS client has a radio on one of its
+frequencies (SRS tells every client the others' radios), and is silent otherwise. Its frequencies: the chart's
+(Al Dhafra 270.5), else the ATC UHF + 10 MHz and VHF + 1 MHz (VHF − 1 MHz at the top of the band), moved on by
+25 kHz while another airfield's ATC or ATIS, or a guard frequency, has it. *Frequencies* in the F10 menu lists them.
 
 ## Setup
 
@@ -193,7 +200,10 @@ written to the console and saved to `out/heard/<date>/` with `heard.jsonl` (frie
 Then ATC reacts:
 
 - **Who** is talking comes from SRS (the player name and its aircraft), **to whom** from the frequency; the callsign
-  and the airfield name in the call are not needed.
+  and the airfield name in the call are not needed. On a shared frequency the request decides which position
+  answers (taxi: Ground; departure, landing: Tower; approach: Approach); a call without a request goes to the
+  position named, else to the one for where the aircraft is (Ground on the ground, Tower within 10 NM, Approach).
+  DCS gives a few airfields the same frequency (Al Maktoum and Sharjah: 118.6): the nearest answers.
 - **A call it understands** is handled exactly like the F10 entry: request taxi / taxi to parking / cancel taxi,
   ready for departure (north, east, south, west, closed traffic, own navigation), request landing, checking in
   (also "airborne" with Approach), final, initial, request approach (ILS, TACAN, visual, overhead), field in sight,
@@ -202,8 +212,8 @@ Then ATC reacts:
   request. Without a direction, a departure is own navigation; without a type, an approach is ILS (else TACAN, else
   visual). In the wrong state the
   controller says so, as with the menu ("you are already airborne").
-- **A request for another controller** of the airfield is sent there: "Hangman 1-2, Al Dhafra Ground, contact
-  Approach on 257.0."
+- **A request for another controller** on a position's own frequency is sent there: "Hangman 1-2, Al Dhafra Ground,
+  contact Approach on 257.0."
 - **Not understood** but aimed at ATC (a request word or the station's name): "Hangman 1-2, Al Dhafra Ground, say
   again." **Readbacks** ("cleared for takeoff runway 31 right, Hangman 1-2") and **chatter** get no answer;
   readbacks are not checked yet.
@@ -217,5 +227,4 @@ the miss: "final" heard as "kind of", no answer).
 ## Not yet
 
 - Readback checking (radio check is answered without state).
-- Line of sight from the tower (a position for the stations), ATIS, Approach speaking, slight voice
-  differences per position.
+- Line of sight from the tower (a position for the stations), slight voice differences per position.

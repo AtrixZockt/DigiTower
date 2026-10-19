@@ -49,6 +49,14 @@ public sealed class AtcApp
     // DCS messages and voice requests are handled one at a time.
     private readonly SemaphoreSlim _gate = new(1, 1);
     private DateTime _lastStatus = DateTime.MinValue;
+    // Airfields on the air (listening, ATIS broadcasting) for a coalition: those a player of it came near (airbase id, coalition).
+    private readonly HashSet<(int Id, int Coalition)> _onAir = [];
+    // Airfields whose phrases are prepared (airbase id).
+    private readonly HashSet<int> _prepared = [];
+
+    /// <summary>An airfield goes on the air (voice requests heard, ATIS broadcast, phrases prepared) when a player comes this close (NM).</summary>
+    public const double OnAirRange = 60;
+    private const double Nm = 1852;
 
     public AtcApp(BridgeClient client, AppOptions options)
     {
@@ -59,7 +67,7 @@ public sealed class AtcApp
         _ground = new GroundControl(client, _airfields, _flights, Log, radio: options.Radio);
         _tower = new TowerControl(client, _airfields, _ground, _flights, Log, radio: options.Radio);
         _approach = new ApproachControl(client, _airfields, _tower, _flights, Log, radio: options.Radio);
-        _atis = new AtisService(client, _airfields, options.Radio, Log);
+        _atis = new AtisService(client, _airfields, options.Radio, Log, onAir: a => _onAir.Any(k => k.Id == a.Id));
         _ai = new AiTraffic(client, _airfields, _ground, _tower, _approach, Log, radio: options.Radio);
         _menu = new AtcMenu(_airfields, _ground, _tower, _approach, _flights);
         _reader = new PilotCallReader(options.VoiceAliases);
@@ -90,14 +98,15 @@ public sealed class AtcApp
     /// picked. A request for another controller of the airfield is sent there ("contact Approach on 257.0"); a call
     /// that is not understood gets "say again" if it was aimed at ATC; readbacks and chatter get no answer.
     /// </summary>
-    /// <param name="station">The station that heard it ("Al Dhafra Ground").</param>
+    /// <param name="facility">The airfield whose radio heard it ("Al Dhafra").</param>
+    /// <param name="mhz">The frequency it was said on: a position's own frequency, or one all positions share.</param>
     /// <param name="sender">The SRS client name (the player name) and its DCS unit id, from SRS.</param>
-    public async Task OnVoiceAsync(string station, string? sender, uint? unitId, string text, CancellationToken ct)
+    public async Task OnVoiceAsync(string facility, double? mhz, string? sender, uint? unitId, string text, CancellationToken ct)
     {
         await _gate.WaitAsync(ct);
         try
         {
-            await VoiceAsync(station, sender, unitId, text, ct);
+            await VoiceAsync(facility, mhz, sender, unitId, text, ct);
         }
         catch (Exception ex) when (ex is BridgeCommandException or InvalidOperationException or IOException or TimeoutException or InvalidDataException)
         {
@@ -109,7 +118,7 @@ public sealed class AtcApp
         }
     }
 
-    private async Task VoiceAsync(string station, string? sender, uint? unitId, string text, CancellationToken ct)
+    private async Task VoiceAsync(string facility, double? mhz, string? sender, uint? unitId, string text, CancellationToken ct)
     {
         var unit = _units.Values.FirstOrDefault(u => unitId is > 0 && u.Id == unitId && u.IsPlayer)
             ?? _units.Values.FirstOrDefault(u => u.IsPlayer && u.Player == sender);
@@ -118,14 +127,20 @@ public sealed class AtcApp
             Log($"voice: {sender ?? "?"} is not in an aircraft, not answered");
             return;
         }
-        int space = station.LastIndexOf(' ');
-        if (space < 0) return;
-        string facility = station[..space], role = station[(space + 1)..];
         var airbase = _airfields.Airbases.FirstOrDefault(a => a.Category == 0 && Phraseology.Facility(a.Name) == facility);
         if (airbase is null || await _airfields.GetAsync(airbase, ct) is not { } airfield) return;
+        // DCS gives a few airfields the same frequency: the one nearest the pilot answers.
+        if (mhz is double heardOn && _airfields.AirbasesOn(heardOn).MinBy(a => Math.Pow(a.X - unit.X, 2) + Math.Pow(a.Z - unit.Z, 2)) is { } nearest
+            && nearest.Id != airbase.Id) return;
 
+        // On a position's own frequency that position was called; on a shared one, the one named, else the one that
+        // fits where the aircraft is (the request itself decides below).
+        var stations = airfield.Frequencies;
+        string? called = mhz is double m ? stations.RoleOn(m) : null;
         var party = _flights.PartyFor(unit, _units);
-        var reading = _reader.Read(text, station);
+        var reading = _reader.Read(text, called is null ? facility : $"{facility} {called}");
+        string role = called ?? NamedRole(reading.Words) ?? DefaultRole(unit, airfield);
+        string station = $"{facility} {role}";
         if (reading.Call is not { } call)
         {
             if (reading.Readback || !reading.AimedAtAtc)
@@ -148,11 +163,15 @@ public sealed class AtcApp
             _ => role,
         };
         Log($"voice: {party.Callsign} to {station}: {call.Intent}{(call.Option is { } o ? $" ({o})" : "")}, match {call.Match:P0}");
-        if (owner != role && FrequencyOf(airfield, owner) is double mhz)
+        // Asked on another position's own frequency: sent to the one that handles it. On a shared frequency that one answers.
+        var (answering, sendTo) = stations.Route(mhz, role, owner);
+        if (sendTo is double other)
         {
-            await ReplyAsync(party, airfield, role, unit.Coal, Phraseology.ContactStation(party.Callsign, station, owner, mhz), ct);
+            await ReplyAsync(party, airfield, role, unit.Coal, Phraseology.ContactStation(party.Callsign, station, owner, other), ct);
             return;
         }
+        role = answering;
+        station = $"{facility} {role}";
         switch (call.Intent)
         {
             case PilotIntent.RadioCheck:
@@ -195,20 +214,23 @@ public sealed class AtcApp
         _ => null,
     };
 
-    private static double? FrequencyOf(GroundAirfield airfield, string role) => airfield.Layout.Labels?.Frequencies is not { } f ? null : role switch
-    {
-        "Ground" => f.Ground,
-        "Tower" => f.Tower,
-        "Approach" => f.Approach,
-        _ => null,
-    };
+    /// <summary>The position a pilot named ("…, Al Minhad Tower, …"), if any.</summary>
+    private static string? NamedRole(IReadOnlyList<string> words) =>
+        words.Contains("ground") ? "Ground" : words.Contains("tower") ? "Tower" : words.Contains("approach") || words.Contains("radar") ? "Approach" : null;
 
-    /// <summary>A station's own answer to a voice request: as text to the flight, and on its frequency.</summary>
+    /// <summary>The position that works an aircraft where it is: Ground on the ground, Tower close to the field, else Approach.</summary>
+    private static string DefaultRole(UnitState unit, GroundAirfield airfield)
+    {
+        if (!unit.InAir) return "Ground";
+        double nm = Math.Sqrt(Math.Pow(airfield.Airbase.X - unit.X, 2) + Math.Pow(airfield.Airbase.Z - unit.Z, 2)) / Nm;
+        return nm < 10 || !airfield.Frequencies.Serves("Approach") ? "Tower" : "Approach";
+    }
+
+    /// <summary>A station's own answer to a voice request: as text to the flight, and on its frequencies.</summary>
     private async Task ReplyAsync(Party party, GroundAirfield airfield, string role, int coalition, string text, CancellationToken ct)
     {
         foreach (var group in party.Groups) await _client.ShowTextAsync(group, text, 10, ct: ct);
-        if (_options.Radio is { } radio && FrequencyOf(airfield, role) is double mhz)
-            radio.Transmit(new RadioCall($"{airfield.Facility} {role}", mhz, coalition, text));
+        if (_options.Radio is { } radio && airfield.Call(role, coalition, text) is { } call) radio.Transmit(call);
         Log($"{party.Callsign}: {text}");
     }
 
@@ -263,8 +285,18 @@ public sealed class AtcApp
         ResetMission();
         Log($"theatre {info?.Theatre ?? "?"}, mission date {info?.Date?.Year}-{info?.Date?.Month:00}-{info?.Date?.Day:00}");
         var airbases = await _client.GetAirbasesAsync(ct);
-        _airfields.SetMission(info?.Theatre, airbases);
-        Log($"{airbases.Count} airbases in this mission");
+        IReadOnlyList<AirbaseRadios> radios = [];
+        try
+        {
+            radios = await _client.GetAirbaseRadiosAsync(ct);
+        }
+        catch (BridgeCommandException ex)
+        {
+            Log($"ATC frequencies from DCS not available ({ex.Message}): voice only where chart data has frequencies. Update the bridge with bridge/install.ps1.");
+        }
+        _airfields.SetMission(info?.Theatre, airbases, radios);
+        int withRadio = airbases.Count(a => _airfields.StationsFor(a).All.Count > 0);
+        Log($"{airbases.Count} airbases in this mission, {withRadio} with ATC frequencies");
 
         foreach (var name in _options.DumpAirbases)
         {
@@ -276,25 +308,13 @@ public sealed class AtcApp
             Log($"{name}: {dump.Runways.Count} runways, {dump.Parking.Count} parking spots -> {path}");
         }
 
-        // Airbases we have chart data for get our ground control; the stock ATC there is silenced.
+        // The stock ATC is silenced where we talk on its frequencies, and at airfields with chart data.
         var silence = new HashSet<string>(_options.SilenceAirbases);
-        foreach (var airbase in airbases.Where(a => a.Category == 0 && _airfields.LabelsFor(a.Name) is not null))
+        if (!_options.KeepStockAtc)
         {
-            var airfield = await _airfields.GetAsync(airbase, ct);
-            if (!_options.KeepStockAtc) silence.Add(airbase.Name);
-            if (airfield is not null && _options.Radio is { } radio)
-            {
-                // Everything the controllers say here, with today's weather, so calls only stitch cached clips.
-                var layout = airfield.Layout;
-                var weather = await _client.GetAirbaseWeatherAsync(airbase.Name, ct);
-                radio.Prepare(Phraseology.Samples(airfield.Facility, layout.Runways,
-                    layout.Labels?.Taxiways.Select(t => t.Name).Distinct() ?? [], layout.Labels?.Areas.Select(a => a.Name) ?? [],
-                    layout.Labels?.Frequencies, weather, layout.Labels?.Departure));
-                if (ApproachControl.Serves(layout.Labels))
-                    radio.Prepare(Phraseology.ApproachSamples(airfield.Facility, layout.Runways, airfield.Radio, layout.Labels?.Frequencies, weather, ApproachControl.ProceduresOf(airfield)));
-                if (layout.Labels?.Frequencies?.Atis is not null)
-                    radio.Prepare(Phraseology.AtisSamples(airfield.Facility, layout.Runways, weather));
-            }
+            foreach (var airbase in airbases.Where(a => a.Category == 0
+                         && (_airfields.LabelsFor(a.Name) is not null || (_options.Radio is not null && _airfields.StationsFor(a).All.Count > 0))))
+                silence.Add(airbase.Name);
         }
         foreach (var name in silence)
             Log($"{name}: stock ATC silenced: {await _client.SetRadioSilentAsync(name, true, ct)}");
@@ -311,8 +331,8 @@ public sealed class AtcApp
             if (_menus.ContainsKey(u.GroupId!.Value)) continue;
             Log($"ATC menu for {u.Player} ({u.Group})");
             _options.Radio?.Prepare(Phraseology.CallsignSamples(Phraseology.Callsign(u)), soon: true);
-            ListenFor(u.Coal);
         }
+        await OnAirAsync(ct);
 
         await _flights.OnUnitsAsync(_units, ct);
         await _ground.OnUnitsAsync(_units, ct);
@@ -421,20 +441,42 @@ public sealed class AtcApp
     }
 
     /// <summary>
-    /// Puts the controllers of every airfield with frequencies on the air for a coalition, so they hear pilots calling
-    /// before they first speak (only when the radio listens: --transcribe).
+    /// Puts airfields with frequencies on the air as players come within <see cref="OnAirRange"/>: their controllers
+    /// listen for that coalition (voice requests), their ATIS broadcasts, and everything they say is prepared with
+    /// today's weather, so calls only stitch cached clips. Airfields stay on the air until the mission ends.
     /// </summary>
-    private void ListenFor(int coalition)
+    private async Task OnAirAsync(CancellationToken ct)
     {
         if (_options.Radio is not { } radio) return;
-        foreach (var airbase in _airfields.Airbases.Where(a => a.Category == 0))
+        bool atis = false;
+        foreach (var unit in _units.Values.Where(u => u.IsPlayer && u.Coal is 1 or 2))
         {
-            if (_airfields.LabelsFor(airbase.Name)?.Frequencies is not { } f) continue;
-            string facility = Phraseology.Facility(airbase.Name);
-            if (f.Ground is double ground) radio.Listen($"{facility} Ground", ground, coalition);
-            if (f.Tower is double tower) radio.Listen($"{facility} Tower", tower, coalition);
-            if (f.Approach is double approach) radio.Listen($"{facility} Approach", approach, coalition);
+            foreach (var airbase in _airfields.Airbases.Where(a => a.Category == 0))
+            {
+                var stations = _airfields.StationsFor(airbase);
+                if (stations.All.Count == 0 || _onAir.Contains((airbase.Id, unit.Coal))) continue;
+                if (Math.Sqrt(Math.Pow(airbase.X - unit.X, 2) + Math.Pow(airbase.Z - unit.Z, 2)) > OnAirRange * Nm) continue;
+                _onAir.Add((airbase.Id, unit.Coal));
+                atis |= stations.Atis.Count > 0;
+                Log($"{airbase.Name} on the air for {(unit.Coal == 1 ? "red" : "blue")}: {stations.Describe()}");
+                radio.Listen(Phraseology.Facility(airbase.Name), stations, unit.Coal);
+                if (_prepared.Add(airbase.Id) && await _airfields.GetAsync(airbase, ct) is { } airfield) await PrepareAsync(airfield, radio, ct);
+            }
         }
+        if (atis) await _atis.UpdateAsync(ct);
+    }
+
+    private async Task PrepareAsync(GroundAirfield airfield, IAtcRadio radio, CancellationToken ct)
+    {
+        var layout = airfield.Layout;
+        var weather = await _client.GetAirbaseWeatherAsync(airfield.Airbase.Name, ct);
+        radio.Prepare(Phraseology.Samples(airfield.Facility, layout.Runways,
+            layout.Labels?.Taxiways.Select(t => t.Name).Distinct() ?? [], layout.Labels?.Areas.Select(a => a.Name) ?? [],
+            airfield.Frequencies, weather, layout.Labels?.Departure));
+        if (ApproachControl.Serves(airfield.Frequencies))
+            radio.Prepare(Phraseology.ApproachSamples(airfield.Facility, layout.Runways, airfield.Radio, airfield.Frequencies, weather, ApproachControl.ProceduresOf(airfield)));
+        if (airfield.Frequencies.Atis.Count > 0)
+            radio.Prepare(Phraseology.AtisSamples(airfield.Facility, layout.Runways, weather));
     }
 
     /// <summary>One player unit per group with players (the menu is per group).</summary>
@@ -477,6 +519,8 @@ public sealed class AtcApp
         _approach.Reset();
         _atis.Reset();
         _ai.Reset();
+        _onAir.Clear();
+        _prepared.Clear();
     }
 
     private bool ManagingAi => _options.ManageAi && _serverAllowsAi;

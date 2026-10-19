@@ -153,6 +153,22 @@ public sealed class BridgeClient : IAsyncDisposable, IDcsCommands
         return data is { ValueKind: JsonValueKind.Array } d ? d.Deserialize<List<AirbaseSummary>>(Json) ?? [] : [];
     }
 
+    /// <summary>Every airdrome's ATC frequencies as DCS's briefing reads them (answered by the hook, from the terrain).</summary>
+    public async Task<IReadOnlyList<AirbaseRadios>> GetAirbaseRadiosAsync(CancellationToken ct = default)
+    {
+        var data = await RequestAsync(new JsonObject { ["cmd"] = "airbase_radios" }, ct);
+        if (data is not { ValueKind: JsonValueKind.Array } list) return [];
+        // Read by hand: Lua sends an empty frequency list as {}.
+        return list.EnumerateArray().Select(a => new AirbaseRadios
+        {
+            Id = a.TryGetProperty("id", out var id) ? id.GetInt32() : 0,
+            Name = a.TryGetProperty("name", out var name) && name.ValueKind == JsonValueKind.String ? name.GetString()! : "",
+            Frequencies = a.TryGetProperty("frequencies", out var f) && f.ValueKind == JsonValueKind.Array
+                ? f.EnumerateArray().Select(x => new AtcFrequency(x.GetProperty("hz").GetDouble(), x.TryGetProperty("modulation", out var m) ? m.GetInt32() : 0)).ToList()
+                : [],
+        }).ToList();
+    }
+
     public async Task<AirbaseInfo?> GetAirbaseAsync(string name, CancellationToken ct = default)
     {
         var data = await RequestAsync(new JsonObject { ["cmd"] = "airbase_info", ["name"] = name }, ct);
