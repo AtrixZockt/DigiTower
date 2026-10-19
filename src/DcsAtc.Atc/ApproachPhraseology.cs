@@ -147,16 +147,17 @@ public static partial class Phraseology
         return $"{callsign}, traffic, {clock} o'clock, {distance:0} {(distance == 1 ? "mile" : "miles")}, {direction}, {height}.";
     }
 
-    /// <summary>"Al Dhafra: ATIS 270.5, Ground 250.0, Tower 270.0, Approach 257.0. ILS 31R 111.1 (IMA), …, TACAN 96X (MA)."</summary>
+    /// <summary>
+    /// "Al Minhad: ATIS 119.55 / 260.1, Ground/Tower/Approach 118.55 / 250.1. ILS 27 110.75 (IMNW), …, TACAN 99X (MIN)."
+    /// (Al Dhafra: "ATIS 270.5, Ground 250.0, Tower 270.0, Approach 257.0, all positions 126.5 / 251.1. …")
+    /// </summary>
     public static string FrequencyList(GroundAirfield airfield)
     {
-        var f = airfield.Layout.Labels?.Frequencies;
-        var radio = new[] { ("ATIS", f?.Atis), ("Ground", f?.Ground), ("Tower", f?.Tower), ("Approach", f?.Approach) }
-            .Where(x => x.Item2 is not null).Select(x => $"{x.Item1} {Frequency(x.Item2)}").ToList();
+        string radio = airfield.Frequencies.Describe();
         var navaids = airfield.Layout.Runways.SelectMany(r => new[] { r.EndA, r.EndB }.Select(e => (End: e, Loc: airfield.Radio.LocalizerFor(r, e))))
             .Where(x => x.Loc is not null).Select(x => $"ILS {x.End.Name} {x.Loc!.FrequencyMhz:0.0#} ({x.Loc.Callsign})").ToList();
         if (airfield.Radio.Tacan is { } tacan) navaids.Add($"TACAN {tacan.TacanChannel} ({tacan.Callsign})");
-        return $"{airfield.Facility}: {(radio.Count > 0 ? string.Join(", ", radio) : "no ATC frequencies, text messages only")}." +
+        return $"{airfield.Facility}: {(radio.Length > 0 ? radio : "no ATC frequencies, text messages only")}." +
                (navaids.Count > 0 ? $" {string.Join(", ", navaids)}." : "");
     }
 
@@ -175,7 +176,7 @@ public static partial class Phraseology
         $"{callsign}, {facility} Tower, runway {runway.Name}, continue approach{(weather is null ? "" : ", " + Wind(weather))}.";
 
     /// <summary>Everything Approach can say at an airfield (for preparing the clips), apart from the pilots' callsigns.</summary>
-    public static IEnumerable<string> ApproachSamples(string facility, IReadOnlyList<Runway> runways, AirfieldNavaids navaids, AirfieldFrequencies? frequencies,
+    public static IEnumerable<string> ApproachSamples(string facility, IReadOnlyList<Runway> runways, AirfieldNavaids navaids, AirfieldStations frequencies,
         AirbaseWeather? weather, ApproachProcedures p)
     {
         const string cs = "Viper 1-1";
@@ -214,15 +215,15 @@ public static partial class Phraseology
                 yield return ExpectApproach(type, end, guidance);
                 if (type != ApproachType.Overhead) yield return ApproachClearance(cs, 12, "turn right heading 340", p.InterceptAltitude, type, end);
             }
-            yield return ClearedVisualApproach(cs, end, frequencies?.Tower);
+            yield return ClearedVisualApproach(cs, end, frequencies.Own("Tower"));
             yield return ProceedToInitial(cs, $"descend and maintain {p.InitialAltitude:0} feet", end);
             yield return BreakApproved(cs, facility, end, weather);
             yield return ContinueOnFinal(cs, facility, end, weather);
             yield return ClearedToLandFirstCall(cs, facility, end, weather);
         }
         yield return $"{cs}, {AltitudeChange(10000, p.ArrivalAltitude)}, {Altimeter(weather ?? new AirbaseWeather(), "")}. {AltitudeChange(10000, p.ArrivalAltitude)}, {Altimeter(weather ?? new AirbaseWeather(), UsTypes.First())}.";
-        yield return ApproachToTower(cs, frequencies?.Tower, overhead: false);
-        yield return ApproachToTower(cs, frequencies?.Tower, overhead: true);
+        yield return ApproachToTower(cs, frequencies.Own("Tower"), overhead: false);
+        yield return ApproachToTower(cs, frequencies.Own("Tower"), overhead: true);
         yield return LeaveHold(cs, "turn left heading 220", "descend and maintain 6000 feet", "");
         yield return ApproachCancelled(cs);
         yield return $"{cs}, roger.";

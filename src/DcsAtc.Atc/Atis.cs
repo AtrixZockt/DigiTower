@@ -14,12 +14,14 @@ public sealed record AtisContent(string Facility, IReadOnlyList<RunwayEnd> Runwa
 }
 
 /// <summary>
-/// The ATIS of each airfield with an ATIS frequency: a recorded broadcast, looping on that frequency while someone
-/// listens, with runway, approach, wind, visibility, weather, clouds, temperature and QNH. A new information letter
-/// comes with every significant change (runway, approach, sky, QNH, wind by 30° or 5 knots) and every hour; the time
-/// is the time of that letter, in Zulu. Every airfield's ATIS can also be read from the menu.
+/// The ATIS of each airfield with ATIS frequencies: a recorded broadcast, looping on them while someone listens, with
+/// runway, approach, wind, visibility, weather, clouds, temperature and QNH. A new information letter comes with every
+/// significant change (runway, approach, sky, QNH, wind by 30° or 5 knots) and every hour; the time is the time of that
+/// letter, in Zulu. Every airfield's ATIS can also be read from the menu.
 /// </summary>
-public sealed class AtisService(IDcsCommands dcs, AirfieldCatalog airfields, IAtcRadio? radio = null, Action<string>? log = null)
+/// <param name="onAir">Which airfields broadcast (default: all with ATIS frequencies); the app keeps it to those near players.</param>
+public sealed class AtisService(IDcsCommands dcs, AirfieldCatalog airfields, IAtcRadio? radio = null, Action<string>? log = null,
+    Func<AirbaseSummary, bool>? onAir = null)
 {
     public static readonly TimeSpan UpdateInterval = TimeSpan.FromMinutes(1);
     private const double Ft = 0.3048;
@@ -32,6 +34,8 @@ public sealed class AtisService(IDcsCommands dcs, AirfieldCatalog airfields, IAt
     };
 
     private readonly Dictionary<int, State> _states = [];
+    // Airfields whose ATIS is on the air (by airbase id).
+    private readonly HashSet<int> _broadcasting = [];
     private DateTime _lastUpdate = DateTime.MinValue;
     private bool _warned;
 
@@ -46,21 +50,25 @@ public sealed class AtisService(IDcsCommands dcs, AirfieldCatalog airfields, IAt
         await UpdateAsync(ct);
     }
 
-    /// <summary>Checks the weather and updates (and broadcasts) the ATIS of every airfield with an ATIS frequency.</summary>
+    /// <summary>Checks the weather and updates (and broadcasts) the ATIS of every airfield on the air with ATIS frequencies.</summary>
     public async Task UpdateAsync(CancellationToken ct = default)
     {
         _lastUpdate = DateTime.UtcNow;
         var mission = await MissionWeatherAsync(ct);
-        foreach (var airbase in airfields.Airbases.Where(a => a.Category == 0 && airfields.LabelsFor(a.Name)?.Frequencies?.Atis is not null).ToList())
+        var broadcasting = airfields.Airbases.Where(a => airfields.StationsFor(a).Atis.Count > 0 && (onAir?.Invoke(a) ?? true)).ToList();
+        foreach (var airbase in broadcasting)
         {
             if (await airfields.GetAsync(airbase, ct) is not { } airfield) continue;
             var (text, changed) = await UpdateAsync(airfield, mission, ct);
-            if (!changed || radio is null || airfield.Layout.Labels?.Frequencies?.Atis is not double mhz) continue;
+            if ((!changed && _broadcasting.Contains(airbase.Id)) || radio is null) continue;
+            _broadcasting.Add(airbase.Id);
             radio.Prepare([text], soon: true);
-            radio.Broadcast($"{airfield.Facility} ATIS", mhz, airbase.Coalition is 1 or 2 ? airbase.Coalition : 2, text);
-            log?.Invoke($"ATIS {airfield.Facility}: {text}");
+            radio.Broadcast($"{airfield.Facility} ATIS", airfield.Frequencies.Atis, CoalitionOf(airbase), text);
+            log?.Invoke($"ATIS {airfield.Facility} ({string.Join(" / ", airfield.Frequencies.Atis.Select(f => Phraseology.Frequency(f)))}): {text}");
         }
     }
+
+    private static int CoalitionOf(AirbaseSummary airbase) => airbase.Coalition is 1 or 2 ? airbase.Coalition : 2;
 
     /// <summary>The current ATIS of any airfield (made now if it has none yet), for the menu.</summary>
     public async Task<string> TextAsync(GroundAirfield airfield, CancellationToken ct = default) =>
@@ -69,11 +77,9 @@ public sealed class AtisService(IDcsCommands dcs, AirfieldCatalog airfields, IAt
     /// <summary>The mission ended: stop the broadcasts and start the letters again.</summary>
     public void Reset()
     {
-        foreach (var airbase in airfields.Airbases)
-        {
-            if (radio is not null && airfields.LabelsFor(airbase.Name)?.Frequencies?.Atis is double mhz)
-                radio.Broadcast($"{Phraseology.Facility(airbase.Name)} ATIS", mhz, airbase.Coalition is 1 or 2 ? airbase.Coalition : 2, null);
-        }
+        foreach (var airbase in airfields.Airbases.Where(a => _broadcasting.Contains(a.Id)))
+            radio?.Broadcast($"{Phraseology.Facility(airbase.Name)} ATIS", airfields.StationsFor(airbase).Atis, CoalitionOf(airbase), null);
+        _broadcasting.Clear();
         _states.Clear();
         _lastUpdate = DateTime.MinValue;
     }

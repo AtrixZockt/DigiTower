@@ -448,7 +448,7 @@ public sealed class TowerControl(IDcsCommands dcs, AirfieldCatalog airfields, Gr
                     // Pattern work over: on to Approach like a departure.
                     _flights.Remove(f.Key);
                     _handoffs[f.Key] = (_now(), f.Airfield);
-                    await SayAsync(f, Phraseology.LeavingPattern(f.Callsign, f.Airfield.Layout.Labels?.Frequencies?.Approach), ct);
+                    await SayAsync(f, Phraseology.LeavingPattern(f.Callsign, f.Airfield.Frequencies.ContactFor("Approach")), ct);
                     break;
                 }
                 if (!unit.InAir && f.Runway.IsOnRunway(position))
@@ -562,7 +562,7 @@ public sealed class TowerControl(IDcsCommands dcs, AirfieldCatalog airfields, Gr
         {
             _flights.Remove(f.Key);
             _handoffs[f.Key] = (_now(), f.Airfield);
-            await SayAsync(f, Phraseology.ContactAfterDeparture(f.Callsign, f.Airfield.Layout.Labels?.Frequencies?.Approach, resumeOwnNavigation: d?.Heading is not null), ct);
+            await SayAsync(f, Phraseology.ContactAfterDeparture(f.Callsign, f.Airfield.Frequencies.ContactFor("Approach"), resumeOwnNavigation: d?.Heading is not null), ct);
         }
     }
 
@@ -623,7 +623,7 @@ public sealed class TowerControl(IDcsCommands dcs, AirfieldCatalog airfields, Gr
     }
 
     private Task SayVacateAsync(TowerFlight f, CancellationToken ct) =>
-        SayAsync(f, Phraseology.VacateContactGround(f.Callsign, f.Airfield.Facility, f.Airfield.Layout.Labels?.Frequencies?.Ground), ct);
+        SayAsync(f, Phraseology.VacateContactGround(f.Callsign, f.Airfield.Facility, f.Airfield.Frequencies.Own("Ground")), ct);
 
     private void Enter(TowerFlight f, TowerPhase phase)
     {
@@ -647,8 +647,7 @@ public sealed class TowerControl(IDcsCommands dcs, AirfieldCatalog airfields, Gr
 
     private void Transmit(GroundAirfield? airfield, int coalition, string text)
     {
-        if (radio is not null && airfield?.Layout.Labels?.Frequencies?.Tower is double mhz)
-            radio.Transmit(new RadioCall($"{airfield.Facility} Tower", mhz, coalition, text));
+        if (radio is not null && airfield?.Call("Tower", coalition, text) is { } call) radio.Transmit(call);
     }
 
     /// <summary>

@@ -342,7 +342,7 @@ public partial class TowerControlTests
         Assert.Contains(calls, c => c.Text.Contains("radar service terminated"));
         var labels = w.Layout.Labels!;
         var callsigns = new[] { "Viper 1-1", "Viper 2-1", "Viper 3-1", "Viper 4-1", "Viper 5-1", "Hornet 1-1", "Eagle 1-1", "Strike 1-1", "Hornet 2-1" };
-        var prepared = Phraseology.ApproachSamples("Al Dhafra", w.Layout.Runways, w.Navaids, labels.Frequencies, w.Weather, labels.Approach)
+        var prepared = Phraseology.ApproachSamples("Al Dhafra", w.Layout.Runways, w.Navaids, w.Catalog.StationsFor(w.Catalog.Airbases[0]), w.Weather, labels.Approach)
             .Concat(callsigns.SelectMany(Phraseology.CallsignSamples))
             .SelectMany(SpokenText.Units).Select(u => u.Text).ToHashSet();
         var missing = calls.SelectMany(c => SpokenText.Units(c.Text)).Select(u => u.Text).Where(u => !prepared.Contains(u)).Distinct().ToList();

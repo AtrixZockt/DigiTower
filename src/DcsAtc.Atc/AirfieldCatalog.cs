@@ -5,12 +5,19 @@ using DcsAtc.Bridge;
 namespace DcsAtc.Atc;
 
 /// <summary>An airbase of the current mission with its ground layout.</summary>
-public sealed record GroundAirfield(AirbaseSummary Airbase, Airfield Layout, AirfieldNavaids? Navaids = null)
+public sealed record GroundAirfield(AirbaseSummary Airbase, Airfield Layout, AirfieldNavaids? Navaids = null, AirfieldStations? Stations = null)
 {
     public string Facility => Phraseology.Facility(Airbase.Name);
 
     /// <summary>Its ILS, TACAN, … from the terrain's beacons.</summary>
     public AirfieldNavaids Radio => Navaids ?? AirfieldNavaids.None;
+
+    /// <summary>Its controllers' frequencies (none: text messages only).</summary>
+    public AirfieldStations Frequencies => Stations ?? AirfieldStations.None;
+
+    /// <summary>A transmission of one of its positions, or null when that position is not on the air here.</summary>
+    public RadioCall? Call(string role, int coalition, string text) =>
+        Frequencies.Serves(role) ? new RadioCall(Facility, role, coalition, text, Frequencies) : null;
 }
 
 /// <summary>
@@ -26,6 +33,7 @@ public sealed class AirfieldCatalog(IDcsCommands dcs, string? dcsDirectory, stri
 
     private readonly Dictionary<string, Task<GroundAirfield?>> _cache = [];
     private readonly Dictionary<string, AirfieldLabels?> _labels = [];
+    private IReadOnlyDictionary<int, AirfieldStations> _stations = new Dictionary<int, AirfieldStations>();
     private Task<List<(string Path, Vec2 Center)>>? _index;
     private IReadOnlyList<Navaid>? _beacons;
     private string? _theatre;
@@ -56,7 +64,8 @@ public sealed class AirfieldCatalog(IDcsCommands dcs, string? dcsDirectory, stri
     }
 
     /// <summary>Starts a new mission: forgets everything cached for the previous one.</summary>
-    public void SetMission(string? theatre, IReadOnlyList<AirbaseSummary> airbases)
+    /// <param name="radios">Every airdrome's ATC frequencies from DCS (none from an older bridge: chart data only).</param>
+    public void SetMission(string? theatre, IReadOnlyList<AirbaseSummary> airbases, IReadOnlyList<AirbaseRadios>? radios = null)
     {
         if (theatre != _theatre)
         {
@@ -67,7 +76,19 @@ public sealed class AirfieldCatalog(IDcsCommands dcs, string? dcsDirectory, stri
         _airbases = airbases;
         _cache.Clear();
         _labels.Clear();
+        // Every airdrome of the map takes part (their frequencies decide the ATIS ones), with its chart data if in the mission.
+        var dcs = (radios ?? []).ToDictionary(r => r.Id, r => AirfieldStations.Usable(r.Frequencies.Select(f => (f.Mhz, f.IsAm))));
+        var ids = dcs.Keys.Union(airbases.Where(a => a.Category == 0).Select(a => a.Id));
+        _stations = AirfieldStations.ForMap(ids.Select(id => (id, dcs.GetValueOrDefault(id) ?? [],
+            airbases.FirstOrDefault(a => a.Id == id && a.Category == 0) is { } a ? LabelsFor(a.Name)?.Frequencies : null)));
     }
+
+    /// <summary>The controllers' frequencies of an airbase (none: text messages only).</summary>
+    public AirfieldStations StationsFor(AirbaseSummary airbase) =>
+        airbase.Category == 0 ? _stations.GetValueOrDefault(airbase.Id) ?? AirfieldStations.None : AirfieldStations.None;
+
+    /// <summary>The airdromes whose controllers work this frequency (DCS gives a few airfields the same one).</summary>
+    public IEnumerable<AirbaseSummary> AirbasesOn(double mhz) => _airbases.Where(a => StationsFor(a).Has(mhz));
 
     /// <summary>The nearest airdrome within <paramref name="maxDistance"/> metres that has a taxi network.</summary>
     public Task<GroundAirfield?> NearestAsync(Vec2 position, double maxDistance = 4000, CancellationToken ct = default) =>
@@ -155,7 +176,7 @@ public sealed class AirfieldCatalog(IDcsCommands dcs, string? dcsDirectory, stri
                 .Where(x => x.Loc is not null).Select(x => $"ILS {x.End.Name} {x.Loc!.Callsign} {x.Loc.FrequencyMhz:0.0#}");
             log?.Invoke($"  navaids: {string.Join(", ", ils.Append(navaids.Tacan is { } t ? $"TACAN {t.Callsign} {t.TacanChannel}" : "no TACAN"))}");
         }
-        return new GroundAirfield(airbase, layout, navaids);
+        return new GroundAirfield(airbase, layout, navaids, StationsFor(airbase));
     }
 
     private List<(string Path, Vec2 Center)> BuildIndex()

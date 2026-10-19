@@ -156,10 +156,19 @@ public static partial class Phraseology
     public static string ClearedToLand(string callsign, RunwayEnd runway, AirbaseWeather? weather) =>
         $"{callsign}, runway {runway.Name}, {(weather is null ? "" : Wind(weather) + ", ")}cleared to land.";
 
-    /// <summary>"…, contact Approach on 257.0, good day." or "…, frequency change approved, good day."; after an assigned heading, "resume own navigation" first.</summary>
-    public static string ContactAfterDeparture(string callsign, double? approach, bool resumeOwnNavigation = false) =>
-        $"{callsign}, {(resumeOwnNavigation ? "resume own navigation, " : "")}" +
-        (Frequency(approach) is { } f ? $"contact Approach on {f}, good day." : "frequency change approved, good day.");
+    /// <summary>
+    /// "…, contact Approach on 257.0, good day.", "…, contact Approach." (on this frequency) or, without Approach,
+    /// "…, frequency change approved, good day."; after an assigned heading, "resume own navigation" first.
+    /// </summary>
+    public static string ContactAfterDeparture(string callsign, Contact? approach, bool resumeOwnNavigation = false) =>
+        $"{callsign}, {(resumeOwnNavigation ? "resume own navigation, " : "")}{ContactApproach(approach)}";
+
+    private static string ContactApproach(Contact? approach) => approach switch
+    {
+        null => "frequency change approved, good day.",
+        { Mhz: double mhz } => $"contact Approach on {Frequency(mhz)}, good day.",
+        _ => "contact Approach.",
+    };
 
     // Ground.
 
@@ -220,8 +229,7 @@ public static partial class Phraseology
     public static string LineUpAndWait(string callsign, RunwayEnd runway) => $"{callsign}, runway {runway.Name}, line up and wait.";
 
     /// <summary>Closed traffic that flies off: "Viper 1-1, leaving the pattern, contact Approach on 257.0, good day."</summary>
-    public static string LeavingPattern(string callsign, double? approach) =>
-        $"{callsign}, leaving the pattern, " + (Frequency(approach) is { } f ? $"contact Approach on {f}, good day." : "frequency change approved, good day.");
+    public static string LeavingPattern(string callsign, Contact? approach) => $"{callsign}, leaving the pattern, {ContactApproach(approach)}";
 
     public static string HoldShort(string callsign, string facility, RunwayEnd runway, string reason) =>
         $"{callsign}, {facility} Tower, hold short runway {runway.Name}, {reason}.";
@@ -258,7 +266,7 @@ public static partial class Phraseology
     /// except the pilots' callsigns.
     /// </summary>
     public static IEnumerable<string> Samples(string facility, IReadOnlyList<Runway> runways, IEnumerable<string> taxiways, IEnumerable<string> areas,
-        AirfieldFrequencies? frequencies, AirbaseWeather? weather, DepartureProcedures? procedures = null)
+        AirfieldStations frequencies, AirbaseWeather? weather, DepartureProcedures? procedures = null)
     {
         const string cs = "Viper 1-1";
         var via = taxiways.Select(t => new ViaItem(t)).ToList();
@@ -273,7 +281,7 @@ public static partial class Phraseology
                 yield return TaxiClearance(cs, facility, end, via, weather, type);
                 yield return ReportFinal(cs, facility, end, weather, type);
             }
-            yield return HoldShortContactTower(cs, facility, end, frequencies?.Tower);
+            yield return HoldShortContactTower(cs, facility, end, frequencies.Own("Tower"));
             foreach (var d in DepartureVariants(end, procedures ?? DepartureProcedures.Default))
             {
                 yield return ClearedForTakeoff(cs, end, weather, d);
@@ -302,24 +310,23 @@ public static partial class Phraseology
         yield return OffRoute(cs, facility);
         yield return ReduceTaxiSpeed(cs, facility);
         yield return ParkingReached(cs, facility);
-        yield return ContactAfterDeparture(cs, frequencies?.Approach);
-        yield return ContactAfterDeparture(cs, frequencies?.Approach, resumeOwnNavigation: true);
-        yield return LeavingPattern(cs, frequencies?.Approach);
+        yield return ContactAfterDeparture(cs, frequencies.ContactFor("Approach"));
+        yield return ContactAfterDeparture(cs, frequencies.ContactFor("Approach"), resumeOwnNavigation: true);
+        yield return LeavingPattern(cs, frequencies.ContactFor("Approach"));
         yield return CheckAltitudeStayLow(cs, procedures ?? DepartureProcedures.Default);
         yield return CheckAltitudeMaintain(cs, procedures ?? DepartureProcedures.Default);
         yield return CheckHeading(cs);
-        yield return VacateContactGround(cs, facility, frequencies?.Ground);
+        yield return VacateContactGround(cs, facility, frequencies.Own("Ground"));
         foreach (var type in new[] { "", UsTypes.First() }) yield return StartupApproved(cs, facility, weather, type);
 
         // Answers to voice requests, from each station: say again, read you five, contact another station.
-        var stations = new[] { ("Ground", frequencies?.Ground), ("Tower", frequencies?.Tower), ("Approach", frequencies?.Approach) };
-        foreach (var (role, mhz) in stations.Where(s => s.Item2 is not null))
+        foreach (var role in AirfieldStations.Roles.Where(frequencies.Serves))
         {
             string station = $"{facility} {role}";
             yield return SayAgainPlease(cs, station);
             yield return ReadYouFive(cs, station);
-            foreach (var (other, otherMhz) in stations.Where(s => s.Item1 != role && s.Item2 is not null))
-                yield return ContactStation(cs, station, other, otherMhz!.Value);
+            foreach (var other in AirfieldStations.Roles.Where(r => r != role && frequencies.Own(r) is not null))
+                yield return ContactStation(cs, station, other, frequencies.Own(other)!.Value);
         }
     }
 

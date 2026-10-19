@@ -90,12 +90,12 @@ public sealed class ApproachControl(IDcsCommands dcs, AirfieldCatalog airfields,
 
     public static ApproachProcedures ProceduresOf(GroundAirfield airfield) => airfield.Layout.Labels?.Approach ?? ApproachProcedures.Default;
 
-    /// <summary>Whether Approach works this airfield (it has an Approach frequency).</summary>
-    public static bool Serves(AirfieldLabels? labels) => labels?.Frequencies?.Approach is not null;
+    /// <summary>Whether Approach works this airfield (it has frequencies).</summary>
+    public static bool Serves(AirfieldStations stations) => stations.Serves("Approach");
 
     /// <summary>The nearest airfield with Approach within its request range of <paramref name="position"/>.</summary>
     public Task<GroundAirfield?> NearestAsync(Vec2 position, double rangeNm, CancellationToken ct = default) =>
-        airfields.NearestAsync(position, rangeNm * Nm, a => Serves(airfields.LabelsFor(a.Name)), ct);
+        airfields.NearestAsync(position, rangeNm * Nm, a => Serves(airfields.StationsFor(a)), ct);
 
     /// <summary>
     /// "Request approach": radar contact, the first descent and the approach to expect; then vectors (or the hold, or the
@@ -215,7 +215,7 @@ public sealed class ApproachControl(IDcsCommands dcs, AirfieldCatalog airfields,
     {
         if (unit.GroupId is null || !_flights.TryGetValue(flights.PartyFor(unit, units).Key, out var f) || !f.IsArrival) return;
         f.FieldInSight = true;
-        await HandToTowerAsync(f, Phraseology.ClearedVisualApproach(f.Callsign, f.End, f.Airfield.Layout.Labels?.Frequencies?.Tower), overhead: false, ct);
+        await HandToTowerAsync(f, Phraseology.ClearedVisualApproach(f.Callsign, f.End, f.Airfield.Frequencies.Own("Tower")), overhead: false, ct);
     }
 
     public async Task CancelAsync(UnitState unit, IReadOnlyDictionary<string, UnitState> units, CancellationToken ct = default)
@@ -376,7 +376,7 @@ public sealed class ApproachControl(IDcsCommands dcs, AirfieldCatalog airfields,
                 string vector = Phraseology.Vector(unit.Hdg, f.Heading.Value);
                 if (f.Type == ApproachType.Visual && f.FieldInSight)
                 {
-                    await HandToTowerAsync(f, Phraseology.ClearedVisualApproach(f.Callsign, f.End, f.Airfield.Layout.Labels?.Frequencies?.Tower), overhead: false, ct);
+                    await HandToTowerAsync(f, Phraseology.ClearedVisualApproach(f.Callsign, f.End, f.Airfield.Frequencies.Own("Tower")), overhead: false, ct);
                     return true;
                 }
                 await SayAsync(f, Phraseology.ApproachClearance(f.Callsign, Math.Sqrt(a * a + s * s) / Nm, vector, p.InterceptAltitude, f.Type!.Value, f.End), ct);
@@ -384,7 +384,7 @@ public sealed class ApproachControl(IDcsCommands dcs, AirfieldCatalog airfields,
             }
             if ((-a <= p.HandoffDistance * Nm && Math.Abs(s) < Nm) || -a <= 4 * Nm)
             {
-                await HandToTowerAsync(f, Phraseology.ApproachToTower(f.Callsign, f.Airfield.Layout.Labels?.Frequencies?.Tower, overhead: false), overhead: false, ct);
+                await HandToTowerAsync(f, Phraseology.ApproachToTower(f.Callsign, f.Airfield.Frequencies.Own("Tower"), overhead: false), overhead: false, ct);
                 return true;
             }
             if (established) return false;
@@ -512,7 +512,7 @@ public sealed class ApproachControl(IDcsCommands dcs, AirfieldCatalog airfields,
         var initial = f.End.Threshold - Vec2.FromHeading(f.End.TrueHeading) * (p.InitialDistance * Nm);
         if (toField <= 12 || position.DistanceTo(initial) <= 8 * Nm)
         {
-            await HandToTowerAsync(f, Phraseology.ApproachToTower(f.Callsign, f.Airfield.Layout.Labels?.Frequencies?.Tower, overhead: true), overhead: true, ct);
+            await HandToTowerAsync(f, Phraseology.ApproachToTower(f.Callsign, f.Airfield.Frequencies.Own("Tower"), overhead: true), overhead: true, ct);
             return true;
         }
         if (toField <= 20 && f.Altitude > p.InitialAltitude)
@@ -672,8 +672,7 @@ public sealed class ApproachControl(IDcsCommands dcs, AirfieldCatalog airfields,
 
     private void Transmit(ApproachFlight f, string text)
     {
-        if (radio is not null && f.Airfield.Layout.Labels?.Frequencies?.Approach is double mhz)
-            radio.Transmit(new RadioCall($"{f.Airfield.Facility} Approach", mhz, f.Party.Coalition, text));
+        if (radio is not null && f.Airfield.Call("Approach", f.Party.Coalition, text) is { } call) radio.Transmit(call);
     }
 
     private async Task TextAsync(Party party, string text, CancellationToken ct)

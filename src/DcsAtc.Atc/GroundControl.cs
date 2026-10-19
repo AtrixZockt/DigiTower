@@ -261,7 +261,7 @@ public sealed class GroundControl(IDcsCommands dcs, AirfieldCatalog airfields, F
         if (c.Departure is { } d)
         {
             c.Phase = TaxiPhase.HoldingShort;
-            await SayAsync(c.Party, c.Airfield, Phraseology.HoldShortContactTower(c.Callsign, c.Airfield.Facility, d.End, c.Airfield.Layout.Labels?.Frequencies?.Tower), 20, ct);
+            await SayAsync(c.Party, c.Airfield, Phraseology.HoldShortContactTower(c.Callsign, c.Airfield.Facility, d.End, c.Airfield.Frequencies.Own("Tower")), 20, ct);
         }
         else
         {
@@ -288,8 +288,7 @@ public sealed class GroundControl(IDcsCommands dcs, AirfieldCatalog airfields, F
 
     private void Transmit(GroundAirfield? airfield, int coalition, string text)
     {
-        if (radio is not null && airfield?.Layout.Labels?.Frequencies?.Ground is double mhz)
-            radio.Transmit(new RadioCall($"{airfield.Facility} Ground", mhz, coalition, text));
+        if (radio is not null && airfield?.Call("Ground", coalition, text) is { } call) radio.Transmit(call);
     }
 
     /// <summary>The unit's party, its lead and the airfield if the lead is on the ground at an airfield we control; tells it otherwise.</summary>

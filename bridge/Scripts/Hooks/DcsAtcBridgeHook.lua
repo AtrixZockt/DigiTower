@@ -189,11 +189,54 @@ local function accept()
   hello()
 end
 
-local function reply(cmd, ok, err)
+local function reply(cmd, ok, err, data)
   if cmd.req then
-    send({ type = 'reply', req = cmd.req, cmd = cmd.cmd, ok = ok, error = err })
+    send({ type = 'reply', req = cmd.req, cmd = cmd.cmd, ok = ok, error = err, data = data })
   end
 end
+
+---------------------------------------------------------------------------------------------------
+-- Commands answered here, in the GUI environment
+---------------------------------------------------------------------------------------------------
+
+--- Every airdrome's ATC frequencies, as DCS's briefing reads them: the terrain's airdromes list their radios, and
+-- DCS.getATCradiosData gives each radio's frequencies ({ hz, modulation }, modulation 0 = AM).
+local function airbaseRadios()
+  local okT, terrain = pcall(require, 'terrain')
+  if not okT or type(terrain) ~= 'table' or not terrain.GetTerrainConfig then error('terrain data not available') end
+  local okD, dcsApi = pcall(require, 'DCS')
+  local getRadios = (okD and type(dcsApi) == 'table' and dcsApi.getATCradiosData) or (Sim and Sim.getATCradiosData)
+  local result = {}
+  for id, a in pairs(terrain.GetTerrainConfig('Airdromes') or {}) do
+    if type(id) == 'number' and type(a) == 'table' and a.abandoned ~= true then
+      local list = {}
+      local function add(hz, modulation)
+        if type(hz) == 'number' then list[#list + 1] = { hz = hz, modulation = tonumber(modulation) or 0 } end
+      end
+      if type(a.frequency) == 'table' then
+        for _, f in pairs(a.frequency) do
+          if type(f) == 'table' then add(f[1], f[2]) else add(f, 0) end
+        end
+      elseif type(a.radio) == 'table' and getRadios then
+        for _, radioId in pairs(a.radio) do
+          local ok, data = pcall(getRadios, radioId)
+          if ok and type(data) == 'table' then
+            for _, f in pairs(data) do
+              if type(f) == 'table' then add(f[1], f[2]) end
+            end
+          end
+        end
+      end
+      result[#result + 1] = { id = id, name = a.display_name or (a.names and a.names.en) or '', frequencies = list }
+    end
+  end
+  table.sort(result, function(x, y) return x.id < y.id end)
+  return result
+end
+
+local HOOK_COMMANDS = {
+  airbase_radios = airbaseRadios,
+}
 
 local function handleLine(line)
   local ok, cmd = pcall(net.json2lua, line)
@@ -211,6 +254,12 @@ local function handleLine(line)
   end
   if not state.missionRunning then
     reply(cmd, false, 'no mission running')
+    return
+  end
+  local own = HOOK_COMMANDS[cmd.cmd]
+  if own then
+    local ok, data = pcall(own, cmd)
+    if ok then reply(cmd, true, nil, data) else reply(cmd, false, tostring(data)) end
     return
   end
   local _, err = runInMission('ATCB.command(' .. toLiteral(cmd) .. ') return ""')

@@ -24,6 +24,10 @@ internal sealed class FakeDcs(IReadOnlyList<AirbaseSummary> airbases, AirbaseInf
     public Task<AirbaseInfo?> GetAirbaseAsync(string name, CancellationToken ct = default) => Task.FromResult(info);
     public AirbaseWeather? Weather { get; set; } = weather;
     public Task<AirbaseWeather?> GetAirbaseWeatherAsync(string name, CancellationToken ct = default) => Task.FromResult(Weather);
+    /// <summary>The airdromes' ATC frequencies DCS reports (none unless a test sets them).</summary>
+    public List<AirbaseRadios> Radios { get; } = [];
+    public Task<IReadOnlyList<AirbaseRadios>> GetAirbaseRadiosAsync(CancellationToken ct = default) =>
+        OldBridge ? throw new BridgeCommandException("unknown command: airbase_radios") : Task.FromResult<IReadOnlyList<AirbaseRadios>>(Radios);
     public MissionWeather? MissionWeather { get; set; } = new() { Visibility = 80000, CloudPreset = "Preset1", CloudBase = 2520, AbsTime = 8 * 3600 };
     /// <summary>Answer mission_weather like a bridge from before it existed.</summary>
     public bool OldBridge { get; set; }

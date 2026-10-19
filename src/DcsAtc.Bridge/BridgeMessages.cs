@@ -117,6 +117,22 @@ public sealed record AirbaseSummary
     public double Z { get; init; }
 }
 
+/// <summary>An airdrome's ATC frequencies as DCS has them, the ones its briefing shows (bridge <c>airbase_radios</c>).</summary>
+public sealed record AirbaseRadios
+{
+    /// <summary>The airdrome number, the same as the airbase id.</summary>
+    public int Id { get; init; }
+    public string Name { get; init; } = "";
+    public IReadOnlyList<AtcFrequency> Frequencies { get; init; } = [];
+}
+
+/// <param name="Modulation">0 AM, 1 FM.</param>
+public sealed record AtcFrequency(double Hz, int Modulation)
+{
+    public double Mhz => Hz / 1e6;
+    public bool IsAm => Modulation == 0;
+}
+
 public sealed record AirbaseInfo
 {
     public string Name { get; init; } = "";

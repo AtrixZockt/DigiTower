@@ -20,18 +20,19 @@ public sealed record SrsRadioOptions
 }
 
 /// <summary>
-/// Controllers on SRS: every station ("Al Dhafra Ground", per coalition) is an SRS client of its own that says
-/// its calls one after another, in the ATC voice, on the call's frequency. Clips are made ahead of time on a
-/// low-priority thread (<see cref="Prepare"/>), so a call normally only stitches cached clips. Broadcasts (ATIS) are
-/// stations of their own that repeat their text while any SRS client has a radio on their frequency. With
-/// <see cref="SrsRadioOptions.Listen"/>, every station reports the transmissions it hears (<see cref="Heard"/>).
+/// Controllers on SRS: every airfield's controllers (per coalition) are one SRS client, "Al Dhafra ATC", since its
+/// positions share frequencies: it says their calls one after another, in the ATC voice, each on the frequencies of
+/// the position calling (<see cref="RadioCall.Frequencies"/>). Clips are made ahead of time on a low-priority thread
+/// (<see cref="Prepare"/>), so a call normally only stitches cached clips. Broadcasts (ATIS) are clients of their own
+/// that repeat their text while any SRS client has a radio on one of their frequencies. With
+/// <see cref="SrsRadioOptions.Listen"/>, every airfield's client reports what pilots say on its frequencies (<see cref="Heard"/>).
 /// </summary>
 public sealed class SrsRadio : IAtcRadio, IAsyncDisposable
 {
     private readonly SrsRadioOptions _options;
     private readonly AtcVoice _voice;
     private readonly Action<string> _log;
-    private readonly ConcurrentDictionary<(string Station, int Coalition), Station> _stations = new();
+    private readonly ConcurrentDictionary<(string Facility, int Coalition), Station> _stations = new();
     private readonly ConcurrentDictionary<string, Broadcaster> _broadcasts = new();
     // Clips to make: callsigns of pilots who just spawned first, then the airfields' phrases.
     private readonly BlockingCollection<string> _prepareSoon = [];
@@ -48,20 +49,23 @@ public sealed class SrsRadio : IAtcRadio, IAsyncDisposable
         _prepareThread.Start();
     }
 
-    /// <summary>A pilot's transmission heard by a station (its name), when listening is on.</summary>
+    /// <summary>A pilot's transmission heard by an airfield's controllers (the airfield, "Al Dhafra"), when listening is on.</summary>
     public event Action<string, SrsTransmission>? Heard;
 
-    public void Transmit(RadioCall call) => StationFor(call.Station, call.FrequencyMhz, call.Coalition).Enqueue(call);
+    public void Transmit(RadioCall call) => StationFor(call.Facility, call.Stations, call.Coalition).Enqueue(call);
 
-    public void Listen(string station, double frequencyMhz, int coalition)
+    public void Listen(string facility, AirfieldStations stations, int coalition)
     {
-        if (_options.Listen) StationFor(station, frequencyMhz, coalition);
+        if (_options.Listen) StationFor(facility, stations, coalition);
     }
 
-    private bool IsStation(string name) => _broadcasts.ContainsKey(name) || _stations.Keys.Any(k => k.Station == name);
+    /// <summary>The SRS name of an airfield's controllers.</summary>
+    public static string ClientName(string facility) => $"{facility} ATC";
 
-    private Station StationFor(string name, double frequencyMhz, int coalition) =>
-        _stations.GetOrAdd((name, coalition), key => new Station(this, key.Station, key.Coalition, SrsFrequency.Mhz(frequencyMhz)));
+    private bool IsStation(string name) => _broadcasts.ContainsKey(name) || _stations.Keys.Any(k => ClientName(k.Facility) == name);
+
+    private Station StationFor(string facility, AirfieldStations stations, int coalition) =>
+        _stations.GetOrAdd((facility, coalition), key => new Station(this, key.Facility, key.Coalition, [.. stations.All.Select(f => SrsFrequency.Mhz(f))]));
 
     public void Prepare(IEnumerable<string> texts, bool soon = false)
     {
@@ -72,10 +76,10 @@ public sealed class SrsRadio : IAtcRadio, IAsyncDisposable
         }
     }
 
-    public void Broadcast(string station, double frequencyMhz, int coalition, string? text)
+    public void Broadcast(string station, IReadOnlyList<double> frequencies, int coalition, string? text)
     {
-        if (text is null && !_broadcasts.ContainsKey(station)) return;
-        _broadcasts.GetOrAdd(station, name => new Broadcaster(this, name, coalition, SrsFrequency.Mhz(frequencyMhz))).Text = text;
+        if ((text is null && !_broadcasts.ContainsKey(station)) || frequencies.Count == 0) return;
+        _broadcasts.GetOrAdd(station, name => new Broadcaster(this, name, coalition, [.. frequencies.Select(f => SrsFrequency.Mhz(f))])).Text = text;
     }
 
     public async ValueTask DisposeAsync()
@@ -115,7 +119,7 @@ public sealed class SrsRadio : IAtcRadio, IAsyncDisposable
         }
     }
 
-    /// <summary>One controller position on SRS.</summary>
+    /// <summary>An airfield's controllers on SRS.</summary>
     private sealed class Station
     {
         private readonly SrsRadio _radio;
@@ -126,26 +130,26 @@ public sealed class SrsRadio : IAtcRadio, IAsyncDisposable
         private readonly Task _run, _work;
         private long _lastError = -1;
 
-        public Station(SrsRadio radio, string name, int coalition, SrsFrequency frequency)
+        public Station(SrsRadio radio, string facility, int coalition, IReadOnlyList<SrsFrequency> frequencies)
         {
             _radio = radio;
-            _name = name;
-            // It has a radio on its own frequency, so SRS sends it what pilots say there.
+            _name = ClientName(facility);
+            // It has a radio on each of the airfield's frequencies, so SRS sends it what pilots say there.
             _client = new SrsClient(new SrsOptions
             {
                 Host = radio._options.Host,
                 Port = radio._options.Port,
-                Name = name,
+                Name = _name,
                 Coalition = coalition,
-                Receive = [frequency],
+                Receive = [.. frequencies.Take(SrsProtocol.MaxRadios - 1)],
             }, radio._log);
             if (radio._options.Listen)
             {
                 _receiver = new SrsReceiver(_client);
-                // Pilots only: another of our stations can share the frequency.
+                // Pilots only: another airfield's controllers can share a frequency.
                 _receiver.TransmissionReceived += t =>
                 {
-                    if (t.Sender?.Name is not { } sender || !radio.IsStation(sender)) radio.Heard?.Invoke(name, t);
+                    if (t.Sender?.Name is not { } sender || !radio.IsStation(sender)) radio.Heard?.Invoke(facility, t);
                 };
             }
             _run = _client.RunAsync(radio._stop.Token);
@@ -176,9 +180,9 @@ public sealed class SrsRadio : IAtcRadio, IAsyncDisposable
                     var audio = await Task.Run(() => _radio._voice.Render(call.Text), ct);
                     try
                     {
-                        var frequency = SrsFrequency.Mhz(call.FrequencyMhz);
-                        _radio._log($"radio {_name} {frequency}: {call.Text}");
-                        await _client.TransmitAsync(Audio.ToPcm16(audio.Samples), [frequency], ct);
+                        var frequencies = call.Frequencies.Select(f => SrsFrequency.Mhz(f)).ToList();
+                        _radio._log($"radio {call.Station} {string.Join(", ", frequencies)}: {call.Text}");
+                        await _client.TransmitAsync(Audio.ToPcm16(audio.Samples), frequencies, ct);
                     }
                     catch (SrsException ex)
                     {
@@ -205,16 +209,16 @@ public sealed class SrsRadio : IAtcRadio, IAsyncDisposable
 
         private readonly SrsRadio _radio;
         private readonly string _name;
-        private readonly SrsFrequency _frequency;
+        private readonly IReadOnlyList<SrsFrequency> _frequencies;
         private readonly SrsClient _client;
         private readonly Task _run, _work;
         private (string Text, short[] Pcm)? _rendered;
 
-        public Broadcaster(SrsRadio radio, string name, int coalition, SrsFrequency frequency)
+        public Broadcaster(SrsRadio radio, string name, int coalition, IReadOnlyList<SrsFrequency> frequencies)
         {
             _radio = radio;
             _name = name;
-            _frequency = frequency;
+            _frequencies = frequencies;
             _client = new SrsClient(new SrsOptions { Host = radio._options.Host, Port = radio._options.Port, Name = name, Coalition = coalition }, radio._log);
             _run = _client.RunAsync(radio._stop.Token);
             _work = Task.Run(WorkAsync);
@@ -223,8 +227,8 @@ public sealed class SrsRadio : IAtcRadio, IAsyncDisposable
         /// <summary>The text to repeat; null: silent.</summary>
         public volatile string? Text;
 
-        /// <summary>Someone has a radio on the frequency (SRS tells every client the others' radios).</summary>
-        private bool Listened => _client.Peers.Values.Any(p => p.Radios.Any(r => r.SameChannel(_frequency)));
+        /// <summary>Someone has a radio on one of the frequencies (SRS tells every client the others' radios).</summary>
+        private bool Listened => _client.Peers.Values.Any(p => p.Radios.Any(r => _frequencies.Any(r.SameChannel)));
 
         public Task StopAsync() => Task.WhenAll(_run, _work);
 
@@ -246,11 +250,11 @@ public sealed class SrsRadio : IAtcRadio, IAsyncDisposable
                         var audio = await Task.Run(() => _radio._voice.Render(text), ct);
                         _rendered = (text, Audio.ToPcm16(audio.Samples));
                     }
-                    if (!said) _radio._log($"radio {_name} {_frequency}: broadcasting ({text.Length} characters)");
+                    if (!said) _radio._log($"radio {_name} {string.Join(", ", _frequencies)}: broadcasting ({text.Length} characters)");
                     said = true;
                     try
                     {
-                        await _client.TransmitAsync(_rendered.Value.Pcm, [_frequency], ct);
+                        await _client.TransmitAsync(_rendered.Value.Pcm, _frequencies, ct);
                     }
                     catch (SrsException ex)
                     {

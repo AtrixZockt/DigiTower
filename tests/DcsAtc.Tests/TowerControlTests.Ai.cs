@@ -44,7 +44,7 @@ public partial class TowerControlTests
         w.Put(Enfield(1, spot, speed: 5));
         await ai.OnUnitsAsync(w.Units);
         var call = w.Radio.Calls[^1];
-        Assert.Equal(("Al Dhafra Ground", 250.0, 2, "Enfield 1-1, Al Dhafra Ground, taxi to holding point runway 31R."), (call.Station, call.FrequencyMhz, call.Coalition, call.Text));
+        Assert.Equal(("Al Dhafra Ground", "250", 2, "Enfield 1-1, Al Dhafra Ground, taxi to holding point runway 31R."), (call.Station, string.Join(" ", call.Frequencies), call.Coalition, call.Text));
 
         // At the runway: Tower clears it. Airborne: done.
         w.Put(Enfield(1, w.OnRunway31R(10)));

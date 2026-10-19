@@ -43,17 +43,24 @@ public partial class TowerControlTests
     }
 
     /// <param name="others">More airbases in the mission (the fake DCS answers them with Al Dhafra's airbase data).</param>
-    private static async Task<World?> CreateAsync(params AirbaseSummary[] others)
+    private static Task<World?> CreateAsync(params AirbaseSummary[] others) => CreateAsync("Al Dhafra AFB", 4, null, others);
+
+    /// <summary>
+    /// The world at Al Dhafra's layout under another airbase name and id (an airbase without chart frequencies when no
+    /// labels file names it), with the ATC frequencies DCS reports.
+    /// </summary>
+    private static async Task<World?> CreateAsync(string name, int id, IReadOnlyList<AirbaseRadios>? radios, params AirbaseSummary[] others)
     {
         if (TestPaths.Terrains is null) return null;
         string dump = Path.Combine(TestPaths.RepoRoot, "data", "dcs", "Al Dhafra AFB.json");
         if (!File.Exists(dump)) return null;
         var info = JsonSerializer.Deserialize<AirbaseInfo>(File.ReadAllText(dump), new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
         var weather = new AirbaseWeather { WindX = -5.14 * Math.Cos(310 * Math.PI / 180), WindZ = -5.14 * Math.Sin(310 * Math.PI / 180), Pressure = 101130, Elevation = 16, Temperature = 303 };
-        var airbase = new AirbaseSummary { Name = "Al Dhafra AFB", Id = 4, Category = 0, Coalition = 2, X = info.X, Y = info.Y, Z = info.Z };
+        var airbase = new AirbaseSummary { Name = name, Id = id, Category = 0, Coalition = 2, X = info.X, Y = info.Y, Z = info.Z };
         var dcs = new FakeDcs([airbase, .. others], info, weather);
+        dcs.Radios.AddRange(radios ?? []);
         var catalog = new AirfieldCatalog(dcs, Path.GetDirectoryName(Path.GetDirectoryName(TestPaths.Terrains)), Path.Combine(TestPaths.RepoRoot, "data"));
-        catalog.SetMission("PersianGulf", [airbase, .. others]);
+        catalog.SetMission("PersianGulf", [airbase, .. others], radios);
         var clock = new TestClock { Now = new DateTime(2026, 10, 18, 12, 0, 0) };
         var flights = new FlightRegistry(dcs);
         var radio = new FakeRadio();
@@ -567,14 +574,14 @@ public partial class TowerControlTests
         Assert.Contains(calls, c => c.Text.Contains("maintain at or below 500 feet until 3 miles, then turn left heading 270"));
         Assert.Contains(calls, c => c.Text.Contains("check altitude"));
         Assert.All(calls, c => Assert.Equal(2, c.Coalition));
-        Assert.All(calls.Where(c => c.Text.Contains(" Ground, ")), c => Assert.Equal(("Al Dhafra Ground", 250.0), (c.Station, c.FrequencyMhz)));
-        Assert.All(calls.Where(c => c.Text.Contains("cleared") || c.Text.Contains("go around")), c => Assert.Equal(("Al Dhafra Tower", 270.0), (c.Station, c.FrequencyMhz)));
+        Assert.All(calls.Where(c => c.Text.Contains(" Ground, ")), c => Assert.Equal(("Al Dhafra Ground", "250"), (c.Station, string.Join(" ", c.Frequencies))));
+        Assert.All(calls.Where(c => c.Text.Contains("cleared") || c.Text.Contains("go around")), c => Assert.Equal(("Al Dhafra Tower", "270"), (c.Station, string.Join(" ", c.Frequencies))));
         Assert.All(calls, c => Assert.Contains(w.Dcs.Texts, t => t.Text == c.Text));
 
         // What the app prepares at mission start (plus the callsign as the pilot spawns) covers every clip of every call.
         var labels = w.Layout.Labels!;
-        var prepared = Phraseology.Samples("Al Dhafra", w.Layout.Runways, labels.Taxiways.Select(t => t.Name).Distinct(), labels.Areas.Select(a => a.Name), labels.Frequencies, w.Weather, labels.Departure)
-            .Concat(Phraseology.ApproachSamples("Al Dhafra", w.Layout.Runways, w.Navaids, labels.Frequencies, w.Weather, labels.Approach))
+        var prepared = Phraseology.Samples("Al Dhafra", w.Layout.Runways, labels.Taxiways.Select(t => t.Name).Distinct(), labels.Areas.Select(a => a.Name), w.Catalog.StationsFor(w.Catalog.Airbases[0]), w.Weather, labels.Departure)
+            .Concat(Phraseology.ApproachSamples("Al Dhafra", w.Layout.Runways, w.Navaids, w.Catalog.StationsFor(w.Catalog.Airbases[0]), w.Weather, labels.Approach))
             .Concat(Phraseology.CallsignSamples("Viper 1-1"))
             .SelectMany(SpokenText.Units).Select(u => u.Text).ToHashSet();
         var missing = calls.SelectMany(c => SpokenText.Units(c.Text)).Select(u => u.Text).Where(u => !prepared.Contains(u)).Distinct().ToList();
@@ -604,11 +611,16 @@ internal sealed class FakeRadio : IAtcRadio
     public void Prepare(IEnumerable<string> texts, bool soon = false) => Prepared.AddRange(texts);
 
     /// <summary>What each station broadcasts now (absent: nothing).</summary>
-    public Dictionary<string, (double Mhz, int Coalition, string Text)> Broadcasts { get; } = [];
+    public Dictionary<string, (IReadOnlyList<double> Frequencies, int Coalition, string Text)> Broadcasts { get; } = [];
 
-    public void Broadcast(string station, double frequencyMhz, int coalition, string? text)
+    public void Broadcast(string station, IReadOnlyList<double> frequencies, int coalition, string? text)
     {
         if (text is null) Broadcasts.Remove(station);
-        else Broadcasts[station] = (frequencyMhz, coalition, text);
+        else Broadcasts[station] = (frequencies, coalition, text);
     }
+
+    /// <summary>Airfields put on the air: facility, frequencies, coalition.</summary>
+    public List<(string Facility, IReadOnlyList<double> Frequencies, int Coalition)> Listening { get; } = [];
+
+    public void Listen(string facility, AirfieldStations stations, int coalition) => Listening.Add((facility, stations.All, coalition));
 }

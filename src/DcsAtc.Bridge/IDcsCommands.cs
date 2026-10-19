@@ -10,6 +10,8 @@ public interface IDcsCommands
     Task<IReadOnlyList<AirbaseSummary>> GetAirbasesAsync(CancellationToken ct = default);
     Task<AirbaseInfo?> GetAirbaseAsync(string name, CancellationToken ct = default);
     Task<AirbaseWeather?> GetAirbaseWeatherAsync(string name, CancellationToken ct = default);
+    /// <summary>Every airdrome's ATC frequencies as the briefing shows them (bridges from before this command answer with an error).</summary>
+    Task<IReadOnlyList<AirbaseRadios>> GetAirbaseRadiosAsync(CancellationToken ct = default);
     /// <summary>The mission weather and clock (bridge protocol 1 with mission_weather; older bridges answer with an error).</summary>
     Task<MissionWeather?> GetMissionWeatherAsync(CancellationToken ct = default);
     Task<bool> SetRadioSilentAsync(string name, bool silent, CancellationToken ct = default);
