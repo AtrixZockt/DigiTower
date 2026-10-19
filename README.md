@@ -56,11 +56,14 @@ dotnet run --project src/DcsAtc.App                             # terminal 2
    ```powershell
    .\bridge\install.ps1 -Instance DCS.dcs_serverrelease
    ```
+   The first install also writes the bridge settings, every setting explained, to
+   `Saved Games\DCS.dcs_serverrelease\Scripts\DcsAtc\DcsAtcConfig.lua`; installing again keeps your changes. A
+   server that does not want DCS-ATC to handle its AI adds `-NoAi` (`-Ai` turns it back on).
 2. Start the SRS server and the mission, then the app from the repository folder (it finds
    `D:\DCS\DCS World` and `data\`):
    ```powershell
    dotnet run --project tools/DcsAtc.VoiceTool -- fetch   # once: the voice model (else a Windows voice speaks)
-   dotnet run --project src/DcsAtc.App                    # options: --srs host:port, --voice <id>, --no-voice, --transcribe [<id>]
+   dotnet run --project src/DcsAtc.App                    # options: --srs host:port, --voice <id>, --no-voice, --transcribe [<id>], --no-ai
    ```
    At airfields with chart data (so far Al Dhafra) the stock ATC is silenced. The controllers speak on SRS
    (127.0.0.1:5002): at Al Dhafra **Ground 250.0**, **Tower 270.0** and **Approach 257.0** AM; every call is also
@@ -98,6 +101,20 @@ dotnet run --project src/DcsAtc.App                             # terminal 2
    **Voice:** with `--transcribe`, the same calls can be made by talking on the frequency with your normal SRS
    push-to-talk ("Al Dhafra Ground, Hangman 1-2, request taxi"): [docs/voice.md](docs/voice.md#voice-requests).
 
+   **AI departures** (in your missions and Liberation / Retribution campaigns): when an AI plane starts its engines
+   at a parking spot of an airfield with chart data, ATC decides whether it may go, players first: never while a
+   player is lined up, taking off, landing or arriving within 8 NM; while a player taxis out or waits at the holding
+   point, for at most 5 minutes; at most 2 AI groups taxiing at once. If it must wait it is **held**: DCS spawns it
+   again on the same spots with its engines off (you see them shut down), and starts it when its turn comes (about
+   two minutes from start to rolling). Ground calls it as it starts to roll (*"Enfield 2-1, Al Dhafra Ground, taxi
+   to holding point runway 31R"*) and Tower clears it for takeoff as it reaches the runway; DCS picks its taxi route
+   and runway (from the wind, as we do). AI arriving lands as DCS wants (it counts as traffic). AI spawned by scripts
+   (not in the mission file) cannot be held and goes when DCS wants; AI whose engines already ran when the app
+   connected is left alone; if the app stops, every held AI is started. `--no-ai` turns it off in the app; a
+   server that does not want it turns it off for every app: `.\bridge\install.ps1 -Instance <instance> -NoAi`
+   (or `manageAi = false` in the settings file the installer wrote), then restart DCS. This needs the updated
+   bridge: run `bridge\install.ps1` again and restart the DCS server.
+
    Every aircraft counts as traffic for Tower, AI included. Airfields without chart data get routes and
    map drawings without taxiway names, and text messages only (we have no frequencies for them). Callsigns come from the player name before "|"
    ("Hangman 1-1 | DiGii" → "Hangman 1-1"), otherwise the whole name; flights need the
@@ -109,8 +126,9 @@ dotnet run --project src/DcsAtc.App                             # terminal 2
    ```powershell
    .\bridge\install.ps1 -Instance DCS.dcs_serverrelease
    ```
-   This copies two Lua files and adds a marked block to that instance's `Config\autoexec.cfg`
-   (`-Uninstall` removes both).
+   This copies two Lua files, writes the settings file `Scripts\DcsAtc\DcsAtcConfig.lua` if there is none, and
+   adds a marked block to that instance's `Config\autoexec.cfg` (`-Uninstall` removes the files and the block and
+   keeps the settings).
 2. Start the server with a mission that has a client slot at Al Dhafra, then start the app:
    ```powershell
    dotnet run --project src/DcsAtc.App -- --dump "Al Dhafra AFB" --silence "Al Dhafra AFB"

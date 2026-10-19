@@ -244,6 +244,10 @@ public static partial class Phraseology
     /// <summary>"Hangman 1-2, Al Dhafra Ground, read you five."</summary>
     public static string ReadYouFive(string callsign, string station) => $"{callsign}, {station}, read you five.";
 
+    /// <summary>To an AI departure (DCS picks its way): "Enfield 2-1, Al Dhafra Ground, taxi to holding point runway 31R."</summary>
+    public static string AiTaxi(string callsign, string facility, RunwayEnd runway) =>
+        $"{callsign}, {facility} Ground, taxi to holding point runway {runway.Name}.";
+
     /// <summary>"Hangman 1-2, Al Dhafra Ground, start up approved, wind 310 degrees, 10 knots, QNH 1013, altimeter 29.92."</summary>
     public static string StartupApproved(string callsign, string facility, AirbaseWeather? weather, string unitType) =>
         $"{callsign}, {facility} Ground, start up approved{(weather is null ? "" : $", {Wind(weather)}, {Altimeter(weather, unitType)}")}.";
@@ -277,6 +281,8 @@ public static partial class Phraseology
             }
             yield return ClearedToLand(cs, end, weather);
             yield return LineUpAndWait(cs, end);
+            yield return AiTaxi(cs, facility, end);
+            yield return ClearedForTakeoff(cs, end, weather);
             yield return NotAtHoldingPoint(cs, facility, end);
             foreach (var reason in HoldReasons) yield return HoldShort(cs, facility, end, reason);
         }

@@ -18,6 +18,8 @@ public sealed record AppOptions
     public TimeSpan StatusInterval { get; init; } = TimeSpan.FromSeconds(10);
     /// <summary>Where controllers speak (SRS); null: text messages only.</summary>
     public IAtcRadio? Radio { get; init; }
+    /// <summary>Hold AI departures at parking and release them in turn (players first).</summary>
+    public bool ManageAi { get; init; } = true;
     /// <summary>Mishearings to correct before a voice request is read ("one way" → "runway").</summary>
     public IReadOnlyDictionary<string, string>? VoiceAliases { get; init; }
 }
@@ -36,6 +38,9 @@ public sealed class AtcApp
     private readonly TowerControl _tower;
     private readonly ApproachControl _approach;
     private readonly AtisService _atis;
+    private readonly AiTraffic _ai;
+    // The server may turn AI handling off in its bridge config (hello.manageAi).
+    private bool _serverAllowsAi = true;
     private readonly AtcMenu _menu;
     private readonly Dictionary<string, UnitState> _units = [];
     /// <summary>The F10 menu each player group has now (entry ids), so it is only rebuilt when it changes.</summary>
@@ -55,6 +60,7 @@ public sealed class AtcApp
         _tower = new TowerControl(client, _airfields, _ground, _flights, Log, radio: options.Radio);
         _approach = new ApproachControl(client, _airfields, _tower, _flights, Log, radio: options.Radio);
         _atis = new AtisService(client, _airfields, options.Radio, Log);
+        _ai = new AiTraffic(client, _airfields, _ground, _tower, _approach, Log, radio: options.Radio);
         _menu = new AtcMenu(_airfields, _ground, _tower, _approach, _flights);
         _reader = new PilotCallReader(options.VoiceAliases);
     }
@@ -220,6 +226,8 @@ public sealed class AtcApp
             case HelloMessage h:
                 Log($"bridge protocol {h.Protocol}, mission '{h.Mission}', running: {h.MissionRunning}, multiplayer: {h.Multiplayer}");
                 if (h.Error is not null) Log($"bridge error: {h.Error}");
+                _serverAllowsAi = h.ManageAi != false;
+                if (_options.ManageAi && !_serverAllowsAi) Log("AI traffic off: turned off on this server (manageAi = false in Scripts\\DcsAtc\\DcsAtcConfig.lua)");
                 if (h.MissionRunning) await OnMissionRunningAsync(h.Info, ct);
                 break;
             case MissionStartedMessage m:
@@ -239,6 +247,7 @@ public sealed class AtcApp
                 await _ground.OnEventAsync(e, ct);
                 await _tower.OnEventAsync(e, ct);
                 await _approach.OnEventAsync(e, ct);
+                if (ManagingAi) _ai.OnEvent(e);
                 break;
             case MenuSelectedMessage m:
                 await OnMenuAsync(m, ct);
@@ -309,6 +318,7 @@ public sealed class AtcApp
         await _ground.OnUnitsAsync(_units, ct);
         await _tower.OnUnitsAsync(_units, ct);
         await _approach.OnUnitsAsync(_units, ct);
+        if (ManagingAi) await _ai.OnUnitsAsync(_units, ct);
         await _atis.OnUnitsAsync(ct);
         foreach (var u in PlayerGroups()) await UpdateMenuAsync(u, ct);
 
@@ -466,7 +476,10 @@ public sealed class AtcApp
         _tower.Reset();
         _approach.Reset();
         _atis.Reset();
+        _ai.Reset();
     }
+
+    private bool ManagingAi => _options.ManageAi && _serverAllowsAi;
 
     private static void Log(string text) => Console.WriteLine($"{DateTime.Now:HH:mm:ss}  {text}");
 }

@@ -22,6 +22,7 @@ local CONFIG = {
   pollInterval = 0.2,   -- seconds between polls of events and menu selections
   unitInterval = 0.5,   -- seconds between unit snapshots
   maxOutBuffer = 8 * 1024 * 1024,
+  manageAi = true,      -- false: the app may not hold or release AI on this server (AI departures are left to DCS)
 }
 
 local scriptDir = lfs.writedir() .. 'Scripts/DcsAtc/'
@@ -29,15 +30,23 @@ local scriptDir = lfs.writedir() .. 'Scripts/DcsAtc/'
 local function logInfo(msg) dcslog.write('DCS-ATC', dcslog.INFO, msg) end
 local function logError(msg) dcslog.write('DCS-ATC', dcslog.ERROR, msg) end
 
--- Optional overrides: Scripts/DcsAtc/DcsAtcConfig.lua returning e.g. { port = 42701 }
+-- Settings: Scripts/DcsAtc/DcsAtcConfig.lua (written by bridge/install.ps1) returning e.g. { port = 42701, manageAi = false }.
+-- A broken file is reported (in dcs.log and to the app) and the defaults are used.
+local configError
 do
-  local chunk = loadfile(scriptDir .. 'DcsAtcConfig.lua')
+  local chunk, err = loadfile(scriptDir .. 'DcsAtcConfig.lua')
   if chunk then
     local ok, overrides = pcall(chunk)
     if ok and type(overrides) == 'table' then
       for k, v in pairs(overrides) do CONFIG[k] = v end
+    else
+      configError = 'DcsAtcConfig.lua ignored, it must return a table { ... }: ' .. tostring(overrides)
     end
+  elseif err and not tostring(err):find('cannot open', 1, true) then
+    configError = 'DcsAtcConfig.lua ignored: ' .. tostring(err)
   end
+  if configError then logError(configError) end
+  if CONFIG.manageAi == false then logInfo('AI handling turned off (manageAi = false in DcsAtcConfig.lua)') end
 end
 
 package.path = package.path .. ';.\\LuaSocket\\?.lua'
@@ -109,6 +118,11 @@ local function disconnect(reason)
   if state.client then
     logInfo('ATC app disconnected: ' .. tostring(reason))
     pcall(function() state.client:close() end)
+    -- AI held at its parking spots by the app must not stay there.
+    if state.missionRunning then
+      local released = runInMission('if ATCB and ATCB.releaseHeld then return tostring(ATCB.releaseHeld()) end return "0"')
+      if released and released ~= '0' then logInfo('held AI groups released: ' .. tostring(released)) end
+    end
   end
   state.client = nil
   state.inBuffer = ''
@@ -147,7 +161,8 @@ local function hello()
     missionRunning = state.missionRunning,
     info = state.missionInfo,
     multiplayer = Sim.isMultiplayer(),
-    error = state.lastError,
+    manageAi = CONFIG.manageAi ~= false,
+    error = state.lastError or configError,
   })
 end
 
@@ -188,6 +203,10 @@ local function handleLine(line)
   end
   if cmd.cmd == 'hello' then
     hello()
+    return
+  end
+  if CONFIG.manageAi == false and (cmd.cmd == 'group_hold' or cmd.cmd == 'group_release') then
+    reply(cmd, false, 'AI handling is turned off on this server (manageAi = false in DcsAtcConfig.lua)')
     return
   end
   if not state.missionRunning then

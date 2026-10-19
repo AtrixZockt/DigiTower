@@ -7,22 +7,32 @@
     marked block to <Saved Games>\<Instance>\Config\autoexec.cfg that lets hooks run code in the
     mission scripting environment. -Uninstall removes both again.
 
+    The bridge settings are in <Saved Games>\<Instance>\Scripts\DcsAtc\DcsAtcConfig.lua. The first install writes it
+    with every setting explained; later installs keep it. -NoAi / -Ai switch AI handling off / on there.
+
 .EXAMPLE
     .\bridge\install.ps1                                  # the dedicated server (DCS.dcs_serverrelease)
     .\bridge\install.ps1 -Instance DCS                    # the normal game, for single-player tests
+    .\bridge\install.ps1 -Instance DCS.dcs_serverrelease -NoAi   # AI departures are left to DCS on this server
     .\bridge\install.ps1 -Instance DCS.dcs_serverrelease -Uninstall
 #>
 param(
     [string]$Instance = "DCS.dcs_serverrelease",
     [string]$SavedGames = (Join-Path $env:USERPROFILE "Saved Games"),
+    # Do not let DCS-ATC hold or release AI on this DCS (manageAi = false in DcsAtcConfig.lua).
+    [switch]$NoAi,
+    # Let DCS-ATC hold AI departures and release them in turn again (manageAi = true).
+    [switch]$Ai,
     [switch]$Uninstall
 )
 
 $ErrorActionPreference = "Stop"
+if ($NoAi -and $Ai) { throw "-NoAi and -Ai cannot be used together" }
 $target = Join-Path $SavedGames $Instance
 if (-not (Test-Path $target)) { throw "DCS folder not found: $target" }
 
 $files = @("Hooks\DcsAtcBridgeHook.lua", "DcsAtc\DcsAtcMission.lua")
+$config = Join-Path $target "Scripts\DcsAtc\DcsAtcConfig.lua"
 $autoexec = Join-Path $target "Config\autoexec.cfg"
 $begin = "-- >>> DCS-ATC bridge"
 $end = "-- <<< DCS-ATC bridge"
@@ -45,6 +55,7 @@ if ($Uninstall) {
             Write-Host "removed the DCS-ATC block from $autoexec"
         }
     }
+    if (Test-Path $config) { Write-Host "kept your settings in $config (delete it if you do not install DCS-ATC again)" }
     return
 }
 
@@ -54,6 +65,41 @@ foreach ($f in $files) {
     Copy-Item (Join-Path $PSScriptRoot "Scripts\$f") $dest -Force
     Write-Host "installed $dest"
 }
+
+# The settings file: written with every setting explained on the first install, kept (with your changes) after that.
+$configTemplate = @'
+-- DCS-ATC bridge settings for this DCS. DCS reads them when it starts: restart DCS (or the server) after a change.
+-- Installing the bridge again keeps this file.
+return {
+  -- true:  DCS-ATC holds AI departures at their parking spots and releases them in turn, players first.
+  -- false: AI is left to DCS. The ATC still talks to players and counts AI as traffic.
+  -- (bridge\install.ps1 -NoAi / -Ai switches this.)
+  manageAi = true,
+
+  -- The port the ATC app connects to (on this PC only).
+  port = 42700,
+}
+'@
+if (-not (Test-Path $config)) {
+    [System.IO.File]::WriteAllText($config, $configTemplate.Replace("`r`n", "`n").Replace("`n", "`r`n"), $noBom)
+    Write-Host "created the settings file $config"
+}
+if ($NoAi -or $Ai) {
+    $value = if ($NoAi) { "false" } else { "true" }
+    $text = [System.IO.File]::ReadAllText($config)
+    $setting = [regex]'(?m)^(\s*)manageAi\s*=\s*(true|false)'
+    $table = [regex]'return\s*\{'
+    if ($setting.IsMatch($text)) {
+        $text = $setting.Replace($text, '${1}manageAi = ' + $value, 1)
+    } elseif ($table.IsMatch($text)) {
+        $text = $table.Replace($text, "return {`r`n  manageAi = $value,", 1)
+    } else {
+        throw "cannot set manageAi in $config (it does not return a table { ... }); set manageAi = $value there yourself"
+    }
+    [System.IO.File]::WriteAllText($config, $text, $noBom)
+}
+$aiOff = [regex]::IsMatch([System.IO.File]::ReadAllText($config), '(?m)^\s*manageAi\s*=\s*false')
+Write-Host ("AI handling: " + $(if ($aiOff) { "off (AI is left to DCS)" } else { "on" }) + ", switch with -NoAi / -Ai or in $config")
 
 $block = @"
 $begin (added by DCS_ATC\bridge\install.ps1; run it with -Uninstall to remove)

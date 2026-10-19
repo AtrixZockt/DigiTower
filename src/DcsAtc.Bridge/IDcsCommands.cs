@@ -15,4 +15,8 @@ public interface IDcsCommands
     Task<bool> SetRadioSilentAsync(string name, bool silent, CancellationToken ct = default);
     Task DrawRouteAsync(string key, int coalition, IEnumerable<(double X, double Z)> points, double[] rgba, string? text = null, CancellationToken ct = default);
     Task ClearDrawingAsync(string key, CancellationToken ct = default);
+    /// <summary>Holds an AI group at its parking spots (spawned again uncontrolled); fails for groups not in the mission file.</summary>
+    Task HoldGroupAsync(string group, CancellationToken ct = default);
+    /// <summary>Releases a held AI group (DCS's Start command).</summary>
+    Task ReleaseGroupAsync(string group, CancellationToken ct = default);
 }

@@ -192,6 +192,17 @@ public sealed class BridgeClient : IAsyncDisposable, IDcsCommands
     public Task ClearDrawingAsync(string key, CancellationToken ct = default) =>
         SendAsync(new JsonObject { ["cmd"] = "drawing_clear", ["key"] = key }, ct);
 
+    /// <summary>
+    /// Holds an AI group at its parking spots: DCS spawns it again from the mission file, uncontrolled (engines off).
+    /// Fails (<see cref="BridgeCommandException"/>) for groups that are not in the mission file.
+    /// </summary>
+    public Task HoldGroupAsync(string group, CancellationToken ct = default) =>
+        RequestAsync(new JsonObject { ["cmd"] = "group_hold", ["group"] = group }, ct);
+
+    /// <summary>Releases a held AI group (DCS's Start command: it starts its engines and taxis).</summary>
+    public Task ReleaseGroupAsync(string group, CancellationToken ct = default) =>
+        RequestAsync(new JsonObject { ["cmd"] = "group_release", ["group"] = group }, ct);
+
     /// <summary>Silences (or restores) the stock DCS ATC of an airbase.</summary>
     public async Task<bool> SetRadioSilentAsync(string name, bool silent, CancellationToken ct = default)
     {

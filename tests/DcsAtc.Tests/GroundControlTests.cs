@@ -42,6 +42,28 @@ internal sealed class FakeDcs(IReadOnlyList<AirbaseSummary> airbases, AirbaseInf
         Drawings.Remove(key);
         return Task.CompletedTask;
     }
+
+    /// <summary>AI groups held at their parking spots.</summary>
+    public HashSet<string> Held { get; } = [];
+    /// <summary>AI groups released, in order.</summary>
+    public List<string> Released { get; } = [];
+    /// <summary>Groups spawned by scripts: group_hold fails for them.</summary>
+    public HashSet<string> NotInMission { get; } = [];
+
+    public Task HoldGroupAsync(string group, CancellationToken ct = default)
+    {
+        if (OldBridge) throw new BridgeCommandException("unknown command: group_hold");
+        if (NotInMission.Contains(group)) throw new BridgeCommandException($"not in the mission file: {group}");
+        Held.Add(group);
+        return Task.CompletedTask;
+    }
+
+    public Task ReleaseGroupAsync(string group, CancellationToken ct = default)
+    {
+        Held.Remove(group);
+        Released.Add(group);
+        return Task.CompletedTask;
+    }
 }
 
 public class GroundControlTests
