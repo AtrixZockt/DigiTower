@@ -152,9 +152,6 @@ public sealed class AtcApp
             case PilotIntent.RadioCheck:
                 await ReplyAsync(party, airfield, role, unit.Coal, Phraseology.ReadYouFive(party.Callsign, station), ct);
                 return;
-            case PilotIntent.RequestStartup:
-                await ReplyAsync(party, airfield, role, unit.Coal, Phraseology.StartupApproved(party.Callsign, station), ct);
-                return;
         }
         if (ActionFor(call, role, airfield) is not { } action)
         {
@@ -168,6 +165,7 @@ public sealed class AtcApp
     /// <summary>The F10 action for a voice request to <paramref name="role"/>; the details not said get defaults.</summary>
     private static string? ActionFor(PilotCall call, string role, GroundAirfield airfield) => call.Intent switch
     {
+        PilotIntent.RequestStartup => "ground.startup",
         PilotIntent.RequestTaxi => "ground.taxi",
         PilotIntent.TaxiToParking => "ground.parking",
         PilotIntent.CancelTaxi => "ground.cancel",
@@ -364,6 +362,9 @@ public sealed class AtcApp
     {
         switch (action)
         {
+            case "ground.startup":
+                await _ground.RequestStartupAsync(unit, _units, at, ct);
+                break;
             case "ground.taxi":
                 await _ground.RequestTaxiAsync(unit, _units, at, ct);
                 break;

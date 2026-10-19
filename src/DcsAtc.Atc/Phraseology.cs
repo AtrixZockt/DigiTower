@@ -244,8 +244,9 @@ public static partial class Phraseology
     /// <summary>"Hangman 1-2, Al Dhafra Ground, read you five."</summary>
     public static string ReadYouFive(string callsign, string station) => $"{callsign}, {station}, read you five.";
 
-    /// <summary>"Hangman 1-2, Al Dhafra Ground, start up approved, report ready to taxi."</summary>
-    public static string StartupApproved(string callsign, string station) => $"{callsign}, {station}, start up approved, report ready to taxi.";
+    /// <summary>"Hangman 1-2, Al Dhafra Ground, start up approved, wind 310 degrees, 10 knots, QNH 1013, altimeter 29.92."</summary>
+    public static string StartupApproved(string callsign, string facility, AirbaseWeather? weather, string unitType) =>
+        $"{callsign}, {facility} Ground, start up approved{(weather is null ? "" : $", {Wind(weather)}, {Altimeter(weather, unitType)}")}.";
 
     /// <summary>
     /// One example of every transmission Ground and Tower make at an airfield, with its runways, taxiways, parking
@@ -302,15 +303,15 @@ public static partial class Phraseology
         yield return CheckAltitudeMaintain(cs, procedures ?? DepartureProcedures.Default);
         yield return CheckHeading(cs);
         yield return VacateContactGround(cs, facility, frequencies?.Ground);
+        foreach (var type in new[] { "", UsTypes.First() }) yield return StartupApproved(cs, facility, weather, type);
 
-        // Answers to voice requests, from each station: say again, read you five, start up, contact another station.
+        // Answers to voice requests, from each station: say again, read you five, contact another station.
         var stations = new[] { ("Ground", frequencies?.Ground), ("Tower", frequencies?.Tower), ("Approach", frequencies?.Approach) };
         foreach (var (role, mhz) in stations.Where(s => s.Item2 is not null))
         {
             string station = $"{facility} {role}";
             yield return SayAgainPlease(cs, station);
             yield return ReadYouFive(cs, station);
-            yield return StartupApproved(cs, station);
             foreach (var (other, otherMhz) in stations.Where(s => s.Item1 != role && s.Item2 is not null))
                 yield return ContactStation(cs, station, other, otherMhz!.Value);
         }

@@ -39,7 +39,7 @@ public sealed class PilotCallReader
         (PilotIntent.RequestTaxi, ["request taxi", "ready to taxi", "ready for taxi", "request to taxi"]),
         (PilotIntent.TaxiToParking, ["request taxi to parking", "taxi to parking", "request parking"]),
         (PilotIntent.CancelTaxi, ["cancel taxi", "cancel my taxi"]),
-        (PilotIntent.RequestStartup, ["request start up", "ready to start", "ready for start up", "request start"]),
+        (PilotIntent.RequestStartup, ["request start up", "ready to start", "ready for start up", "request start", "request engine start"]),
         (PilotIntent.RadioCheck, ["radio check", "how do you read", "how do you copy"]),
         (PilotIntent.SayAgain, ["say again"]),
         (PilotIntent.ReadyForDeparture, ["ready for departure", "ready for take off", "request take off", "request departure", "ready departure", "ready to go"]),

@@ -197,9 +197,10 @@ Then ATC reacts:
 - **A call it understands** is handled exactly like the F10 entry: request taxi / taxi to parking / cancel taxi,
   ready for departure (north, east, south, west, closed traffic, own navigation), request landing, checking in
   (also "airborne" with Approach), final, initial, request approach (ILS, TACAN, visual, overhead), field in sight,
-  cancel approach, say again; plus radio check ("read you five") and request start up. "Request takeoff" is ready
-  for departure; "inbound" or "request landing" to Approach is an approach request. Without a direction, a
-  departure is own navigation; without a type, an approach is ILS (else TACAN, else visual). In the wrong state the
+  cancel approach, say again, request startup ("start up approved", wind and QNH); plus radio check ("read you
+  five"). "Request takeoff" is ready for departure; "inbound" or "request landing" to Approach is an approach
+  request. Without a direction, a departure is own navigation; without a type, an approach is ILS (else TACAN, else
+  visual). In the wrong state the
   controller says so, as with the menu ("you are already airborne").
 - **A request for another controller** of the airfield is sent there: "Hangman 1-2, Al Dhafra Ground, contact
   Approach on 257.0."
@@ -215,7 +216,6 @@ the miss: "final" heard as "kind of", no answer).
 
 ## Not yet
 
-- Readback checking, and requests the controllers do not offer yet (start up and radio check are answered without
-  state).
+- Readback checking (radio check is answered without state).
 - Line of sight from the tower (a position for the stations), ATIS, Approach speaking, slight voice
   differences per position.

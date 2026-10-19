@@ -73,7 +73,7 @@ dotnet run --project src/DcsAtc.App                             # terminal 2
 3. In the aircraft, F10 → Other → **ATC** → *airfield* → the call. On the ground the airfield is the one you are
    at; in the air the five nearest within 100 NM (nearest first; the order only changes when the list does), plus
    any airfield working you. Under each, the menu only shows the calls you can make right now and changes as you go
-   (parked: *Request taxi*; taxiing: *Cancel taxi*, *Say again (Ground)*; at the holding point: *Ready for
+   (parked: *Request startup*, *Request taxi*; taxiing: *Cancel taxi*, *Say again (Ground)*; at the holding point: *Ready for
    departure*; airborne: *Request approach*, *Request landing*; …), and **Frequencies** (ATIS, Ground, Tower,
    Approach, ILS, TACAN). Every call goes to the airfield you picked. Menus are per group in DCS, so every flight
    sees its own; players sharing one group (e.g. a two-seater) share its menu. *Flight* and *Debug* sit next to the
@@ -82,6 +82,7 @@ dotnet run --project src/DcsAtc.App                             # terminal 2
    | Menu | What happens |
    |---|---|
    | Request taxi | Taxi clearance to the holding point of the runway in use (from the wind; with parallel runways the closer one), e.g. *"Hangman 1-1, Al Dhafra Ground, taxi to holding point runway 31R via A, B. Wind 310 degrees, 10 knots, QNH 1013, altimeter 29.92."* The route is drawn on the F10 map (coalition-wide). Ground warns if you leave the route or taxi faster than 30 kt; at the holding point: *hold short, contact Tower*. |
+   | Request startup | Optional, while parked: *"Hangman 1-2, Al Dhafra Ground, start up approved, wind 310 degrees, 10 knots, QNH 1013, altimeter 29.92."* Ground can say it again until you taxi. How you depart is asked for at the holding point. |
    | Ready for departure → Own navigation / Departure north, east, south, west / Closed traffic | At the holding point: *cleared for takeoff*, *line up and wait* (behind a departing aircraft) or *hold short, runway occupied / traffic on final / number two for departure*; you are cleared as soon as the runway allows. The clearance says how to climb out, from your choice and the traffic: *unrestricted climb approved*; *after departure turn right heading 360*; under pattern traffic *fly runway heading, maintain at or below 500 feet until 3 miles, then …*; behind a departing aircraft *fly runway heading, climb and maintain 3000 feet until advised* (later *climb unrestricted, resume own navigation*); *right closed traffic approved*. Tower warns *check altitude / check heading* if you break a restriction. After takeoff: *contact Approach* (closed traffic stays with Tower: touch and go, or a full stop and *vacate*). The numbers are per airfield (`"departure"` in its labels file). |
    | Request landing | Airborne within 30 NM: runway, wind, QNH, *report final*. Cleared to land within 6 NM on final (or once you report final) if the runway is free; *go around* if it gets blocked inside 1 NM. After landing: *vacate, contact Ground*. |
    | Report final | Report final early (landing clearance as soon as the runway allows). |

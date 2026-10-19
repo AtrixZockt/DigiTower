@@ -37,6 +37,17 @@ public sealed class TaxiClearance
 }
 
 /// <summary>
+/// Start up approved, before taxi (optional; how the flight departs is asked for at the holding point). Kept until the
+/// flight takes off, so Ground can say it again and the menu no longer offers it.
+/// </summary>
+public sealed record StartupApproval(Party Party, int Coalition, GroundAirfield Airfield, string Text)
+{
+    public int Key => Party.Key;
+    /// <summary>The flight lead (or the aircraft itself).</summary>
+    public string UnitName => Party.LeadUnit;
+}
+
+/// <summary>
 /// Ground control: taxi clearances to the active runway's holding point and to parking (route computed
 /// on the DCS taxi network, named from chart labels, drawn on the F10 map) and monitoring while taxiing.
 /// A declared flight gets one clearance; the lead's position drives it. Everything said to a pilot at an
@@ -58,6 +69,7 @@ public sealed class GroundControl(IDcsCommands dcs, AirfieldCatalog airfields, F
     private static readonly double[] ParkingColor = [0, 0.8, 1, 1];
 
     private readonly Dictionary<int, TaxiClearance> _clearances = [];
+    private readonly Dictionary<int, StartupApproval> _startups = [];
     private readonly Func<DateTime> _now = clock ?? (() => DateTime.UtcNow);
 
     /// <summary>Clearances by party key (the lead's group id).</summary>
@@ -66,6 +78,25 @@ public sealed class GroundControl(IDcsCommands dcs, AirfieldCatalog airfields, F
     /// <summary>The clearance of the unit's party (its own or its flight's), if any.</summary>
     public TaxiClearance? ClearanceFor(UnitState unit, IReadOnlyDictionary<string, UnitState> units) =>
         _clearances.GetValueOrDefault(flights.PartyFor(unit, units).Key);
+
+    /// <summary>Startup approvals by party key, until takeoff.</summary>
+    public IReadOnlyDictionary<int, StartupApproval> Startups => _startups;
+
+    /// <summary>The startup approval of the unit's party, if any.</summary>
+    public StartupApproval? StartupFor(UnitState unit, IReadOnlyDictionary<string, UnitState> units) =>
+        _startups.GetValueOrDefault(flights.PartyFor(unit, units).Key);
+
+    /// <summary>"Viper 1-1, Al Dhafra Ground, start up approved, wind 310 degrees, 10 knots, QNH 1013, altimeter 29.92."</summary>
+    public async Task RequestStartupAsync(UnitState unit, IReadOnlyDictionary<string, UnitState> units, GroundAirfield? at = null, CancellationToken ct = default)
+    {
+        if (await OnGroundAtAirfieldAsync(unit, units, at, ct) is not { } who) return;
+        var (party, lead, airfield) = who;
+        var weather = await dcs.GetAirbaseWeatherAsync(airfield.Airbase.Name, ct);
+        string text = Phraseology.StartupApproved(party.Callsign, airfield.Facility, weather, lead.Type);
+        _startups[party.Key] = new StartupApproval(party, lead.Coal, airfield, text);
+        await SayAsync(party, airfield, text, 20, ct);
+        log?.Invoke($"{party.Callsign}: {text}");
+    }
 
     /// <summary>Taxi to the holding point of the active runway.</summary>
     public async Task RequestTaxiAsync(UnitState unit, IReadOnlyDictionary<string, UnitState> units, GroundAirfield? at = null, CancellationToken ct = default)
@@ -142,18 +173,28 @@ public sealed class GroundControl(IDcsCommands dcs, AirfieldCatalog airfields, F
         if (_clearances.Remove(key, out var c)) await dcs.ClearDrawingAsync(c.DrawingKey, ct);
     }
 
+    /// <summary>Repeats the taxi clearance, or before taxi the startup approval.</summary>
     public async Task SayAgainAsync(UnitState unit, IReadOnlyDictionary<string, UnitState> units, CancellationToken ct = default)
     {
-        if (ClearanceFor(unit, units) is { } c && unit.GroupId is int g)
+        if (unit.GroupId is not int g) return;
+        if (ClearanceFor(unit, units) is { } c)
         {
             await dcs.ShowTextAsync(g, c.Text, 30, ct: ct);
             Transmit(c.Airfield, c.Coalition, c.Text);
+        }
+        else if (StartupFor(unit, units) is { } s)
+        {
+            await dcs.ShowTextAsync(g, s.Text, 30, ct: ct);
+            Transmit(s.Airfield, s.Coalition, s.Text);
         }
     }
 
     /// <summary>Checks every taxiing flight against its clearance.</summary>
     public async Task OnUnitsAsync(IReadOnlyDictionary<string, UnitState> units, CancellationToken ct = default)
     {
+        // A startup approval lasts until the flight is airborne (or gone).
+        foreach (var s in _startups.Values.Where(s => !units.TryGetValue(s.UnitName, out var lead) || lead.InAir).ToList()) _startups.Remove(s.Key);
+
         foreach (var c in _clearances.Values.ToList())
         {
             if (!units.TryGetValue(c.UnitName, out var unit) || unit.InAir)
@@ -202,12 +243,17 @@ public sealed class GroundControl(IDcsCommands dcs, AirfieldCatalog airfields, F
     public async Task OnEventAsync(DcsEventMessage e, CancellationToken ct = default)
     {
         if (e.Event is not ("takeoff" or "runway_takeoff" or "crash" or "dead" or "unit_lost" or "player_leave_unit")) return;
+        foreach (var s in _startups.Values.Where(s => s.UnitName == e.Unit).ToList()) _startups.Remove(s.Key);
         var c = _clearances.Values.FirstOrDefault(x => x.UnitName == e.Unit);
         if (c is not null) await ReleaseAsync(c.Key, ct);
     }
 
     /// <summary>The mission ended: forget all clearances (their drawings went with the mission).</summary>
-    public void Reset() => _clearances.Clear();
+    public void Reset()
+    {
+        _clearances.Clear();
+        _startups.Clear();
+    }
 
     private async Task ArriveAsync(TaxiClearance c, CancellationToken ct)
     {

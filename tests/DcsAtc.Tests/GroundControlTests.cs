@@ -118,6 +118,42 @@ public class GroundControlTests
     }
 
     [SkippableFact]
+    public async Task Startup_is_approved_with_wind_and_QNH_and_ends_at_takeoff()
+    {
+        var setup = Setup();
+        Skip.If(setup is null, "DCS install or Al Dhafra dump not available");
+        var (ground, dcs, _) = setup!.Value;
+
+        var viper = Viper(-211546.62, -171721.41);
+        await ground.RequestStartupAsync(viper, Units(viper));
+        const string approved = "Viper 1-1, Al Dhafra Ground, start up approved, wind 310 degrees, 10 knots, QNH 1013, altimeter 29.92.";
+        Assert.Equal(approved, dcs.Texts[^1].Text);
+        Assert.NotNull(ground.StartupFor(viper, Units(viper)));
+
+        // Before taxi, say again repeats it.
+        await ground.SayAgainAsync(viper, Units(viper));
+        Assert.Equal(approved, dcs.Texts[^1].Text);
+
+        // Taxi works as before; takeoff ends it.
+        await ground.RequestTaxiAsync(viper, Units(viper));
+        Assert.StartsWith("Viper 1-1, Al Dhafra Ground, taxi to holding point runway", dcs.Texts[^1].Text);
+        await ground.OnEventAsync(new DcsEventMessage { Event = "takeoff", Unit = "Viper 1-1" });
+        Assert.Empty(ground.Startups);
+
+        // Not on the ground at an airfield: no startup.
+        var airborne = Viper(-211546.62, -171721.41, inAir: true);
+        await ground.RequestStartupAsync(airborne, Units(airborne));
+        Assert.Contains("you are airborne", dcs.Texts[^1].Text);
+        Assert.Empty(ground.Startups);
+    }
+
+    [Fact]
+    public void Startup_without_weather()
+    {
+        Assert.Equal("Viper 1-1, Al Dhafra Ground, start up approved.", Phraseology.StartupApproved("Viper 1-1", "Al Dhafra", null, "F-16C_50"));
+    }
+
+    [SkippableFact]
     public async Task Cancel_and_say_again()
     {
         var setup = Setup();

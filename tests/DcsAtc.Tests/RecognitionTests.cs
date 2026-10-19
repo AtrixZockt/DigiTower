@@ -164,6 +164,8 @@ public class PilotCallTests
     [InlineData("Power, Hangman 1-2, 5-mal, final, gear down.", "ReportFinal")]
     [InlineData("Al Dhafra Ground, Hangman 1-2, radio check.", "RadioCheck")]
     [InlineData("Al Dhafra Ground, Hangman 1-2, request start-up.", "RequestStartup")]
+    [InlineData("Al Dhafra Ground, Hangman 1-2, request startup.", "RequestStartup")]
+    [InlineData("Al Dhafra Ground, Hangman 1 flight, ready to start.", "RequestStartup")]
     // A test flight: "request takeoff" was read as "request taxi" (two letters apart) before it was a phrase of its own.
     [InlineData("Dhafra Tower, Hangman 1-2, request takeoff, departure north.", "ReadyForDeparture north")]
     [InlineData("Adafra Tower, Hangman 1-2, request take off.", "ReadyForDeparture")]
