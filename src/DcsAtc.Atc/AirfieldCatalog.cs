@@ -33,6 +33,28 @@ public sealed class AirfieldCatalog(IDcsCommands dcs, string? dcsDirectory, stri
 
     public IReadOnlyList<AirbaseSummary> Airbases => _airbases;
 
+    /// <summary>The map of the current mission ("PersianGulf").</summary>
+    public string? Theatre => _theatre;
+
+    /// <summary>The weather presets of the DCS install (Config/Effects/clouds.lua), by name; empty if not found.</summary>
+    public IReadOnlyDictionary<string, CloudPreset> CloudPresets => _cloudPresets ??= LoadCloudPresets();
+
+    private IReadOnlyDictionary<string, CloudPreset>? _cloudPresets;
+
+    private IReadOnlyDictionary<string, CloudPreset> LoadCloudPresets()
+    {
+        string? path = dcsDirectory is null ? null : Path.Combine(dcsDirectory, "Config", "Effects", "clouds.lua");
+        try
+        {
+            return path is not null && File.Exists(path) ? Airfields.CloudPresets.Read(path) : new Dictionary<string, CloudPreset>();
+        }
+        catch (IOException ex)
+        {
+            log?.Invoke($"cloud presets not readable: {ex.Message}");
+            return new Dictionary<string, CloudPreset>();
+        }
+    }
+
     /// <summary>Starts a new mission: forgets everything cached for the previous one.</summary>
     public void SetMission(string? theatre, IReadOnlyList<AirbaseSummary> airbases)
     {

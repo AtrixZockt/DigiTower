@@ -22,7 +22,13 @@ internal sealed class FakeDcs(IReadOnlyList<AirbaseSummary> airbases, AirbaseInf
     public Task ClearMenusAsync(int groupId, CancellationToken ct = default) => Task.CompletedTask;
     public Task<IReadOnlyList<AirbaseSummary>> GetAirbasesAsync(CancellationToken ct = default) => Task.FromResult(airbases);
     public Task<AirbaseInfo?> GetAirbaseAsync(string name, CancellationToken ct = default) => Task.FromResult(info);
-    public Task<AirbaseWeather?> GetAirbaseWeatherAsync(string name, CancellationToken ct = default) => Task.FromResult(weather);
+    public AirbaseWeather? Weather { get; set; } = weather;
+    public Task<AirbaseWeather?> GetAirbaseWeatherAsync(string name, CancellationToken ct = default) => Task.FromResult(Weather);
+    public MissionWeather? MissionWeather { get; set; } = new() { Visibility = 80000, CloudPreset = "Preset1", CloudBase = 2520, AbsTime = 8 * 3600 };
+    /// <summary>Answer mission_weather like a bridge from before it existed.</summary>
+    public bool OldBridge { get; set; }
+    public Task<MissionWeather?> GetMissionWeatherAsync(CancellationToken ct = default) =>
+        OldBridge ? throw new BridgeCommandException("unknown command: mission_weather") : Task.FromResult(MissionWeather);
     public Task<bool> SetRadioSilentAsync(string name, bool silent, CancellationToken ct = default) => Task.FromResult(silent);
 
     public Task DrawRouteAsync(string key, int coalition, IEnumerable<(double X, double Z)> points, double[] rgba, string? text = null, CancellationToken ct = default)

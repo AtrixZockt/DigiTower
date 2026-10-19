@@ -107,6 +107,30 @@ public class VoiceTests
         }
     }
 
+    [Fact]
+    public void A_local_file_chooses_this_machines_voice()
+    {
+        string dir = Path.Combine(Path.GetTempPath(), "dcsatc-catalog-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            File.WriteAllText(Path.Combine(dir, "voices.json"), """
+                { "default": "kokoro-am_michael", "threads": 2,
+                  "voices": [ { "id": "kokoro-am_michael", "engine": "kokoro", "model": "k" }, { "id": "piper-alan", "engine": "piper", "model": "a" } ],
+                  "models": [ { "name": "k", "url": "u", "license": "Apache-2.0" }, { "name": "a", "url": "u", "license": "x" } ] }
+                """);
+            Assert.Equal("kokoro-am_michael", VoiceCatalog.Load(dir).Default);
+            File.WriteAllText(Path.Combine(dir, VoiceCatalog.LocalFile), """{ "default": "piper-alan", "threads": 4 }""");
+            var catalog = VoiceCatalog.Load(dir);
+            Assert.Equal(("piper-alan", 4), (catalog.Default, catalog.Threads));
+            Assert.Equal(["a"], catalog.ModelsFor(catalog.Find(catalog.Default)!).Select(m => m.Name));
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
     /// <summary>"Says" every text as a short tone, 22.05 kHz like Piper.</summary>
     private sealed class ToneEngine : ISpeechEngine
     {

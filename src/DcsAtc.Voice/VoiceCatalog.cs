@@ -39,13 +39,31 @@ public sealed class VoiceCatalog
     public string ModelsDirectory => Path.Combine(Directory, "models");
     public string CacheDirectory => Path.Combine(Directory, "cache");
 
-    /// <summary>Loads <c>voices.json</c> from <paramref name="voiceDirectory"/> (normally <c>data/voice</c>).</summary>
+    /// <summary>The file with this machine's own choices (default voice, threads); not in git.</summary>
+    public const string LocalFile = "voices.local.json";
+
+    /// <summary>
+    /// Loads <c>voices.json</c> from <paramref name="voiceDirectory"/> (normally <c>data/voice</c>), with this machine's
+    /// <c>voices.local.json</c> (if there is one) choosing the default voice and the threads.
+    /// </summary>
     public static VoiceCatalog Load(string voiceDirectory)
     {
         var file = JsonSerializer.Deserialize<CatalogFile>(File.ReadAllText(Path.Combine(voiceDirectory, "voices.json")), Json)
             ?? throw new InvalidDataException("empty voices.json");
-        return new VoiceCatalog { Directory = voiceDirectory, Default = file.Default, Voices = file.Voices, Models = file.Models, Threads = file.Threads ?? 2 };
+        string localPath = Path.Combine(voiceDirectory, LocalFile);
+        var local = File.Exists(localPath) ? JsonSerializer.Deserialize<LocalFileSettings>(File.ReadAllText(localPath), Json) : null;
+        return new VoiceCatalog
+        {
+            Directory = voiceDirectory,
+            Default = local?.Default ?? file.Default,
+            Voices = file.Voices,
+            Models = file.Models,
+            Threads = local?.Threads ?? file.Threads ?? 2,
+        };
     }
+
+    /// <summary>The models a voice needs (none for the Windows voices).</summary>
+    public IEnumerable<VoiceModel> ModelsFor(VoiceInfo voice) => Models.Where(m => m.Name == voice.Model);
 
     public VoiceInfo? Find(string id) => Voices.FirstOrDefault(v => v.Id.Equals(id, StringComparison.OrdinalIgnoreCase));
 
@@ -73,4 +91,6 @@ public sealed class VoiceCatalog
         new(voice, CreateEngine(voice), Path.Combine(CacheDirectory, voice.Id), log);
 
     private sealed record CatalogFile(string Default, List<VoiceInfo> Voices, List<VoiceModel> Models, int? Threads);
+
+    private sealed record LocalFileSettings(string? Default, int? Threads);
 }

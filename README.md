@@ -57,13 +57,17 @@ dotnet run --project src/DcsAtc.App                             # terminal 2
 2. Start the SRS server and the mission, then the app from the repository folder (it finds
    `D:\DCS\DCS World` and `data\`):
    ```powershell
-   dotnet run --project tools/DcsAtc.VoiceTool -- fetch   # once: the voice models (else a Windows voice speaks)
+   dotnet run --project tools/DcsAtc.VoiceTool -- fetch   # once: the voice model (else a Windows voice speaks)
    dotnet run --project src/DcsAtc.App                    # options: --srs host:port, --voice <id>, --no-voice
    ```
    At airfields with chart data (so far Al Dhafra) the stock ATC is silenced. The controllers speak on SRS
    (127.0.0.1:5002): at Al Dhafra **Ground 250.0**, **Tower 270.0** and **Approach 257.0** AM; every call is also
-   shown as text. ILS frequencies and TACAN channels come from the DCS terrain (`beacons.lua`).
-   Choosing the voice: [docs/voice.md](docs/voice.md).
+   shown as text. ILS frequencies and TACAN channels come from the DCS terrain (`beacons.lua`). The **ATIS** loops on
+   **270.5** while anyone is tuned in: information letter, Zulu time, runway in use, expected approach, wind,
+   visibility and weather, clouds (from the DCS weather preset), temperature, QNH and altimeter; a new letter with every
+   significant change and every hour. Every airfield's ATIS can also be read in the menu.
+   The default voice is Kokoro "Michael"; the other voices and how to pick one (`data/voice/voices.local.json`):
+   [docs/voice.md](docs/voice.md#voices).
 3. In the aircraft, F10 → Other → **ATC** → *airfield* → the call. On the ground the airfield is the one you are
    at; in the air the five nearest within 100 NM (nearest first; the order only changes when the list does), plus
    any airfield working you. Under each, the menu only shows the calls you can make right now and changes as you go
@@ -85,7 +89,7 @@ dotnet run --project src/DcsAtc.App                             # terminal 2
    | Check in (Approach) | After Tower's hand-off on departure: *radar contact*; held below descending arrivals if need be (*maintain 5000 feet until advised* → *climb unrestricted*); at 40 NM *radar service terminated*. |
    | Field in sight, Cancel approach, Say again (Approach) | As named. |
    | Request taxi to parking | Route to the free spot that is quickest to reach, named by its area: *"taxi to Apron 1 West via D2, A"*. |
-   | Cancel taxi, Say again (Ground / Tower), Frequencies | As named. *Debug → Where am I?* shows your position. |
+   | Cancel taxi, Say again (Ground / Tower), ATIS, Frequencies | As named. *Debug → Where am I?* shows your position. |
    | Flight → Flight of 2 / 3 / 4, Single ship | Declares a flight: you and the players with your callsign prefix ("Hangman 1-1", "Hangman 1-2" → "Hangman 1 flight"), lowest number leads; members who spawn later join until the flight is complete. Ground and Tower then give one clearance to *"Hangman 1 flight"* (sent to every member, from the lead's position), and members are never traffic to each other. Any member may make the calls. *Single ship* leaves the flight. |
 
    Every aircraft counts as traffic for Tower, AI included. Airfields without chart data get routes and
@@ -121,3 +125,25 @@ dotnet run --project tools/DcsAtc.Rn5Tool -- airfield "<file.rn5>" "data\dcs\Al 
 # taxi route from a parking spot (DCS Term_Index) to a runway's departure holding point
 dotnet run --project tools/DcsAtc.Rn5Tool -- route "<file.rn5>" "data\dcs\Al Dhafra AFB.json" 106 13L out\route.svg [--steps]
 ```
+
+## License
+
+DCS-ATC is free to download and use for any noncommercial purpose, including on DCS servers you run. You may
+change it for your own use and send your changes to this project (pull requests), but you may not distribute it
+or your changed versions of it. The terms are the [PolyForm Strict License 1.0.0](https://polyformproject.org/licenses/strict/1.0.0)
+with two additional permissions; see [LICENSE](LICENSE).
+
+Third-party parts keep their own licenses:
+
+| Part | License |
+|---|---|
+| [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) (text-to-speech engine, with ONNX Runtime) | Apache-2.0 |
+| [Concentus](https://github.com/lostromb/concentus) (Opus codec) | BSD-style (Opus license) |
+| System.Speech (Windows voices) | MIT |
+| Voice models (downloaded by `VoiceTool fetch`, not part of this repository) | per voice: [docs/voice.md](docs/voice.md#voices) |
+| DCS World and its files (taxi networks, beacons, cloud presets: read from your installation, not included) | Eagle Dynamics |
+
+Credits: the SRS client follows the protocol of [DCS-SimpleRadioStandalone](https://github.com/ciribob/DCS-SimpleRadioStandalone)
+(GPL-3.0; implemented from its documentation and source, no SRS code is included). Al Dhafra's taxiway names come from
+the Master Arms "OMAM - Al Dhafra" chart ([wiki.masterarms.se](https://wiki.masterarms.se/index.php/Persian_Gulf_Charts)).
+The maps' time zones follow [MOOSE](https://github.com/FlightControl-Master/MOOSE).

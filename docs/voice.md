@@ -33,42 +33,65 @@ Ground / Tower ──text──► SpokenText ──clips──► AtcVoice ─�
    backlog after SRS was away) is dropped. Audio goes out as 40 ms Opus frames at the pace they play.
 
 Frequencies come from the airfield's labels (`data/airfields/<theatre>/*.labels.json`). At Al Dhafra:
-**Ground 250.0, Tower 270.0** (AM). Approach (257.0) is named in hand-offs but does not speak yet.
+**Ground 250.0, Tower 270.0, Approach 257.0** (AM), and the **ATIS on 270.5**: a broadcast station of its own that
+repeats its text, 3 s apart, while any SRS client has a radio on that frequency (SRS tells every client the others'
+radios), and is silent otherwise.
 
 ## Setup
 
-1. Download the voice models (about 500 MB; once):
+1. Download the model of the voice in use (Kokoro, about 330 MB; once):
    ```powershell
    dotnet run --project tools/DcsAtc.VoiceTool -- fetch
    ```
-   Without them the app falls back to a Windows voice.
+   `fetch --voice <id>` gets another voice's model, `fetch --all` all of them (about 600 MB). Without a model the
+   app falls back to a Windows voice.
 2. Run the SRS server (2.4.x) as usual. The app connects to `127.0.0.1:5002`; use `--srs host:port`
    otherwise, `--voice <id>` for another voice, `--no-voice` for text only.
-3. In the aircraft, tune a radio to the Ground or Tower frequency.
+3. In the aircraft, tune a radio to the Ground, Tower, Approach or ATIS frequency.
 
-## Choosing the voice
+## Voices
 
-```powershell
-dotnet run --project tools/DcsAtc.VoiceTool -- audition    # writes out/audition/index.html
-```
+The default is **Kokoro: Michael** (`kokoro-am_michael`). The voices to choose from:
 
-The audition renders the same four transmissions in every voice of `data/voice/voices.json`, stitched
-exactly as the app sends them, "clean" and with a rough radio sound (in the game, SRS adds its own).
-Pick one and set it as `"default"` in `voices.json` (or pass `--voice`); the default is **Piper: Alan**
-(British male), chosen in the first audition. Speed is per voice (`"speed"`, default 1.2).
+| Id | Voice | Engine | New clip (Ryzen 5 5600X, 4 threads) | License of the model |
+|---|---|---|---|---|
+| `kokoro-am_michael` (default) | Kokoro: Michael, US male | Kokoro v1.0 | 0.4–0.8 s | Apache-2.0 |
+| `kokoro-am_adam`, `kokoro-am_eric`, `kokoro-am_onyx`, `kokoro-am_fenrir` | Kokoro: Adam, Eric, Onyx, Fenrir, US male | Kokoro v1.0 | 0.4–0.8 s | Apache-2.0 |
+| `kokoro-af_heart`, `kokoro-af_nicole` | Kokoro: Heart, Nicole, US female | Kokoro v1.0 | 0.4–0.8 s | Apache-2.0 |
+| `kokoro-bm_george`, `kokoro-bm_lewis`, `kokoro-bf_emma` | Kokoro: George, Lewis (male), Emma (female), British | Kokoro v1.0 | 0.4–0.8 s | Apache-2.0 |
+| `piper-alan` | Piper: Alan, British male | Piper | 0.12 s | trained on a Mycroft dataset marked "all rights reserved": private use at your own judgement |
+| `piper-ryan` | Piper: Ryan, US male | Piper | 0.3 s | CC BY-NC-SA 4.0 (non-commercial) |
+| `piper-lessac` | Piper: Lessac, US female | Piper | 0.3 s | Blizzard 2013 Lessac license (research use) |
+| `sapi-david`, `sapi-zira` | Windows: David (male), Zira (female), US | Windows (built in, not neural) | < 0.01 s | comes with Windows |
 
-To hear a voice through SRS before flying: `dotnet run --project tools/DcsAtc.VoiceTool -- say "Viper 1-1, runway 31R, cleared for takeoff." --srs --freq 250.0`.
+All of them run locally and cost nothing. The models are downloaded from the sherpa-onnx releases on GitHub; they
+and the clips made with them stay on your PC (`data/voice/models/`, `data/voice/cache/`, both outside git). The
+Kokoro, Piper and Windows engines are free; the table only says what the voices' own licenses allow.
 
-| Voices | Engine | Speed of a new clip (Ryzen 5 5600X, 4 threads) | License |
-|---|---|---|---|
-| Kokoro: Michael, Adam, Eric, Onyx, Fenrir, Heart, Nicole (US); George, Lewis, Emma (British) | Kokoro v1.0 (sherpa-onnx, fp32) | 0.4–0.8 s | Apache-2.0 |
-| Piper: Ryan (US), Alan (British), Lessac (US) | Piper (sherpa-onnx) | 0.1–0.4 s (Alan 0.12 s) | Ryan CC BY-NC-SA 4.0 (non-commercial), Lessac research use, Alan trained on a Mycroft dataset marked "all rights reserved": fine for a private server, but do not redistribute the models or clips |
-| Windows: David, Zira | SAPI (built in) | < 0.01 s | — |
+### Changing the voice
+
+- **For your machine:** create `data/voice/voices.local.json` (not in git, so updates never overwrite it):
+  ```json
+  { "default": "piper-alan" }
+  ```
+  It may also set `"threads"` (CPU threads for making new clips; default 2, which leaves the CPU to DCS). Then
+  `fetch` downloads that voice's model.
+- **For one run:** `dotnet run --project src/DcsAtc.App -- --voice kokoro-bm_george`.
+- **To hear them first:**
+  ```powershell
+  dotnet run --project tools/DcsAtc.VoiceTool -- fetch --all
+  dotnet run --project tools/DcsAtc.VoiceTool -- audition    # writes out/audition/index.html
+  ```
+  The audition renders the same four transmissions in every voice, stitched exactly as the app sends them,
+  "clean" and with a rough radio sound (in the game, SRS adds its own). To hear one through SRS:
+  `dotnet run --project tools/DcsAtc.VoiceTool -- say "Viper 1-1, runway 31R, cleared for takeoff." --srs --freq 250.0`.
+
+Each voice has its own clip cache, so the first mission with a new voice spends a minute or two making its clips in
+the background. Speed is per voice (`"speed"` in `voices.json`, default 1.2).
 
 Notes from the measurements: the int8 Kokoro model is about 2.5× **slower** than fp32 on this CPU (no
 AVX-512 VNNI), so fp32 is used; more than 2–4 threads hardly helps. The Piper "joe" voice crashes
-sherpa-onnx 1.13.8 and was dropped. The app uses 2 threads (`"threads"` in `voices.json`) to leave the
-CPU to DCS.
+sherpa-onnx 1.13.8 and was dropped.
 
 ## Voice tool
 
@@ -77,7 +100,7 @@ CPU to DCS.
 | `units "<text>"` | The clips a transmission is made of. |
 | `say "<text>" [--voice id] [--out f.wav] [--srs --freq 250.0 --port 5002]` | Render (and transmit). |
 | `audition [--voices a,b] [--out dir]` | Compare voices. |
-| `fetch [--model name]` | Download voice models. |
+| `fetch [--voice id \| --model name \| --all]` | Download the default voice's model (or another voice's, one model, all). |
 | `listen [--freq 250.0,270.0] [--port 5002] [--seconds n]` | Listen like a pilot and record every transmission heard (`out/heard/*.wav`, with the sender). |
 | `srs-test [--port 5002] [--pair]` | SRS check without DCS: transmit on a server test frequency (247.2) and record the echo, or with `--pair` transmit on 250.0 to a second client and check the sender is identified. |
 

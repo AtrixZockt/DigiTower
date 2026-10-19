@@ -32,6 +32,7 @@ public sealed class AtcApp
     private readonly GroundControl _ground;
     private readonly TowerControl _tower;
     private readonly ApproachControl _approach;
+    private readonly AtisService _atis;
     private readonly AtcMenu _menu;
     private readonly Dictionary<string, UnitState> _units = [];
     /// <summary>The F10 menu each player group has now (entry ids), so it is only rebuilt when it changes.</summary>
@@ -47,6 +48,7 @@ public sealed class AtcApp
         _ground = new GroundControl(client, _airfields, _flights, Log, radio: options.Radio);
         _tower = new TowerControl(client, _airfields, _ground, _flights, Log, radio: options.Radio);
         _approach = new ApproachControl(client, _airfields, _tower, _flights, Log, radio: options.Radio);
+        _atis = new AtisService(client, _airfields, options.Radio, Log);
         _menu = new AtcMenu(_airfields, _ground, _tower, _approach, _flights);
     }
 
@@ -142,10 +144,13 @@ public sealed class AtcApp
                     layout.Labels?.Frequencies, weather, layout.Labels?.Departure));
                 if (ApproachControl.Serves(layout.Labels))
                     radio.Prepare(Phraseology.ApproachSamples(airfield.Facility, layout.Runways, airfield.Radio, layout.Labels?.Frequencies, weather, ApproachControl.ProceduresOf(airfield)));
+                if (layout.Labels?.Frequencies?.Atis is not null)
+                    radio.Prepare(Phraseology.AtisSamples(airfield.Facility, layout.Runways, weather));
             }
         }
         foreach (var name in silence)
             Log($"{name}: stock ATC silenced: {await _client.SetRadioSilentAsync(name, true, ct)}");
+        await _atis.UpdateAsync(ct);
     }
 
     private async Task OnUnitsAsync(UnitsMessage snapshot, CancellationToken ct)
@@ -164,6 +169,7 @@ public sealed class AtcApp
         await _ground.OnUnitsAsync(_units, ct);
         await _tower.OnUnitsAsync(_units, ct);
         await _approach.OnUnitsAsync(_units, ct);
+        await _atis.OnUnitsAsync(ct);
         foreach (var u in PlayerGroups()) await UpdateMenuAsync(u, ct);
 
         if (DateTime.UtcNow - _lastStatus >= _options.StatusInterval)
@@ -230,6 +236,9 @@ public sealed class AtcApp
             case "approach.repeat":
                 await _approach.SayAgainAsync(unit, _units, ct);
                 break;
+            case "atis" when at is not null:
+                await _client.ShowTextAsync(m.GroupId, await _atis.TextAsync(at, ct), 30, ct: ct);
+                break;
             case "frequencies" when at is not null:
                 await _client.ShowTextAsync(m.GroupId, Phraseology.FrequencyList(at), 20, ct: ct);
                 break;
@@ -285,6 +294,7 @@ public sealed class AtcApp
         _ground.Reset();
         _tower.Reset();
         _approach.Reset();
+        _atis.Reset();
     }
 
     private static void Log(string text) => Console.WriteLine($"{DateTime.Now:HH:mm:ss}  {text}");

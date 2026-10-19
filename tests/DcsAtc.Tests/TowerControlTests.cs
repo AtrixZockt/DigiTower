@@ -444,22 +444,22 @@ public partial class TowerControlTests
         // Parked: taxi only (no taxi to parking from a parking spot). Everything sits under the airfield.
         var spot = w!.Layout.Parking.Single(p => p.Index == 106).Position;
         w.Put(Viper(spot));
-        Assert.Equal($"Al Dhafra: Request taxi, Frequencies | {flight}", await Menu());
+        Assert.Equal($"Al Dhafra: Request taxi, ATIS, Frequencies | {flight}", await Menu());
 
         // Taxiing, then at the holding point.
         await w.Ground.RequestTaxiAsync(w.Units["Viper 1-1"], w.Units);
-        Assert.Equal($"Al Dhafra: Cancel taxi, Say again (Ground), Frequencies | {flight}", await Menu());
+        Assert.Equal($"Al Dhafra: Cancel taxi, Say again (Ground), ATIS, Frequencies | {flight}", await Menu());
         w.Put(Viper(w.Ground.Clearances[1].Route.Geometry[^1]));
         await w.Ground.OnUnitsAsync(w.Units);
-        Assert.Equal($"Al Dhafra: Cancel taxi, Say again (Ground), Frequencies | {ready} | {flight}", await Menu());
+        Assert.Equal($"Al Dhafra: Cancel taxi, Say again (Ground), ATIS, Frequencies | {ready} | {flight}", await Menu());
 
         // Waiting for departure (runway occupied), then cleared: only Tower's say again.
         w.Put(Aircraft("Hornet 1-1", 2, w.OnRunway31R(1500)));
         await w.Tower.ReadyForDepartureAsync(w.Units["Viper 1-1"], w.Units);
-        Assert.Equal($"{ready} | Al Dhafra: Say again (Tower), Frequencies | {flight}", await Menu());
+        Assert.Equal($"{ready} | Al Dhafra: Say again (Tower), ATIS, Frequencies | {flight}", await Menu());
         w.Units.Remove("Hornet 1-1");
         await w.Tower.OnUnitsAsync(w.Units);
-        Assert.Equal($"Al Dhafra: Say again (Tower), Frequencies | {flight}", await Menu());
+        Assert.Equal($"Al Dhafra: Say again (Tower), ATIS, Frequencies | {flight}", await Menu());
 
         // Handed to Approach: check in; radar service until it ends at 40 miles; then approaches within 60 miles; beyond, the frequencies only.
         w.Put(Viper(w.OnRunway31R(2500), inAir: true, agl: 60, hdg: 308, speed: 90, climb: 10));
@@ -467,31 +467,31 @@ public partial class TowerControlTests
         w.Put(Viper(w.OnRunway31R(9000), inAir: true, agl: 1200, hdg: 308, speed: 150));
         await w.Tower.OnUnitsAsync(w.Units);
         const string approaches = "Request approach: ILS, TACAN, Visual, Overhead";
-        Assert.Equal($"Al Dhafra: Check in (Approach), Frequencies | {approaches} | {flight}", await Menu());
+        Assert.Equal($"Al Dhafra: Check in (Approach), ATIS, Frequencies | {approaches} | {flight}", await Menu());
         await w.Approach.CheckInAsync(w.Units["Viper 1-1"], w.Units);
         // Flying away: no arrival calls to Tower; turning back towards the field: there they are.
-        Assert.Equal($"{approaches} | Al Dhafra: Say again (Approach), Frequencies | {flight}", await Menu());
+        Assert.Equal($"{approaches} | Al Dhafra: Say again (Approach), ATIS, Frequencies | {flight}", await Menu());
         w.Put(Viper(w.OnRunway31R(9000), inAir: true, agl: 1200, hdg: 128, speed: 150));
-        Assert.Equal($"Al Dhafra: Request landing, Report initial, Say again (Approach), Frequencies | {approaches} | {flight}", await Menu());
+        Assert.Equal($"Al Dhafra: Request landing, Report initial, Say again (Approach), ATIS, Frequencies | {approaches} | {flight}", await Menu());
         w.Put(Viper(w.OnRunway31R(45 * Nm), inAir: true, agl: 5000, hdg: 308, speed: 200));
         await w.Approach.OnUnitsAsync(w.Units);
         Assert.Equal("Viper 1-1, radar service terminated, frequency change approved, good day.", w.LastText);
         w.Put(Viper(w.OnRunway31R(50 * Nm), inAir: true, agl: 5000, hdg: 128, speed: 200));
-        Assert.Equal($"{approaches} | Al Dhafra: Frequencies | {flight}", await Menu());
+        Assert.Equal($"{approaches} | Al Dhafra: ATIS, Frequencies | {flight}", await Menu());
         w.Put(Viper(w.OnRunway31R(80 * Nm), inAir: true, agl: 5000, hdg: 128, speed: 200));
-        Assert.Equal($"Al Dhafra: Frequencies | {flight}", await Menu());
+        Assert.Equal($"Al Dhafra: ATIS, Frequencies | {flight}", await Menu());
         w.Put(Viper(w.OnRunway31R(120 * Nm), inAir: true, agl: 5000, hdg: 128, speed: 200));
         Assert.Equal(flight, await Menu());
 
         // Inbound: report final until reported; landed: taxi to parking.
         w.Put(Viper(w.OnFinal31R(20000), inAir: true, agl: 900, hdg: 308, speed: 120));
         await w.Tower.RequestLandingAsync(w.Units["Viper 1-1"], w.Units);
-        Assert.Equal($"Al Dhafra: Report final, Say again (Tower), Frequencies | {flight}", await Menu());
+        Assert.Equal($"Al Dhafra: Report final, Say again (Tower), ATIS, Frequencies | {flight}", await Menu());
         await w.Tower.ReportFinalAsync(w.Units["Viper 1-1"], w.Units);
-        Assert.Equal($"Al Dhafra: Say again (Tower), Frequencies | {flight}", await Menu());
+        Assert.Equal($"Al Dhafra: Say again (Tower), ATIS, Frequencies | {flight}", await Menu());
         w.Put(Viper(w.OnRunway31R(1200), hdg: 308, speed: 40));
         await w.Tower.OnUnitsAsync(w.Units);
-        Assert.Equal($"Al Dhafra: Request taxi to parking, Say again (Tower), Frequencies | {flight}", await Menu());
+        Assert.Equal($"Al Dhafra: Request taxi to parking, Say again (Tower), ATIS, Frequencies | {flight}", await Menu());
 
         // The menu ids name the airfield (Al Dhafra is airbase 4).
         var entries = await w.Menu.ForAsync(w.Units["Viper 1-1"], w.Units);
@@ -509,7 +509,7 @@ public partial class TowerControlTests
         var spot = w!.Layout.Parking.Single(p => p.Index == 106).Position;
 
         var digii = w.Put(Aircraft("DiGii", 5, spot, player: "DiGii"));
-        Assert.Equal("Al Dhafra: Request taxi, Frequencies", MenuText.Describe(await w.Menu.ForAsync(digii, w.Units)));
+        Assert.Equal("Al Dhafra: Request taxi, ATIS, Frequencies", MenuText.Describe(await w.Menu.ForAsync(digii, w.Units)));
 
         var one = w.Put(Hangman(1, spot + new Vec2(0, 200), 11));
         w.Put(Hangman(2, spot + new Vec2(0, 230), 12));
@@ -594,4 +594,13 @@ internal sealed class FakeRadio : IAtcRadio
 
     public void Transmit(RadioCall call) => Calls.Add(call);
     public void Prepare(IEnumerable<string> texts, bool soon = false) => Prepared.AddRange(texts);
+
+    /// <summary>What each station broadcasts now (absent: nothing).</summary>
+    public Dictionary<string, (double Mhz, int Coalition, string Text)> Broadcasts { get; } = [];
+
+    public void Broadcast(string station, double frequencyMhz, int coalition, string? text)
+    {
+        if (text is null) Broadcasts.Remove(station);
+        else Broadcasts[station] = (frequencyMhz, coalition, text);
+    }
 }

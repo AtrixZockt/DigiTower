@@ -42,6 +42,7 @@ public static partial class SpokenText
         ["IFR"] = "I F R",
         ["ATIS"] = "ay-tis",
         ["TACAN"] = "tack-an",
+        ["CAVOK"] = "kav-oh-kay",
         ["Dhafra"] = "Dafra",
     };
 
@@ -62,6 +63,14 @@ public static partial class SpokenText
                     string token = tokens[i];
                     string previous = i > 0 ? tokens[i - 1] : "";
                     string next = i + 1 < tokens.Length ? tokens[i + 1] : "";
+                    // Times as two pairs ("0750 Zulu": "zero seven", "five zero"), so a few clips cover every time.
+                    if (next.Equals("Zulu", StringComparison.OrdinalIgnoreCase) && token.Length == 4 && Integer().IsMatch(token))
+                    {
+                        Flush(units, words);
+                        units.Add(new SpeechUnit(DigitWords(token[..2]), WordGap));
+                        units.Add(new SpeechUnit(DigitWords(token[2..]), WordGap));
+                        continue;
+                    }
                     if (Reading(token, previous, next, viaList) is { } value)
                     {
                         Flush(units, words);
@@ -85,7 +94,8 @@ public static partial class SpokenText
     /// <summary>The spoken form of a number-like token, or null for an ordinary word.</summary>
     private static string? Reading(string token, string previous, string next, bool viaList)
     {
-        if (previous.Equals("runway", StringComparison.OrdinalIgnoreCase) && RunwayDesignator().Match(token) is { Success: true } rwy)
+        // After "runway", or anywhere with a side letter ("runway in use 31L and 31R").
+        if ((previous.Equals("runway", StringComparison.OrdinalIgnoreCase) || SidedRunway().IsMatch(token)) && RunwayDesignator().Match(token) is { Success: true } rwy)
         {
             string side = rwy.Groups[2].Value switch { "L" => " left", "R" => " right", "C" => " center", _ => "" };
             return DigitWords(rwy.Groups[1].Value.PadLeft(2, '0')) + side;
@@ -106,8 +116,9 @@ public static partial class SpokenText
             return Clock[hour];
         if (Integer().IsMatch(token))
         {
-            // Altitudes in whole hundreds are said in thousands and hundreds ("three thousand five hundred feet", "five hundred feet").
-            if (next.Equals("feet", StringComparison.OrdinalIgnoreCase) && int.Parse(token) is var feet and >= 100 && feet % 100 == 0)
+            // Heights and distances in whole hundreds are said in thousands and hundreds ("three thousand five hundred feet", "eight hundred meters").
+            if ((next.Equals("feet", StringComparison.OrdinalIgnoreCase) || next.Equals("meters", StringComparison.OrdinalIgnoreCase))
+                && int.Parse(token) is var feet and >= 100 && feet % 100 == 0)
                 return Thousands(feet);
             return DigitWords(token);
         }
@@ -146,6 +157,9 @@ public static partial class SpokenText
 
     [GeneratedRegex(@"^(\d{1,2})([LRC]?)$")]
     private static partial Regex RunwayDesignator();
+
+    [GeneratedRegex(@"^\d{2}[LRC]$")]
+    private static partial Regex SidedRunway();
 
     [GeneratedRegex(@"^\d{2}\.\d{2}$")]
     private static partial Regex Altimeter();

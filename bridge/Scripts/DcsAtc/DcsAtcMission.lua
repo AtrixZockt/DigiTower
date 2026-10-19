@@ -346,6 +346,34 @@ local function airbaseWeather(c)
   return { windX = wind.x, windZ = wind.z, temperature = temperature, pressure = pressure, elevation = p.y }
 end
 
+--- The mission's weather as set in the editor (clouds, visibility, dust) and the current fog, for ATIS,
+--- with the mission clock (seconds since midnight of the start date) for its time.
+local function missionWeather()
+  local w = (env.mission or {}).weather or {}
+  local clouds = w.clouds or {}
+  local fogVisibility, fogThickness
+  if world.weather and world.weather.getFogVisibilityDistance then
+    local ok, v = pcall(world.weather.getFogVisibilityDistance)
+    if ok then fogVisibility = v end
+    local ok2, t = pcall(world.weather.getFogThickness)
+    if ok2 then fogThickness = t end
+  elseif w.enable_fog and w.fog then
+    fogVisibility, fogThickness = w.fog.visibility, w.fog.thickness
+  end
+  return {
+    visibility = (w.visibility or {}).distance,
+    dust = w.enable_dust and w.dust_density or nil,
+    fogVisibility = fogVisibility,
+    fogThickness = fogThickness,
+    cloudBase = clouds.base,
+    cloudThickness = clouds.thickness,
+    cloudDensity = clouds.density,
+    cloudPreset = clouds.preset,
+    precipitation = clouds.iprecptns,
+    absTime = timer.getAbsTime(),
+  }
+end
+
 ---------------------------------------------------------------------------------------------------
 -- F10 map drawings (lines and a text), grouped under a key so they can be replaced or removed
 ---------------------------------------------------------------------------------------------------
@@ -397,6 +425,7 @@ local COMMANDS = {
   airbase_list = airbaseList,
   airbase_info = airbaseInfo,
   airbase_weather = airbaseWeather,
+  mission_weather = missionWeather,
   radio_silent = radioSilent,
   draw_route = drawRoute,
   drawing_clear = drawingClear,

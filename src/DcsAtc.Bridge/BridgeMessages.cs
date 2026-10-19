@@ -161,6 +161,27 @@ public sealed record ParkingInfo
 }
 
 /// <summary>Weather at an airbase: wind 10 m above the field, temperature and pressure at field elevation.</summary>
+/// <summary>The mission's weather (as set in the editor) and the current fog; all distances in metres.</summary>
+public sealed record MissionWeather
+{
+    /// <summary>Visibility (without fog or dust).</summary>
+    public double? Visibility { get; init; }
+    /// <summary>Visibility in dust, if dust is on (up to 1500 ft).</summary>
+    public double? Dust { get; init; }
+    /// <summary>Fog visibility and thickness (top above sea level); 0 or absent: no fog.</summary>
+    public double? FogVisibility { get; init; }
+    public double? FogThickness { get; init; }
+    /// <summary>Cloud base and thickness (legacy clouds), density 0–10, or a preset ("Preset1", "RainyPreset2") whose layers move with the base.</summary>
+    public double? CloudBase { get; init; }
+    public double? CloudThickness { get; init; }
+    public int? CloudDensity { get; init; }
+    public string? CloudPreset { get; init; }
+    /// <summary>0 none, 1 rain, 2 thunderstorm, 3 snow, 4 snowstorm (legacy clouds).</summary>
+    public int? Precipitation { get; init; }
+    /// <summary>The mission clock: seconds since midnight of the mission's start date (local time of the map).</summary>
+    public double AbsTime { get; init; }
+}
+
 public sealed record AirbaseWeather
 {
     /// <summary>Wind velocity north component (m/s), in the direction the wind blows towards.</summary>

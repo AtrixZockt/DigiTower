@@ -1,8 +1,8 @@
 {
   // The ATC voices. Models are downloaded with: dotnet run --project tools/DcsAtc.VoiceTool -- fetch
   // Clips are generated once per voice into cache/<id>/ and reused (see docs/voice.md).
-  // Chosen by ear in the audition (2026-10-18).
-  "default": "piper-alan",
+  // The default voice: Kokoro (Apache-2.0). Your own choice goes in voices.local.json (not in git), see docs/voice.md.
+  "default": "kokoro-am_michael",
   // CPU threads per TTS engine (new clips only; the game keeps the rest).
   "threads": 2,
   "voices": [

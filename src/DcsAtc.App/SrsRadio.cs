@@ -20,7 +20,8 @@ public sealed record SrsRadioOptions
 /// <summary>
 /// Controllers on SRS: every station ("Al Dhafra Ground", per coalition) is an SRS client of its own that says
 /// its calls one after another, in the ATC voice, on the call's frequency. Clips are made ahead of time on a
-/// low-priority thread (<see cref="Prepare"/>), so a call normally only stitches cached clips.
+/// low-priority thread (<see cref="Prepare"/>), so a call normally only stitches cached clips. Broadcasts (ATIS) are
+/// stations of their own that repeat their text while any SRS client has a radio on their frequency.
 /// </summary>
 public sealed class SrsRadio : IAtcRadio, IAsyncDisposable
 {
@@ -28,6 +29,7 @@ public sealed class SrsRadio : IAtcRadio, IAsyncDisposable
     private readonly AtcVoice _voice;
     private readonly Action<string> _log;
     private readonly ConcurrentDictionary<(string Station, int Coalition), Station> _stations = new();
+    private readonly ConcurrentDictionary<string, Broadcaster> _broadcasts = new();
     // Clips to make: callsigns of pilots who just spawned first, then the airfields' phrases.
     private readonly BlockingCollection<string> _prepareSoon = [];
     private readonly BlockingCollection<string> _prepare = [];
@@ -58,12 +60,18 @@ public sealed class SrsRadio : IAtcRadio, IAsyncDisposable
         }
     }
 
+    public void Broadcast(string station, double frequencyMhz, int coalition, string? text)
+    {
+        if (text is null && !_broadcasts.ContainsKey(station)) return;
+        _broadcasts.GetOrAdd(station, name => new Broadcaster(this, name, coalition, SrsFrequency.Mhz(frequencyMhz))).Text = text;
+    }
+
     public async ValueTask DisposeAsync()
     {
         _prepareSoon.CompleteAdding();
         _prepare.CompleteAdding();
         await _stop.CancelAsync();
-        await Task.WhenAll(_stations.Values.Select(s => s.StopAsync()));
+        await Task.WhenAll(_stations.Values.Select(s => s.StopAsync()).Concat(_broadcasts.Values.Select(b => b.StopAsync())));
         _prepareThread.Join(TimeSpan.FromSeconds(5));
         _voice.Dispose();
     }
@@ -159,6 +167,74 @@ public sealed class SrsRadio : IAtcRadio, IAsyncDisposable
                         }
                     }
                     await Task.Delay(_radio._options.GapBetweenCalls, ct);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+            }
+        }
+    }
+
+    /// <summary>A recorded broadcast (ATIS): says its text over and over while someone is tuned in.</summary>
+    private sealed class Broadcaster
+    {
+        private static readonly TimeSpan Pause = TimeSpan.FromSeconds(3), Idle = TimeSpan.FromSeconds(2);
+
+        private readonly SrsRadio _radio;
+        private readonly string _name;
+        private readonly SrsFrequency _frequency;
+        private readonly SrsClient _client;
+        private readonly Task _run, _work;
+        private (string Text, short[] Pcm)? _rendered;
+
+        public Broadcaster(SrsRadio radio, string name, int coalition, SrsFrequency frequency)
+        {
+            _radio = radio;
+            _name = name;
+            _frequency = frequency;
+            _client = new SrsClient(new SrsOptions { Host = radio._options.Host, Port = radio._options.Port, Name = name, Coalition = coalition }, radio._log);
+            _run = _client.RunAsync(radio._stop.Token);
+            _work = Task.Run(WorkAsync);
+        }
+
+        /// <summary>The text to repeat; null: silent.</summary>
+        public volatile string? Text;
+
+        /// <summary>Someone has a radio on the frequency (SRS tells every client the others' radios).</summary>
+        private bool Listened => _client.Peers.Values.Any(p => p.Radios.Any(r => r.SameChannel(_frequency)));
+
+        public Task StopAsync() => Task.WhenAll(_run, _work);
+
+        private async Task WorkAsync()
+        {
+            var ct = _radio._stop.Token;
+            bool said = false;
+            try
+            {
+                while (!ct.IsCancellationRequested)
+                {
+                    if (Text is not { } text || !_client.IsReady || !Listened)
+                    {
+                        await Task.Delay(Idle, ct);
+                        continue;
+                    }
+                    if (_rendered?.Text != text)
+                    {
+                        var audio = await Task.Run(() => _radio._voice.Render(text), ct);
+                        _rendered = (text, Audio.ToPcm16(audio.Samples));
+                    }
+                    if (!said) _radio._log($"radio {_name} {_frequency}: broadcasting ({text.Length} characters)");
+                    said = true;
+                    try
+                    {
+                        await _client.TransmitAsync(_rendered.Value.Pcm, [_frequency], ct);
+                    }
+                    catch (SrsException ex)
+                    {
+                        _radio._log($"radio {_name}: {ex.Message}");
+                        await Task.Delay(Idle, ct);
+                    }
+                    await Task.Delay(Pause, ct);
                 }
             }
             catch (OperationCanceledException)

@@ -47,6 +47,7 @@ them into a Lua table literal and the mission side runs one of the whitelisted h
 | `airbase_info` | `name` | `{ name, id, callsign, category, coalition, x, y, z, radioSilent, runways: [{ name, course, width, length, x, y, z }], parking: [{ index, index0, termType, x, y, z, distToRunway, occupied }] }` |
 | `radio_silent` | `name`, `silent` | `{ name, silent }` |
 | `airbase_weather` | `name` | `{ windX, windZ, temperature, pressure, elevation }`: wind 10 m above the field in m/s (the direction it blows **towards**), temperature in K and pressure in Pa at field elevation |
+| `mission_weather` | | `{ visibility, dust, fogVisibility, fogThickness, cloudBase, cloudThickness, cloudDensity, cloudPreset, precipitation, absTime }`: the editor's weather (`env.mission.weather`, metres; `cloudPreset` such as `"Preset7"`, whose layers are in DCS's `Config/Effects/clouds.lua` and move with `cloudBase`), the current fog from `world.weather`, and `timer.getAbsTime()` (seconds since midnight of the start date, local time of the map). Absent fields are not set in the mission. |
 | `draw_route` | `key`, `coalition` (-1 = all), `points` (`[[x, z], ...]`), `color` (`[r, g, b, a]`, 0–1), `text` (optional, at the last point), `lineType`, `fontSize` | `{ marks }`; drawing again with the same `key` replaces the old drawing |
 | `drawing_clear` | `key` | |
 
