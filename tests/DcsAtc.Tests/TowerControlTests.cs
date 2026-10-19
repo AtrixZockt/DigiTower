@@ -441,10 +441,14 @@ public partial class TowerControlTests
         const string flight = "Flight: Flight of 2, Flight of 3, Flight of 4";
         const string ready = "Ready for departure: Own navigation, Departure north, Departure east, Departure south, Departure west, Closed traffic";
 
-        // Parked: taxi only (no taxi to parking from a parking spot). Everything sits under the airfield.
+        // Parked: startup and taxi (no taxi to parking from a parking spot). Everything sits under the airfield.
         var spot = w!.Layout.Parking.Single(p => p.Index == 106).Position;
         w.Put(Viper(spot));
-        Assert.Equal($"Al Dhafra: Request taxi, ATIS, Frequencies | {flight}", await Menu());
+        Assert.Equal($"Al Dhafra: Request startup, Request taxi, ATIS, Frequencies | {flight}", await Menu());
+
+        // Start up approved: no more startup, Ground can say it again.
+        await w.Ground.RequestStartupAsync(w.Units["Viper 1-1"], w.Units);
+        Assert.Equal($"Al Dhafra: Request taxi, Say again (Ground), ATIS, Frequencies | {flight}", await Menu());
 
         // Taxiing, then at the holding point.
         await w.Ground.RequestTaxiAsync(w.Units["Viper 1-1"], w.Units);
@@ -464,6 +468,9 @@ public partial class TowerControlTests
         // Handed to Approach: check in; radar service until it ends at 40 miles; then approaches within 60 miles; beyond, the frequencies only.
         w.Put(Viper(w.OnRunway31R(2500), inAir: true, agl: 60, hdg: 308, speed: 90, climb: 10));
         await w.Tower.OnUnitsAsync(w.Units);
+        // Airborne: the startup approval has done its job.
+        await w.Ground.OnUnitsAsync(w.Units);
+        Assert.Empty(w.Ground.Startups);
         w.Put(Viper(w.OnRunway31R(9000), inAir: true, agl: 1200, hdg: 308, speed: 150));
         await w.Tower.OnUnitsAsync(w.Units);
         const string approaches = "Request approach: ILS, TACAN, Visual, Overhead";
@@ -509,7 +516,7 @@ public partial class TowerControlTests
         var spot = w!.Layout.Parking.Single(p => p.Index == 106).Position;
 
         var digii = w.Put(Aircraft("DiGii", 5, spot, player: "DiGii"));
-        Assert.Equal("Al Dhafra: Request taxi, ATIS, Frequencies", MenuText.Describe(await w.Menu.ForAsync(digii, w.Units)));
+        Assert.Equal("Al Dhafra: Request startup, Request taxi, ATIS, Frequencies", MenuText.Describe(await w.Menu.ForAsync(digii, w.Units)));
 
         var one = w.Put(Hangman(1, spot + new Vec2(0, 200), 11));
         w.Put(Hangman(2, spot + new Vec2(0, 230), 12));
@@ -523,9 +530,10 @@ public partial class TowerControlTests
         var w = await CreateAsync();
         Skip.If(w is null, "DCS install or Al Dhafra dump not available");
 
-        // A whole sortie: taxi, hold for traffic, take off west under pattern traffic (and climb too early), hand-off;
+        // A whole sortie: start up, taxi, hold for traffic, take off west under pattern traffic (and climb too early), hand-off;
         // arrival, go-around, landing, taxi in.
         await TaxiToHoldingPointAsync(w!);
+        await w!.Ground.RequestStartupAsync(w.Units["Viper 1-1"], w.Units);
         w!.Put(Aircraft("Hornet 1-1", 2, w.OnRunway31R(1500)));
         await w.Tower.ReadyForDepartureAsync(w.Units["Viper 1-1"], w.Units, DepartureIntent.West);
         w.Units.Remove("Hornet 1-1");

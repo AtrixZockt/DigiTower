@@ -82,7 +82,8 @@ public sealed class AtcMenu(AirfieldCatalog airfields, GroundControl ground, Tow
         var party = flights.PartyFor(unit, units);
         var lead = units.GetValueOrDefault(party.LeadUnit) ?? unit;
         var situation = new Situation(party, lead, ground.ClearanceFor(unit, units), tower.Flights.GetValueOrDefault(party.Key),
-            approach.Flights.GetValueOrDefault(party.Key), tower.HandedOffRecently(party.Key, CheckInWindow) ? tower.Handoffs[party.Key].Airfield : null);
+            approach.Flights.GetValueOrDefault(party.Key), tower.HandedOffRecently(party.Key, CheckInWindow) ? tower.Handoffs[party.Key].Airfield : null,
+            ground.StartupFor(unit, units));
 
         foreach (var airfield in await AirfieldsAsync(unit.GroupId ?? party.Key, situation, ct))
         {
@@ -106,7 +107,8 @@ public sealed class AtcMenu(AirfieldCatalog airfields, GroundControl ground, Tow
     }
 
     /// <summary>What ATC knows about the flight: its taxi clearance, Tower and Approach flights, a pending check-in.</summary>
-    private sealed record Situation(Party Party, UnitState Lead, TaxiClearance? Taxi, TowerFlight? Tower, ApproachFlight? Approach, GroundAirfield? CheckInWith)
+    private sealed record Situation(Party Party, UnitState Lead, TaxiClearance? Taxi, TowerFlight? Tower, ApproachFlight? Approach, GroundAirfield? CheckInWith,
+        StartupApproval? Startup)
     {
         public Vec2 Position => new(Lead.X, Lead.Z);
     }
@@ -164,6 +166,7 @@ public sealed class AtcMenu(AirfieldCatalog airfields, GroundControl ground, Tow
         bool inAir = s.Lead.InAir;
 
         // Ground: at this airfield, on the ground.
+        bool parked = airfield.Layout.Parking.Any(p => p.Position.DistanceTo(position) < ParkedDistance);
         if (here(s.Taxi?.Airfield))
         {
             yield return ("Cancel taxi", "ground.cancel", null);
@@ -171,9 +174,11 @@ public sealed class AtcMenu(AirfieldCatalog airfields, GroundControl ground, Tow
         }
         else if (!inAir && s.Taxi is null && (s.Tower is null || (here(s.Tower.Airfield) && s.Tower.Phase == TowerPhase.Landed)))
         {
+            // Start up (optional) while parked, until approved; then Ground can say it again.
+            if (s.Tower is null && parked && s.Startup is null) yield return ("Request startup", "ground.startup", null);
             if (s.Tower is null) yield return ("Request taxi", "ground.taxi", null);
-            if (!airfield.Layout.Parking.Any(p => p.Position.DistanceTo(position) < ParkedDistance))
-                yield return ("Request taxi to parking", "ground.parking", null);
+            if (!parked) yield return ("Request taxi to parking", "ground.parking", null);
+            if (here(s.Startup?.Airfield)) yield return ("Say again (Ground)", "ground.repeat", null);
         }
 
         // Tower.
