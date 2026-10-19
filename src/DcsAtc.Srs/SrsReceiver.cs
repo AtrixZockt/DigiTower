@@ -46,7 +46,9 @@ public sealed class SrsReceiver : IDisposable
         {
             if (!_pending.TryGetValue(packet.SenderGuid, out var p))
             {
-                p = new Pending(packet.SenderGuid, packet.Frequencies.FirstOrDefault(), SrsOpus.CreateDecoder(), DateTimeOffset.Now);
+                // Who it is, looked up now: a client that disconnects right after talking is gone by the end.
+                _client.Peers.TryGetValue(packet.SenderGuid, out var peer);
+                p = new Pending(packet.SenderGuid, peer, packet.Frequencies.FirstOrDefault(), SrsOpus.CreateDecoder(), DateTimeOffset.Now);
                 _pending[packet.SenderGuid] = p;
             }
             p.Add(packet);
@@ -63,17 +65,18 @@ public sealed class SrsReceiver : IDisposable
                 if (!force && Stopwatch.GetElapsedTime(p.LastPacket) < EndGap) continue;
                 _pending.Remove(p.Sender);
                 _client.Peers.TryGetValue(p.Sender, out var peer);
-                done.Add(p.Finish(peer));
+                done.Add(p.Finish(peer ?? p.Peer));
             }
         }
         foreach (var t in done) TransmissionReceived?.Invoke(t);
     }
 
-    private sealed class Pending(string sender, SrsFrequency frequency, IOpusDecoder decoder, DateTimeOffset started)
+    private sealed class Pending(string sender, SrsPeer? peer, SrsFrequency frequency, IOpusDecoder decoder, DateTimeOffset started)
     {
         private readonly SortedDictionary<ulong, byte[]> _frames = [];
 
         public string Sender => sender;
+        public SrsPeer? Peer => peer;
         public long LastPacket { get; private set; } = Stopwatch.GetTimestamp();
 
         public void Add(SrsVoicePacket packet)

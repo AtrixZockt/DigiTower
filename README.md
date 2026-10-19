@@ -19,10 +19,12 @@ behind it are in [RESEARCH.md](RESEARCH.md).
 | `src/DcsAtc.Atc` | The ATC logic: ground control, tower, flights, phraseology, airfield catalog. |
 | `src/DcsAtc.Srs` | Headless SRS client: the controllers' radio stations (TCP sync, UDP Opus voice). |
 | `src/DcsAtc.Voice` | The ATC voice: how text is said, TTS engines (Kokoro/Piper via sherpa-onnx, Windows), clip cache, stitching. |
-| `data/voice/` | `voices.json` (the voices); `models/` and `cache/` are downloaded / generated, not in git ([docs/voice.md](docs/voice.md)). |
+| `src/DcsAtc.Recognition` | Speech recognition for voice requests: Whisper (whisper.cpp) and Parakeet (sherpa-onnx), transcript normalising, test calls ([docs/voice.md](docs/voice.md#speech-recognition-spike-s5)). |
+| `data/voice/` | `voices.json` (the voices), `recognition.json` (the recognizers), `test-calls.txt` (the recognition test); `models/` and `cache/` are downloaded / generated, not in git ([docs/voice.md](docs/voice.md)). |
 | `src/DcsAtc.App` | The ATC app (console): connects to DCS, F10 menus, runs the controllers, speaks on SRS. |
 | `tools/DcsAtc.Rn5Tool` | Inspects `.rn5` files, renders them as SVG, scans whole DCS installs. |
-| `tools/DcsAtc.VoiceTool` | Voice audition, test transmissions, SRS check without DCS, model download. |
+| `tools/DcsAtc.VoiceTool` | Voice audition, test transmissions, SRS check without DCS, model download, speech-recognition bake-off. |
+| `tools/Convert-WhisperModel.ps1` | Converts a Whisper model from Hugging Face (a fine-tune) to whisper.cpp format for the app. |
 | `tests/DcsAtc.Tests` | C# tests. |
 | `docs/bridge-protocol.md` | The JSON protocol between DCS and the app. |
 | `docs/labeling.md` | How to add taxiway names for an airfield. |
@@ -58,7 +60,7 @@ dotnet run --project src/DcsAtc.App                             # terminal 2
    `D:\DCS\DCS World` and `data\`):
    ```powershell
    dotnet run --project tools/DcsAtc.VoiceTool -- fetch   # once: the voice model (else a Windows voice speaks)
-   dotnet run --project src/DcsAtc.App                    # options: --srs host:port, --voice <id>, --no-voice
+   dotnet run --project src/DcsAtc.App                    # options: --srs host:port, --voice <id>, --no-voice, --transcribe [<id>]
    ```
    At airfields with chart data (so far Al Dhafra) the stock ATC is silenced. The controllers speak on SRS
    (127.0.0.1:5002): at Al Dhafra **Ground 250.0**, **Tower 270.0** and **Approach 257.0** AM; every call is also
@@ -91,6 +93,9 @@ dotnet run --project src/DcsAtc.App                             # terminal 2
    | Request taxi to parking | Route to the free spot that is quickest to reach, named by its area: *"taxi to Apron 1 West via D2, A"*. |
    | Cancel taxi, Say again (Ground / Tower), ATIS, Frequencies | As named. *Debug → Where am I?* shows your position. |
    | Flight → Flight of 2 / 3 / 4, Single ship | Declares a flight: you and the players with your callsign prefix ("Hangman 1-1", "Hangman 1-2" → "Hangman 1 flight"), lowest number leads; members who spawn later join until the flight is complete. Ground and Tower then give one clearance to *"Hangman 1 flight"* (sent to every member, from the lead's position), and members are never traffic to each other. Any member may make the calls. *Single ship* leaves the flight. |
+
+   **Voice:** with `--transcribe`, the same calls can be made by talking on the frequency with your normal SRS
+   push-to-talk ("Al Dhafra Ground, Hangman 1-2, request taxi"): [docs/voice.md](docs/voice.md#voice-requests).
 
    Every aircraft counts as traffic for Tower, AI included. Airfields without chart data get routes and
    map drawings without taxiway names, and text messages only (we have no frequencies for them). Callsigns come from the player name before "|"
@@ -140,6 +145,8 @@ Third-party parts keep their own licenses:
 | [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) (text-to-speech engine, with ONNX Runtime) | Apache-2.0 |
 | [Concentus](https://github.com/lostromb/concentus) (Opus codec) | BSD-style (Opus license) |
 | System.Speech (Windows voices) | MIT |
+| [Whisper.net](https://github.com/sandrohanea/whisper.net) and [whisper.cpp](https://github.com/ggml-org/whisper.cpp) (speech recognition) | MIT |
+| Speech-recognition models (downloaded by `VoiceTool fetch --recognition`, not part of this repository): OpenAI Whisper; NVIDIA [Parakeet TDT 0.6B v2](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v2) | MIT; CC-BY-4.0 |
 | Voice models (downloaded by `VoiceTool fetch`, not part of this repository) | per voice: [docs/voice.md](docs/voice.md#voices) |
 | DCS World and its files (taxi networks, beacons, cloud presets: read from your installation, not included) | Eagle Dynamics |
 

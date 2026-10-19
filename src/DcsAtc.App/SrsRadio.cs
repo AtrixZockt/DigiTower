@@ -15,13 +15,16 @@ public sealed record SrsRadioOptions
     public TimeSpan MaxDelay { get; init; } = TimeSpan.FromSeconds(60);
     /// <summary>Silence between two calls of one station.</summary>
     public TimeSpan GapBetweenCalls { get; init; } = TimeSpan.FromMilliseconds(700);
+    /// <summary>Stations assemble what they hear on their frequency into transmissions (<see cref="SrsRadio.Heard"/>).</summary>
+    public bool Listen { get; init; }
 }
 
 /// <summary>
 /// Controllers on SRS: every station ("Al Dhafra Ground", per coalition) is an SRS client of its own that says
 /// its calls one after another, in the ATC voice, on the call's frequency. Clips are made ahead of time on a
 /// low-priority thread (<see cref="Prepare"/>), so a call normally only stitches cached clips. Broadcasts (ATIS) are
-/// stations of their own that repeat their text while any SRS client has a radio on their frequency.
+/// stations of their own that repeat their text while any SRS client has a radio on their frequency. With
+/// <see cref="SrsRadioOptions.Listen"/>, every station reports the transmissions it hears (<see cref="Heard"/>).
 /// </summary>
 public sealed class SrsRadio : IAtcRadio, IAsyncDisposable
 {
@@ -45,11 +48,20 @@ public sealed class SrsRadio : IAtcRadio, IAsyncDisposable
         _prepareThread.Start();
     }
 
-    public void Transmit(RadioCall call)
+    /// <summary>A pilot's transmission heard by a station (its name), when listening is on.</summary>
+    public event Action<string, SrsTransmission>? Heard;
+
+    public void Transmit(RadioCall call) => StationFor(call.Station, call.FrequencyMhz, call.Coalition).Enqueue(call);
+
+    public void Listen(string station, double frequencyMhz, int coalition)
     {
-        var station = _stations.GetOrAdd((call.Station, call.Coalition), key => new Station(this, key.Station, key.Coalition, SrsFrequency.Mhz(call.FrequencyMhz)));
-        station.Enqueue(call);
+        if (_options.Listen) StationFor(station, frequencyMhz, coalition);
     }
+
+    private bool IsStation(string name) => _broadcasts.ContainsKey(name) || _stations.Keys.Any(k => k.Station == name);
+
+    private Station StationFor(string name, double frequencyMhz, int coalition) =>
+        _stations.GetOrAdd((name, coalition), key => new Station(this, key.Station, key.Coalition, SrsFrequency.Mhz(frequencyMhz)));
 
     public void Prepare(IEnumerable<string> texts, bool soon = false)
     {
@@ -109,6 +121,7 @@ public sealed class SrsRadio : IAtcRadio, IAsyncDisposable
         private readonly SrsRadio _radio;
         private readonly string _name;
         private readonly SrsClient _client;
+        private readonly SrsReceiver? _receiver;
         private readonly Channel<(RadioCall Call, long Queued)> _queue = Channel.CreateUnbounded<(RadioCall, long)>(new UnboundedChannelOptions { SingleReader = true });
         private readonly Task _run, _work;
         private long _lastError = -1;
@@ -117,7 +130,7 @@ public sealed class SrsRadio : IAtcRadio, IAsyncDisposable
         {
             _radio = radio;
             _name = name;
-            // It listens on its own frequency too (for voice requests later).
+            // It has a radio on its own frequency, so SRS sends it what pilots say there.
             _client = new SrsClient(new SrsOptions
             {
                 Host = radio._options.Host,
@@ -126,6 +139,15 @@ public sealed class SrsRadio : IAtcRadio, IAsyncDisposable
                 Coalition = coalition,
                 Receive = [frequency],
             }, radio._log);
+            if (radio._options.Listen)
+            {
+                _receiver = new SrsReceiver(_client);
+                // Pilots only: another of our stations can share the frequency.
+                _receiver.TransmissionReceived += t =>
+                {
+                    if (t.Sender?.Name is not { } sender || !radio.IsStation(sender)) radio.Heard?.Invoke(name, t);
+                };
+            }
             _run = _client.RunAsync(radio._stop.Token);
             _work = Task.Run(WorkAsync);
         }
@@ -136,6 +158,7 @@ public sealed class SrsRadio : IAtcRadio, IAsyncDisposable
         {
             _queue.Writer.TryComplete();
             await Task.WhenAll(_run, _work);
+            _receiver?.Dispose();
         }
 
         private async Task WorkAsync()

@@ -103,6 +103,62 @@ sherpa-onnx 1.13.8 and was dropped.
 | `fetch [--voice id \| --model name \| --all]` | Download the default voice's model (or another voice's, one model, all). |
 | `listen [--freq 250.0,270.0] [--port 5002] [--seconds n]` | Listen like a pilot and record every transmission heard (`out/heard/*.wav`, with the sender). |
 | `srs-test [--port 5002] [--pair]` | SRS check without DCS: transmit on a server test frequency (247.2) and record the echo, or with `--pair` transmit on 250.0 to a second client and check the sender is identified. |
+| `record [--from name] [--out out/s5/calls]` | Record the speech-recognition test calls through SRS, one prompt at a time; `--synthetic [--voice id]` makes them with a TTS voice instead. |
+| `transcribe <file.wav ...> \| --corpus dir [--recognizer id] [--loop]` | Speech to text with one recognizer; `--loop` repeats a corpus as a load test. |
+| `bakeoff [--recognizers a,b] [--rescore] [--misses]` | Every recognizer over the recorded calls: `out/s5/report.html`. |
+| `fetch --recognition` / `fetch --recognizer id` | Download the speech-recognition models (about 1.4 GB for all). |
+
+## Speech recognition (spike S5)
+
+Pilots will talk to the controllers on the frequency with their normal push-to-talk. Who is talking comes from SRS
+(the sender's client name and unit), what they said from a speech recognizer that runs locally, on finished
+transmissions only. The recognizer only turns speech into text; what the call means will be decided by plain code
+(the next step). The F10 menu stays.
+
+**Candidates** (`data/voice/recognition.json`), all local and free:
+
+| Id | Engine | Notes |
+|---|---|---|
+| `parakeet`, `parakeet-plain` | NVIDIA Parakeet TDT 0.6B v2 (int8) through sherpa-onnx, CPU | Work grows with the length of the call. `parakeet` favours the vocabulary (hotwords). |
+| `whisper-base`, `whisper-small`, `whisper-turbo` (+ `-plain`) | OpenAI Whisper base.en / small.en / large-v3-turbo through whisper.cpp (Whisper.net), CPU | Always encodes 30 s of audio, however short the call. Without `-plain`, a prompt carries the vocabulary. |
+| `whisper-small-vulkan`, `whisper-turbo-vulkan` (default) | the same on the graphics card (Vulkan) | Faster, but shares the GPU with DCS: watch VR frame times. |
+
+On your 51 calls the best was **`whisper-turbo-vulkan`**: 33/51 understood exactly, 41/51 with near-misses accepted,
+0.54 s per call (results and what goes wrong: RESEARCH.md, S5). A Whisper fine-tuned on other people's ATC speech
+(ATCOSIM) did worse; `tools/Convert-WhisperModel.ps1` converts such models (and later your own) to whisper.cpp format.
+
+The vocabulary (airfield names, callsign names, a few ATC terms) is in `recognition.json`. Calls are scored after
+normalising: numbers digit by digit ("31R", "thirty-one right" and "three one right" are the same), whole thousands
+as "three thousand", decimals without the point, taxiways phonetic (`src/DcsAtc.Recognition/Transcript.cs`).
+
+**The bake-off: your voice, through SRS**
+
+1. Download the models (once): `dotnet run --project tools/DcsAtc.VoiceTool -- fetch --recognition`
+2. Start the SRS server as usual. In the SRS client, connect in **External AWACS Mode** (EAM is on in your
+   `server.cfg`; the password is `EXTERNAL_AWACS_MODE_BLUE_PASSWORD`) with the microphone and push-to-talk you fly
+   with, and tune a radio to **250.0 AM** (270.0 or 257.0 work too). SRS adds its radio effects and cockpit noise on
+   the receiving side, so this is the same audio the controllers get from the cockpit.
+3. Record the 51 test calls of `data/voice/test-calls.txt`:
+   ```powershell
+   dotnet run --project tools/DcsAtc.VoiceTool -- record
+   ```
+   It shows one call at a time: key the mic, say it as you would on the radio, release. Each call is saved with its
+   level (it warns when one is clipped or too quiet). `B` records the previous call again, `S` skips, `Q` quits;
+   run it again to continue where you stopped. The recordings stay on your PC (`out/s5/calls`, not in git).
+4. Compare:
+   ```powershell
+   dotnet run --project tools/DcsAtc.VoiceTool -- bakeoff
+   ```
+   Every recognizer runs in a process of its own at below-normal priority, as it would next to DCS. The report
+   (`out/s5/report.html`) shows per recognizer how many calls ATC would have **understood** (every key phrase,
+   `[bracketed]` in the script, came through), the word error rate, the time per call, CPU and memory, and then
+   every call with its audio and what each recognizer heard. `--recognizers parakeet,whisper-small` runs only
+   those; run the GPU ones while DCS is not running (their speed), and again while flying (step 6).
+   `record --synthetic --out out/s5/tts` makes the same calls with a TTS voice: a native-speaker baseline.
+5. **In a real flight:** `dotnet run --project src/DcsAtc.App -- --transcribe` (see [Voice requests](#voice-requests)).
+6. **VR frame times:** with the app transcribing, or with a steady load from
+   `dotnet run --project tools/DcsAtc.VoiceTool -- transcribe --corpus out/s5/calls --recognizer <id> --loop --interval 5`,
+   compare Virtual Desktop's performance overlay (or the DCS frame counter) with and without it.
 
 ## SRS protocol (2.4.1)
 
@@ -122,9 +178,44 @@ From the SRS source (`ciribob/DCS-SimpleRadioStandalone`, tag 2.4.1.0, `Common/M
   (within 500 Hz), of the same coalition if coalition security is on; on the server's test frequencies it
   echoes to the sender. Without a position (lat/lng 0) a client is never cut off by distance or line of sight.
 
+## Voice requests
+
+With `--transcribe`, pilots talk to the controllers on their frequencies with their normal push-to-talk, and the
+F10 menu keeps working alongside:
+
+```powershell
+dotnet run --project src/DcsAtc.App -- --transcribe        # or --transcribe <recognizer id>; --recordings <dir>
+```
+
+Ground, Tower and Approach go on the air as soon as a player spawns. Every transmission on their frequencies is
+recognized (`whisper-turbo-vulkan` by default: about 0.5 s on the graphics card, loaded and warmed up at start),
+written to the console and saved to `out/heard/<date>/` with `heard.jsonl` (friends' calls too, on your PC only).
+Then ATC reacts:
+
+- **Who** is talking comes from SRS (the player name and its aircraft), **to whom** from the frequency; the callsign
+  and the airfield name in the call are not needed.
+- **A call it understands** is handled exactly like the F10 entry: request taxi / taxi to parking / cancel taxi,
+  ready for departure (north, east, south, west, closed traffic, own navigation), request landing, checking in
+  (also "airborne" with Approach), final, initial, request approach (ILS, TACAN, visual, overhead), field in sight,
+  cancel approach, say again; plus radio check ("read you five") and request start up. "Request takeoff" is ready
+  for departure; "inbound" or "request landing" to Approach is an approach request. Without a direction, a
+  departure is own navigation; without a type, an approach is ILS (else TACAN, else visual). In the wrong state the
+  controller says so, as with the menu ("you are already airborne").
+- **A request for another controller** of the airfield is sent there: "Hangman 1-2, Al Dhafra Ground, contact
+  Approach on 257.0."
+- **Not understood** but aimed at ATC (a request word or the station's name): "Hangman 1-2, Al Dhafra Ground, say
+  again." **Readbacks** ("cleared for takeoff runway 31 right, Hangman 1-2") and **chatter** get no answer;
+  readbacks are not checked yet.
+
+How a call is read (`src/DcsAtc.Recognition/PilotCalls.cs`): the text is normalized, known mishearings are
+corrected (`"aliases"` in `recognition.json`: "one way" → "runway", "white" → "right", …: add your own), and it is
+matched against a few ways of saying each call, accepting near-misses; the longest close match wins, and "cleared …"
+without a request is always a readback. On the 51 recorded calls ATC would react right to 50 (29 of the 30 requests;
+the miss: "final" heard as "kind of", no answer).
+
 ## Not yet
 
-- Speech recognition: pilots talking to the controllers on the frequency (spike S5); the stations already
-  receive what is said on their frequency.
+- Readback checking, and requests the controllers do not offer yet (start up and radio check are answered without
+  state).
 - Line of sight from the tower (a position for the stations), ATIS, Approach speaking, slight voice
   differences per position.

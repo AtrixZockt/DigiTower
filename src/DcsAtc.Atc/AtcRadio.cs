@@ -21,4 +21,9 @@ public interface IAtcRadio
     /// a new text replaces the old one, null stops the broadcast.
     /// </summary>
     void Broadcast(string station, double frequencyMhz, int coalition, string? text);
+
+    /// <summary>Puts a station on the air before it first speaks, so it hears pilots calling it (voice requests).</summary>
+    void Listen(string station, double frequencyMhz, int coalition)
+    {
+    }
 }

@@ -8,6 +8,7 @@ using DcsAtc.Srs;
 
 namespace DcsAtc.Tests;
 
+[Collection(TimingCollection.Name)]
 public class SrsTests
 {
     [Fact]
@@ -194,4 +195,11 @@ public class SrsTests
             }
         }
     }
+}
+
+/// <summary>Tests that measure real-time behaviour, and tests heavy enough to disturb it, run one after another.</summary>
+[CollectionDefinition(Name)]
+public sealed class TimingCollection
+{
+    public const string Name = "Timing";
 }

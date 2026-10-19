@@ -1,0 +1,62 @@
+# Test calls for the speech-recognition bake-off (spike S5): VoiceTool record / bakeoff, see docs/voice.md.
+#
+# One call per line. [Brackets] mark what ATC has to understand from the call (the request, runway, numbers,
+# taxiways); the callsign and the station are not marked, because SRS already tells who is talking on which
+# frequency. Say each call the way you would on the radio, numbers too ("three one right", "one zero one three").
+
+# Ground
+Al Dhafra Ground, Hangman 1-2, [request taxi].
+Al Dhafra Ground, Hangman 1-2, at parking 106, [request taxi].
+Al Dhafra Ground, Hangman 1-2, [radio check].
+Al Dhafra Ground, Hangman 1-2, [request startup].
+Al Dhafra Ground, Hangman 1 flight, two ship, [request taxi].
+Taxi to [holding point] [runway 31 right] via [Alpha], [Bravo], Hangman 1-2.
+Taxi to [holding point] [runway 13 left] via [Alpha], [Foxtrot], [QNH 1013], Hangman 1-2.
+Via [Papa], [Quebec], [Hotel], [Hotel 1], [runway 31 right], Hangman 1-2.
+Ground, Hangman 1-2, [cancel taxi].
+Ground, Hangman 1-2, [say again].
+Al Dhafra Ground, Hangman 1-2, [vacated] runway 31 right, [request taxi to parking].
+Taxi to [Apron 1 West] via [Delta 2], [Alpha], Hangman 1-2.
+[Holding short] [runway 31 right], Hangman 1-2.
+[Wilco], Hangman 1-2.
+[Roger], Hangman 1-2.
+
+# Tower
+Al Dhafra Tower, Hangman 1-2, [holding short] [runway 31 right], [ready for departure].
+Al Dhafra Tower, Hangman 1-2, [ready for departure], [departure north].
+Tower, Hangman 1-2, [ready for departure], [own navigation].
+Tower, Hangman 1-2, [ready for departure], [request closed traffic].
+Al Dhafra Tower, Hangman 1 flight, [ready for departure], [departure east].
+[Cleared for takeoff] [runway 31 right], Hangman 1-2.
+[Line up and wait] [runway 31 right], Hangman 1-2.
+[Fly runway heading], [climb] and maintain [3000 feet], Hangman 1-2.
+Al Dhafra Tower, Hangman 1-2, [20 miles] [southeast], [request landing].
+Tower, Hangman 1-2, [final] [runway 31 right].
+Tower, Hangman 1-2, [5 mile final], [gear down].
+[Cleared to land] [runway 31 right], Hangman 1-2.
+Al Dhafra Tower, Hangman 1-2, [initial] [runway 31 right].
+Hangman 1-2, [break].
+[Going around], Hangman 1-2.
+[Vacating] runway, [contact Ground] [250.0], Hangman 1-2.
+Al Dhafra Tower, Hangman 1-2, [checking in], [8 miles], [ILS] [runway 31 right].
+[Right closed traffic], Hangman 1-2.
+Tower, Hangman 1-2, [say again].
+Tower, Hangman 1-2, [full stop].
+
+# Approach
+Al Dhafra Approach, Hangman 1-2, [40 miles] [northwest], [angels 15], [request ILS approach] [runway 31 right].
+Approach, Hangman 1-2, [request TACAN approach].
+Approach, Hangman 1-2, [request visual approach].
+Approach, Hangman 1-2, [request overhead].
+Approach, Hangman 1-2, [field in sight].
+Approach, Hangman 1-2, [cancel approach].
+[Descend] and maintain [3000 feet], [QNH 1013], Hangman 1-2.
+[Turn left heading 310], Hangman 1-2.
+[Heading 040], [descend 4000], Hangman 1-2.
+[Cleared ILS approach] [runway 31 right], Hangman 1-2.
+[Contact Tower] [270.0], Hangman 1-2.
+Al Dhafra Approach, Hangman 1-2, [airborne], [passing 2000] for [angels 10].
+Approach, Hangman 1-2, [say again].
+[Hold] over the [TACAN] at [7000], Hangman 1-2.
+[Altimeter 29.92], Hangman 1-2.
+Approach, Hangman 1 flight, [request ILS approach] [runway 13 left].

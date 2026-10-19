@@ -1,0 +1,45 @@
+{
+  // Speech recognition: pilots talking to ATC on the SRS frequency (spike S5, see docs/voice.md#speech-recognition).
+  // Models: dotnet run --project tools/DcsAtc.VoiceTool -- fetch --recognition
+  // Your own choice goes in recognition.local.json (not in git): { "default": "<id>", "threads": 4 }.
+  // The best on DiGii's 51 recorded calls (spike S5, 2026-10-19): 33/51 understood, 41/51 tolerant, 0.54 s per call.
+  "default": "whisper-turbo-vulkan",
+  // CPU threads per recognizer (it runs only on finished transmissions; the game keeps the rest).
+  "threads": 4,
+  // Words the recognizers are told to expect: as a prompt (Whisper) or as hotwords (Parakeet).
+  "vocabulary": {
+    "airfields": [ "Al Dhafra" ],
+    "callsigns": [ "Hangman", "Viper", "Enfield", "Springfield", "Uzi", "Colt", "Dodge", "Ford", "Chevy", "Pontiac" ],
+    "terms": [ "TACAN", "QNH", "ILS", "wilco" ]
+  },
+  // What the recognizer hears instead of what pilots say, consistently (from the S5 recordings): corrected before a
+  // call is read. Both sides are normalized like transcripts (lower case, numbers as words).
+  "aliases": {
+    "one way": "runway", "oneway": "runway", "white": "right", "power": "tower", "stay again": "say again",
+    "on navigation": "own navigation", "healed inside": "field in sight", "adding": "heading", "angelus": "angels",
+    "atimeter": "altimeter", "taccan": "tacan", "tackan": "tacan", "takan": "tacan", "tag can": "tacan", "tarcan": "tacan"
+  },
+  "recognizers": [
+    { "id": "parakeet", "label": "Parakeet TDT 0.6B v2, hotwords (CPU)", "engine": "parakeet", "model": "sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8" },
+    { "id": "parakeet-plain", "label": "Parakeet TDT 0.6B v2 (CPU)", "engine": "parakeet", "model": "sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8", "vocabulary": false },
+    { "id": "whisper-base", "label": "Whisper base.en, prompt (CPU)", "engine": "whisper", "model": "ggml-base.en-q8_0" },
+    { "id": "whisper-base-plain", "label": "Whisper base.en (CPU)", "engine": "whisper", "model": "ggml-base.en-q8_0", "vocabulary": false },
+    { "id": "whisper-small", "label": "Whisper small.en, prompt (CPU)", "engine": "whisper", "model": "ggml-small.en-q8_0" },
+    { "id": "whisper-small-plain", "label": "Whisper small.en (CPU)", "engine": "whisper", "model": "ggml-small.en-q8_0", "vocabulary": false },
+    { "id": "whisper-small-vulkan", "label": "Whisper small.en, prompt (GPU, Vulkan)", "engine": "whisper", "model": "ggml-small.en-q8_0", "runtime": "vulkan" },
+    { "id": "whisper-turbo", "label": "Whisper large-v3-turbo, prompt (CPU)", "engine": "whisper", "model": "ggml-large-v3-turbo-q5_0" },
+    { "id": "whisper-turbo-vulkan", "label": "Whisper large-v3-turbo, prompt (GPU, Vulkan)", "engine": "whisper", "model": "ggml-large-v3-turbo-q5_0", "runtime": "vulkan" },
+    // Tried and set aside: large-v3-turbo fine-tuned on ATCO2 + ATCOSIM (tclin) was worse on DiGii's calls (26-27/51
+    // understood against 33, word errors 25 % against 13 %): it turns words into European airline callsigns.
+    // { "id": "whisper-turbo-atc-vulkan", "label": "Whisper turbo ATC (ATCOSIM), prompt (GPU, Vulkan)", "engine": "whisper", "model": "ggml-turbo-atcosim-q5_0", "runtime": "vulkan" },
+    // { "id": "whisper-turbo-atc-plain-vulkan", "label": "Whisper turbo ATC (ATCOSIM) (GPU, Vulkan)", "engine": "whisper", "model": "ggml-turbo-atcosim-q5_0", "runtime": "vulkan", "vocabulary": false }
+  ],
+  "models": [
+    { "name": "sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8", "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8.tar.bz2", "license": "CC-BY-4.0 (NVIDIA)", "sizeMb": 482 },
+    { "name": "ggml-base.en-q8_0", "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en-q8_0.bin", "license": "MIT (OpenAI Whisper)", "sizeMb": 82 },
+    { "name": "ggml-small.en-q8_0", "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.en-q8_0.bin", "license": "MIT (OpenAI Whisper)", "sizeMb": 264 },
+    { "name": "ggml-large-v3-turbo-q5_0", "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-q5_0.bin", "license": "MIT (OpenAI Whisper)", "sizeMb": 574 },
+    // A model with "convert" instead of "url" is made from Hugging Face by tools/Convert-WhisperModel.ps1 (fetch runs it), e.g.
+    // { "name": "ggml-turbo-atcosim-q5_0", "convert": "tclin/whisper-large-v3-turbo-atcosim-finetune", "license": "MIT (tclin, fine-tuned on ATCO2 + ATCOSIM)", "sizeMb": 547 }
+  ]
+}

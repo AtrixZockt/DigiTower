@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using DcsAtc.Recognition;
 using DcsAtc.Srs;
 using DcsAtc.Voice;
 
@@ -13,7 +14,7 @@ using DcsAtc.Voice;
 //   units "text"
 //       Shows the clips a transmission is made of: [Hangman] [one one] | [Al Dafra Ground] ‖ ...
 //
-//   say "text" [--voice id] [--out say.wav] [--srs] [--host] [--port 5002] [--freq 250.0]
+//   say "text" [--voice id] [--out say.wav] [--srs] [--host] [--port 5002] [--freq 250.0] [--name "DCS-ATC say"]
 //       Renders a transmission with a voice (default: the catalogue default) and writes it as WAV; with --srs it is
 //       also transmitted. New clips are generated once into data/voice/cache/<voice>/.
 //
@@ -24,15 +25,29 @@ using DcsAtc.Voice;
 //   listen [--freq 250.0,270.0] [--port 5002] [--coalition 2] [--seconds n] [--out out/heard]
 //       Listens like a pilot and records every transmission heard on those frequencies as WAV.
 //
-//   fetch [--voice id | --model name | --all]
-//       Downloads voice models into data/voice/models: those of the default voice (or of --voice), one model, or all.
+//   fetch [--voice id | --model name | --all | --recognition | --recognizer id]
+//       Downloads voice models into data/voice/models: those of the default voice (or of --voice), one model, or all;
+//       --recognition: every speech-recognition model, --recognizer: the model of one recognizer.
+//
+//   record [--calls data/voice/test-calls.txt] [--out out/s5/calls] [--freq 250.0,270.0,257.0] [--port 5002] [--from name]
+//       Records the test calls for the recognition bake-off: shows one call at a time, you say it on SRS (any of the
+//       frequencies), the transmission is saved. Resumes where it stopped. --synthetic [--voice id]: makes the calls
+//       with a TTS voice through the SRS codec instead (a native-speaker baseline, and a check without SRS).
+//
+//   transcribe <file.wav ...> | --corpus out/s5/calls [--recognizer id] [--threads n] [--json results.json] [--loop [--interval 5]]
+//       Speech to text with one recognizer; --loop repeats the corpus (load test while flying in VR).
+//
+//   bakeoff [--corpus out/s5/calls] [--recognizers id,id,...] [--threads n] [--out out/s5] [--rescore] [--misses]
+//       Runs every recognizer (each in a process of its own, below-normal priority) over the recorded calls and
+//       writes report.html: what ATC understood, word errors, time per call, CPU, memory. --rescore: score the
+//       results of the last run again without recognizing; --misses: list the calls each recognizer got wrong.
 //
 //   Common: [--data <dir>] the repository's data folder (default: found upwards from here);
 //           [--threads n] CPU threads per TTS engine (default: voices.json).
 
 if (args.Length == 0)
 {
-    Console.Error.WriteLine("usage: DcsAtc.VoiceTool srs-test|units|say|audition|fetch [options]");
+    Console.Error.WriteLine("usage: DcsAtc.VoiceTool srs-test|units|say|audition|fetch|listen|record|transcribe|bakeoff [options]");
     return 1;
 }
 
@@ -59,6 +74,12 @@ switch (args[0])
         return await FetchAsync(options, cts.Token);
     case "listen":
         return await ListenAsync(options, cts.Token);
+    case "record":
+        return await RecognitionCommands.RecordAsync(options, cts.Token);
+    case "transcribe":
+        return await RecognitionCommands.TranscribeAsync(options, cts.Token);
+    case "bakeoff":
+        return await RecognitionCommands.BakeoffAsync(options, cts.Token);
     default:
         Console.Error.WriteLine($"unknown command: {args[0]}");
         return 1;
@@ -140,28 +161,7 @@ static AudioClip TestSignal()
     return new AudioClip(samples.ToArray(), rate);
 }
 
-static VoiceCatalog Catalog(Options o)
-{
-    string data = o.Find("data") ?? FindDataDirectory() ?? throw new DirectoryNotFoundException("data folder not found (use --data)");
-    var catalog = VoiceCatalog.Load(Path.Combine(data, "voice"));
-    return o.Find("threads") is { } threads ? new VoiceCatalog
-    {
-        Directory = catalog.Directory, Default = catalog.Default, Voices = catalog.Voices, Models = catalog.Models, Threads = int.Parse(threads),
-    } : catalog;
-}
-
-static string? FindDataDirectory()
-{
-    foreach (var start in new[] { Directory.GetCurrentDirectory(), AppContext.BaseDirectory })
-    {
-        for (var dir = new DirectoryInfo(start); dir is not null; dir = dir.Parent)
-        {
-            string candidate = Path.Combine(dir.FullName, "data");
-            if (File.Exists(Path.Combine(candidate, "voice", "voices.json"))) return candidate;
-        }
-    }
-    return null;
-}
+static VoiceCatalog Catalog(Options o) => o.Voices();
 
 static async Task<int> SayAsync(Options o, CancellationToken ct)
 {
@@ -182,7 +182,8 @@ static async Task<int> SayAsync(Options o, CancellationToken ct)
     Console.WriteLine($"written to {Path.GetFullPath(output)}");
     if (o.Find("srs") is null) return 0;
 
-    var client = new SrsClient(new SrsOptions { Host = o.Get("host", "127.0.0.1"), Port = int.Parse(o.Get("port", "5002")), Name = "DCS-ATC say" }, Console.WriteLine);
+    // --name: talk as that SRS client, e.g. a pilot's player name to test voice requests.
+    var client = new SrsClient(new SrsOptions { Host = o.Get("host", "127.0.0.1"), Port = int.Parse(o.Get("port", "5002")), Name = o.Get("name", "DCS-ATC say") }, Console.WriteLine);
     using var session = CancellationTokenSource.CreateLinkedTokenSource(ct);
     var run = client.RunAsync(session.Token);
     try
@@ -314,6 +315,7 @@ static async Task<int> ListenAsync(Options o, CancellationToken ct)
 
 static async Task<int> FetchAsync(Options o, CancellationToken ct)
 {
+    if (o.Find("recognition") is not null || o.Find("recognizer") is not null) return await FetchRecognitionAsync(o, ct);
     var catalog = Catalog(o);
     List<VoiceModel> models;
     if (o.Find("all") is not null)
@@ -331,37 +333,79 @@ static async Task<int> FetchAsync(Options o, CancellationToken ct)
         Console.WriteLine($"voice {voice.Id} ({voice.Label}): {(models.Count == 0 ? "nothing to download" : string.Join(", ", models.Select(m => m.Name)))}");
     }
     using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
+    foreach (var model in models) await DownloadAsync(http, catalog.ModelsDirectory, model.Name, model.Url, model.License, archive: true, ct);
+    return 0;
+}
+
+static async Task<int> FetchRecognitionAsync(Options o, CancellationToken ct)
+{
+    var catalog = o.Recognizers();
+    List<RecognitionModel> models;
+    if (o.Find("recognizer") is { } id)
+    {
+        var info = catalog.Find(id) ?? throw new ArgumentException($"unknown recognizer {id}");
+        models = catalog.ModelFor(info) is { } m ? [m] : [];
+    }
+    else models = catalog.Models.ToList();
+    Console.WriteLine($"speech recognition: {string.Join(", ", models.Select(m => $"{m.Name} ({m.SizeMb} MB)"))}");
+    using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
     foreach (var model in models)
     {
-        string target = Path.Combine(catalog.ModelsDirectory, model.Name);
-        if (Directory.Exists(target))
+        if (model.Url is { } url)
         {
-            Console.WriteLine($"{model.Name}: present");
-            continue;
+            await DownloadAsync(http, catalog.ModelsDirectory, model.Name, url, model.License, model.IsArchive, ct);
         }
-        // Download into a fresh folder of its own and unpack there; move the model folder in place only when complete.
-        string staging = Path.Combine(catalog.ModelsDirectory, $"_download-{Guid.NewGuid():N}");
-        Directory.CreateDirectory(staging);
-        try
+        else if (model.Convert is { } repo && !File.Exists(catalog.PathOf(model)))
         {
-            string archive = Path.Combine(staging, model.Name + ".tar.bz2");
-            Console.WriteLine($"{model.Name}: downloading ({model.License})");
-            await using (var source = await http.GetStreamAsync(model.Url, ct))
-            await using (var file = File.Create(archive))
-                await source.CopyToAsync(file, ct);
-            using var tar = Process.Start(new ProcessStartInfo("tar", ["-xjf", archive, "-C", staging]) { UseShellExecute = false })!;
-            await tar.WaitForExitAsync(ct);
-            if (tar.ExitCode != 0 || !Directory.Exists(Path.Combine(staging, model.Name)))
-                throw new InvalidDataException($"{model.Name}: the archive did not unpack to {model.Name}/");
-            Directory.Move(Path.Combine(staging, model.Name), target);
-            Console.WriteLine($"{model.Name}: ready");
+            // Made from a Hugging Face model (an ATC fine-tune) with the conversion script.
+            Console.WriteLine($"{model.Name}: converting {repo} ({model.License})");
+            string script = Path.Combine(Path.GetDirectoryName(catalog.Directory)!, "..", "tools", "Convert-WhisperModel.ps1");
+            using var convert = Process.Start(new ProcessStartInfo("powershell", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", Path.GetFullPath(script), "-Repo", repo, "-Name", model.Name]) { UseShellExecute = false })!;
+            await convert.WaitForExitAsync(ct);
+            if (convert.ExitCode != 0) Console.Error.WriteLine($"{model.Name}: conversion failed");
         }
-        finally
-        {
-            Directory.Delete(staging, recursive: true);
-        }
+        else Console.WriteLine($"{model.Name}: present");
     }
     return 0;
+}
+
+// A model into the models folder: an archive unpacks to models/<name>/, a single file becomes models/<name>.bin.
+// Everything is downloaded into a fresh folder of its own and moved in place only when complete.
+static async Task DownloadAsync(HttpClient http, string modelsDirectory, string name, string url, string license, bool archive, CancellationToken ct)
+{
+    string target = Path.Combine(modelsDirectory, archive ? name : name + ".bin");
+    if (Directory.Exists(target) || File.Exists(target))
+    {
+        Console.WriteLine($"{name}: present");
+        return;
+    }
+    string staging = Path.Combine(modelsDirectory, $"_download-{Guid.NewGuid():N}");
+    Directory.CreateDirectory(staging);
+    try
+    {
+        string download = Path.Combine(staging, archive ? name + ".tar.bz2" : name + ".bin");
+        Console.WriteLine($"{name}: downloading ({license})");
+        await using (var source = await http.GetStreamAsync(url, ct))
+        await using (var file = File.Create(download))
+            await source.CopyToAsync(file, ct);
+        if (!archive)
+        {
+            File.Move(download, target);
+        }
+        else
+        {
+            using var tar = Process.Start(new ProcessStartInfo("tar", ["-xjf", download, "-C", staging]) { UseShellExecute = false })!;
+            await tar.WaitForExitAsync(ct);
+            if (tar.ExitCode != 0 || !Directory.Exists(Path.Combine(staging, name)))
+                throw new InvalidDataException($"{name}: the archive did not unpack to {name}/");
+            Directory.Move(Path.Combine(staging, name), target);
+        }
+        Console.WriteLine($"{name}: ready");
+    }
+    finally
+    {
+        Directory.Delete(staging, recursive: true);
+    }
 }
 
 sealed class Options
@@ -389,6 +433,38 @@ sealed class Options
     /// <summary>The positional text of "say" and "units".</summary>
     public string Text => _positional.Count > 0 ? string.Join(" ", _positional) : throw new ArgumentException("missing text");
 
+    /// <summary>Every positional argument (the files of "transcribe").</summary>
+    public IReadOnlyList<string> Positional => _positional;
+
     public string? Find(string key) => _values.GetValueOrDefault(key);
     public string Get(string key, string fallback) => _values.GetValueOrDefault(key, fallback);
+
+    /// <summary>The repository's data folder: --data, or found upwards from here.</summary>
+    public string DataDirectory() => Find("data") ?? FindDataDirectory() ?? throw new DirectoryNotFoundException("data folder not found (use --data)");
+
+    /// <summary>The voices (data/voice/voices.json), with --threads applied.</summary>
+    public VoiceCatalog Voices()
+    {
+        var catalog = VoiceCatalog.Load(Path.Combine(DataDirectory(), "voice"));
+        return Find("threads") is { } threads ? new VoiceCatalog
+        {
+            Directory = catalog.Directory, Default = catalog.Default, Voices = catalog.Voices, Models = catalog.Models, Threads = int.Parse(threads),
+        } : catalog;
+    }
+
+    /// <summary>The speech recognizers (data/voice/recognition.json).</summary>
+    public RecognizerCatalog Recognizers() => RecognizerCatalog.Load(Path.Combine(DataDirectory(), "voice"));
+
+    private static string? FindDataDirectory()
+    {
+        foreach (var start in new[] { Directory.GetCurrentDirectory(), AppContext.BaseDirectory })
+        {
+            for (var dir = new DirectoryInfo(start); dir is not null; dir = dir.Parent)
+            {
+                string candidate = Path.Combine(dir.FullName, "data");
+                if (File.Exists(Path.Combine(candidate, "voice", "voices.json"))) return candidate;
+            }
+        }
+        return null;
+    }
 }

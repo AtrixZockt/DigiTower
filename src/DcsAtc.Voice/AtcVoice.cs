@@ -17,6 +17,8 @@ public sealed class AtcVoice(VoiceInfo info, ISpeechEngine engine, string cacheD
     private const string ProcessingVersion = "v2";
 
     private static readonly TimeSpan LeadIn = TimeSpan.FromMilliseconds(120);
+    // Silence after the last word: the receiving SRS client cuts off the end of a transmission when it stops at once.
+    private static readonly TimeSpan Tail = TimeSpan.FromMilliseconds(800);
 
     private readonly ConcurrentDictionary<string, AudioClip> _clips = new(StringComparer.Ordinal);
     private int _rendering;
@@ -35,6 +37,7 @@ public sealed class AtcVoice(VoiceInfo info, ISpeechEngine engine, string cacheD
         {
             var parts = new List<(AudioClip, TimeSpan)> { (AudioClip.Silence(LeadIn, SampleRate), TimeSpan.Zero) };
             parts.AddRange(units.Select(u => (Clip(u.Text), u.PauseAfter)));
+            parts.Add((AudioClip.Silence(Tail, SampleRate), TimeSpan.Zero));
             return Audio.Concat(parts, SampleRate);
         }
         finally
