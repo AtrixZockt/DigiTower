@@ -68,6 +68,9 @@ public class FakeDcsIntegrationTests
             Assert.Equal(127.9, dhafra.Runways[0].TrueHeading, 1);
             var weather = await client.GetAirbaseWeatherAsync("Al Dhafra AFB", cts.Token);
             Assert.Equal(310, weather!.WindFrom, 3);
+            var mission = await client.GetMissionWeatherAsync(cts.Token);
+            Assert.Equal(("Preset1", 2520.0, 80000.0), (mission!.CloudPreset, mission.CloudBase, mission.Visibility));
+            Assert.True(mission.AbsTime >= 8 * 3600);
             Assert.True(await client.SetRadioSilentAsync("Al Dhafra AFB", true, cts.Token));
             await Assert.ThrowsAsync<BridgeCommandException>(() => client.GetAirbaseAsync("Nowhere", cts.Token));
 

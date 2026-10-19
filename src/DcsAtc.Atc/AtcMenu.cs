@@ -229,6 +229,7 @@ public sealed class AtcMenu(AirfieldCatalog airfields, GroundControl ground, Tow
         }
         if (client is not null && client.LastText != "") yield return ("Say again (Approach)", "approach.repeat", null);
 
+        yield return ("ATIS", "atis", null);
         yield return ("Frequencies", "frequencies", null);
     }
 

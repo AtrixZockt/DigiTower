@@ -24,8 +24,8 @@ using DcsAtc.Voice;
 //   listen [--freq 250.0,270.0] [--port 5002] [--coalition 2] [--seconds n] [--out out/heard]
 //       Listens like a pilot and records every transmission heard on those frequencies as WAV.
 //
-//   fetch [--model name]
-//       Downloads the voice models of the catalogue (or one) into data/voice/models.
+//   fetch [--voice id | --model name | --all]
+//       Downloads voice models into data/voice/models: those of the default voice (or of --voice), one model, or all.
 //
 //   Common: [--data <dir>] the repository's data folder (default: found upwards from here);
 //           [--threads n] CPU threads per TTS engine (default: voices.json).
@@ -315,7 +315,21 @@ static async Task<int> ListenAsync(Options o, CancellationToken ct)
 static async Task<int> FetchAsync(Options o, CancellationToken ct)
 {
     var catalog = Catalog(o);
-    var models = catalog.Models.Where(m => o.Find("model") is not { } only || m.Name.Equals(only, StringComparison.OrdinalIgnoreCase)).ToList();
+    List<VoiceModel> models;
+    if (o.Find("all") is not null)
+    {
+        models = catalog.Models.ToList();
+    }
+    else if (o.Find("model") is { } only)
+    {
+        models = catalog.Models.Where(m => m.Name.Equals(only, StringComparison.OrdinalIgnoreCase)).ToList();
+    }
+    else
+    {
+        var voice = catalog.Find(o.Get("voice", catalog.Default)) ?? throw new ArgumentException($"unknown voice {o.Get("voice", catalog.Default)}");
+        models = catalog.ModelsFor(voice).ToList();
+        Console.WriteLine($"voice {voice.Id} ({voice.Label}): {(models.Count == 0 ? "nothing to download" : string.Join(", ", models.Select(m => m.Name)))}");
+    }
     using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
     foreach (var model in models)
     {

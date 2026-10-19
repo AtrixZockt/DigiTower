@@ -136,6 +136,8 @@ function M.new(opts)
   }
 
   env.world = {
+    -- No fog.
+    weather = { getFogVisibilityDistance = function() return 0 end, getFogThickness = function() return 0 end },
     event = M.EVENTS,
     addEventHandler = function(h) W.handlers[#W.handlers + 1] = h end,
     getAirbases = function()
@@ -154,7 +156,10 @@ function M.new(opts)
   }
   env.land = { getHeight = function() return FIELD_ELEVATION end }
   env.timer = { getTime = function() return W.time end, getAbsTime = function() return 8 * 3600 + W.time end }
-  env.env = { mission = { theatre = 'PersianGulf', date = { Year = 2026, Month = 10, Day = 18 }, start_time = 8 * 3600 } }
+  env.env = { mission = { theatre = 'PersianGulf', date = { Year = 2026, Month = 10, Day = 18 }, start_time = 8 * 3600,
+    -- Few clouds at 8300 ft (preset 1 at its default base), 80 km visibility.
+    weather = { visibility = { distance = 80000 }, enable_dust = false, dust_density = 0,
+      clouds = { base = 2520, thickness = 200, density = 0, preset = 'Preset1', iprecptns = 0 } } } }
 
   local function recordText(target, text, seconds)
     W.texts[#W.texts + 1] = { target = target, text = text, seconds = seconds }

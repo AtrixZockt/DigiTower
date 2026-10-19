@@ -165,6 +165,12 @@ public sealed class BridgeClient : IAsyncDisposable, IDcsCommands
         return data?.Deserialize<AirbaseWeather>(Json);
     }
 
+    public async Task<MissionWeather?> GetMissionWeatherAsync(CancellationToken ct = default)
+    {
+        var data = await RequestAsync(new JsonObject { ["cmd"] = "mission_weather" }, ct);
+        return data?.Deserialize<MissionWeather>(Json);
+    }
+
     /// <summary>
     /// Draws a polyline on the F10 map for a coalition (-1 = all), optionally with a text at its end.
     /// Drawing again with the same <paramref name="key"/> replaces the previous drawing.

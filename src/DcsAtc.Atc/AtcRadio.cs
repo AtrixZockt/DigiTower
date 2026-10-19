@@ -15,4 +15,10 @@ public interface IAtcRadio
     /// (<paramref name="soon"/>, ahead of the rest) a pilot's callsign as they spawn.
     /// </summary>
     void Prepare(IEnumerable<string> texts, bool soon = false);
+
+    /// <summary>
+    /// Keeps saying <paramref name="text"/> on a frequency, again and again, while anyone is listening (an ATIS);
+    /// a new text replaces the old one, null stops the broadcast.
+    /// </summary>
+    void Broadcast(string station, double frequencyMhz, int coalition, string? text);
 }

@@ -221,6 +221,13 @@ test('commands: weather and F10 map drawings', function()
   for _, m in ipairs(poll(W, false).msgs) do if m.type == 'reply' then replies[m.req] = m end end
   eq(math.floor(replies[1].data.pressure), 101130, 'pressure')
   eq(replies[1].data.elevation, 16, 'elevation')
+  ATCB.command({ cmd = 'mission_weather', req = 3 })
+  for _, m in ipairs(poll(W, false).msgs) do if m.type == 'reply' then replies[m.req] = m end end
+  eq(replies[3].data.cloudPreset, 'Preset1', 'cloud preset')
+  eq(replies[3].data.cloudBase, 2520, 'cloud base')
+  eq(replies[3].data.visibility, 80000, 'visibility')
+  eq(replies[3].data.fogVisibility, 0, 'no fog')
+  eq(replies[3].data.absTime >= 8 * 3600, true, 'mission clock')
   eq(replies[2].data.marks, 3, 'two lines and a text')
   local count = 0
   for _ in pairs(W.marks) do count = count + 1 end
