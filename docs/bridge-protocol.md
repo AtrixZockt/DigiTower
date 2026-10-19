@@ -1,8 +1,10 @@
 # Bridge protocol
 
-The hook (`bridge/Scripts/Hooks/DcsAtcBridgeHook.lua`) listens on **127.0.0.1:42700** (override in
-`Scripts/DcsAtc/DcsAtcConfig.lua`, e.g. `return { port = 42701 }`). One app connects at a time; a new
-connection replaces the old one. Both directions send **one JSON object per line** (UTF-8, `\n`).
+The hook (`bridge/Scripts/Hooks/DcsAtcBridgeHook.lua`) listens on **127.0.0.1:42700**. Its settings are in
+`Scripts/DcsAtc/DcsAtcConfig.lua`, which `bridge/install.ps1` writes on the first install (every setting explained)
+and keeps after that: `port`, and `manageAi` (false: the server does not let the app hold or release AI;
+`install.ps1 -NoAi` / `-Ai`). A file that does not load is reported in `hello.error` and the defaults are used.
+One app connects at a time; a new connection replaces the old one. Both directions send **one JSON object per line** (UTF-8, `\n`).
 
 Coordinates are DCS map coordinates in metres: `x` = north, `z` = east, `y` = altitude MSL.
 Headings are true, in degrees.
@@ -11,7 +13,7 @@ Headings are true, in degrees.
 
 | `type` | When | Fields |
 |---|---|---|
-| `hello` | right after connecting | `protocol`, `mission`, `missionRunning`, `info` (mission info, if running), `multiplayer`, `error` (last hook error, e.g. a failed injection) |
+| `hello` | right after connecting | `protocol`, `mission`, `missionRunning`, `info` (mission info, if running), `multiplayer`, `manageAi` (false when the server turned AI handling off), `error` (last hook error, e.g. a failed injection) |
 | `mission_start` | a mission started (bridge injected) | `mission`, `info`: `protocol`, `theatre`, `date {Year,Month,Day}`, `startTime`, `absTime`, `modelTime` |
 | `mission_stop` | the mission ended | |
 | `poll` | 5×/s while a mission runs | `t` (mission time), `msgs` (array of the messages below), `units` (every 0.5 s) |
@@ -50,6 +52,15 @@ them into a Lua table literal and the mission side runs one of the whitelisted h
 | `mission_weather` | | `{ visibility, dust, fogVisibility, fogThickness, cloudBase, cloudThickness, cloudDensity, cloudPreset, precipitation, absTime }`: the editor's weather (`env.mission.weather`, metres; `cloudPreset` such as `"Preset7"`, whose layers are in DCS's `Config/Effects/clouds.lua` and move with `cloudBase`), the current fog from `world.weather`, and `timer.getAbsTime()` (seconds since midnight of the start date, local time of the map). Absent fields are not set in the mission. |
 | `draw_route` | `key`, `coalition` (-1 = all), `points` (`[[x, z], ...]`), `color` (`[r, g, b, a]`, 0–1), `text` (optional, at the last point), `lineType`, `fontSize` | `{ marks }`; drawing again with the same `key` replaces the old drawing |
 | `drawing_clear` | `key` | |
+| `group_hold` | `group` | `true`: holds an AI group at its parking spots. The group is removed and spawned again from the mission file (`env.mission`) under the same names, **uncontrolled** and cold on the same spots: engines off, waiting for a start command. Fails (`not in the mission file`) for groups spawned by scripts. Measured: the removal fires no `dead`, `crash`, `unit_lost` or `kill` events. |
+| `group_release` | `group` | `true`: DCS's `Start` command for the group (a held group starts its engines and taxis) |
+| `debug_events` | `on` | `{ allEvents }`: while on, every DCS event is forwarded, not only those listed above (diagnostics) |
+
+With `manageAi = false` in the server's `DcsAtcConfig.lua`, the hook refuses `group_hold` and `group_release`
+(`AI handling is turned off on this server ...`).
+
+**Held AI never stays held without the app:** when the app disconnects the hook releases every held group, and the
+mission side releases them by itself when the hook has not polled for 60 s.
 
 Runway `course` is DCS's value in radians; the true heading is `-course`.
 

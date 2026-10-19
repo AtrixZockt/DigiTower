@@ -189,7 +189,7 @@ ATCB.eventHandler = ATCB.eventHandler or {}
 
 function ATCB.eventHandler:onEvent(e)
   local name = EVENT_NAMES[e.id]
-  if not name or not WANTED_EVENTS[name] then return end
+  if not name or not (WANTED_EVENTS[name] or ATCB.allEvents) then return end
   local msg = { type = 'event', ev = name, t = e.time }
   if e.initiator then pcall(describeInitiator, msg, e.initiator) end
   if e.place then pcall(function() msg.place = e.place:getName() end) end
@@ -416,6 +416,87 @@ local function drawRoute(c)
   return { marks = #ids }
 end
 
+---------------------------------------------------------------------------------------------------
+-- AI departures: holding an AI group at its parking spots, and releasing it
+---------------------------------------------------------------------------------------------------
+-- Measured in DCS 2.9: an AI stopped by an object in front of it never taxis again, even when the object is gone, so
+-- an AI departure is held by putting it back into the uncontrolled state (spawned again from the mission file, cold,
+-- on its spots) and released with DCS's Start command. Held groups are released when the app goes away.
+
+ATCB.held = ATCB.held or {}   -- [group name] = true while held
+ATCB.lastPoll = ATCB.lastPoll or 0
+ATCB.holdWatchdog = 60        -- seconds without a poll from the hook before every held group is released
+
+local function groupName(g)
+  local name = g.name
+  if type(name) == 'string' and name:sub(1, 8) == 'DictKey_' and env.getValueDictByKey then name = env.getValueDictByKey(name) end
+  return name
+end
+
+--- A group's table in the mission file, with its country id and category name ('plane' or 'helicopter').
+local function findTemplate(name)
+  local m = env.mission or {}
+  for _, side in pairs(m.coalition or {}) do
+    for _, country in ipairs(side.country or {}) do
+      for _, catName in ipairs({ 'plane', 'helicopter' }) do
+        local cat = country[catName]
+        for _, g in ipairs((cat and cat.group) or {}) do
+          if groupName(g) == name then return g, country.id, catName end
+        end
+      end
+    end
+  end
+end
+
+local function deepCopy(t)
+  if type(t) ~= 'table' then return t end
+  local c = {}
+  for k, v in pairs(t) do c[k] = deepCopy(v) end
+  return c
+end
+
+--- Holds an AI group: spawns it again from the mission file, uncontrolled and cold, on its parking spots (engines off,
+-- waiting for a Start command). Fails for groups that are not in the mission file (spawned by scripts).
+local function groupHold(c)
+  local tpl, countryId, catName = findTemplate(c.group)
+  if not tpl then error('not in the mission file: ' .. tostring(c.group)) end
+  local copy = deepCopy(tpl)
+  copy.name = c.group
+  for _, u in ipairs(copy.units or {}) do
+    if type(u.name) == 'string' and u.name:sub(1, 8) == 'DictKey_' and env.getValueDictByKey then u.name = env.getValueDictByKey(u.name) end
+  end
+  copy.uncontrolled = true
+  copy.lateActivation = nil
+  copy.start_time = 0
+  local p1 = copy.route and copy.route.points and copy.route.points[1]
+  if p1 then p1.type, p1.action = 'TakeOffParking', 'From Parking Area' end
+  local g = Group.getByName(c.group)
+  if g then g:destroy() end
+  coalition.addGroup(countryId, catName == 'helicopter' and Group.Category.HELICOPTER or Group.Category.AIRPLANE, copy)
+  ATCB.held[c.group] = true
+  return true
+end
+
+--- Releases a held group: DCS's Start command (it starts its engines and taxis).
+local function groupRelease(c)
+  local g = Group.getByName(c.group)
+  if not g then error('group not found: ' .. tostring(c.group)) end
+  g:getController():setCommand({ id = 'Start', params = {} })
+  ATCB.held[c.group] = nil
+  return true
+end
+
+--- Releases every held group; returns how many there were.
+function ATCB.releaseHeld()
+  local n = 0
+  for name in pairs(ATCB.held) do
+    pcall(groupRelease, { group = name })
+    ATCB.held[name] = nil
+    n = n + 1
+  end
+  return n
+end
+
 local COMMANDS = {
   ping = function() return { pong = true, t = now() } end,
   text = text,
@@ -429,6 +510,10 @@ local COMMANDS = {
   radio_silent = radioSilent,
   draw_route = drawRoute,
   drawing_clear = drawingClear,
+  group_hold = groupHold,
+  group_release = groupRelease,
+  -- Diagnostics: forward every DCS event, not only those the app uses.
+  debug_events = function(c) ATCB.allEvents = c.on == true; return { allEvents = ATCB.allEvents } end,
 }
 
 --- Executes one command table from the ATC app. Replies are queued when the command has a `req` id.
@@ -453,6 +538,7 @@ end
 
 --- Returns everything queued since the last call, plus unit states when `withUnits` is true, as JSON.
 function ATCB.poll(withUnits)
+  ATCB.lastPoll = now()
   local msgs = ATCB.queue
   ATCB.queue = array()
   local out = { type = 'poll', t = now(), msgs = msgs }
@@ -465,6 +551,18 @@ function ATCB.start()
   if not ATCB.handlerAdded then
     world.addEventHandler(ATCB.eventHandler)
     ATCB.handlerAdded = true
+  end
+  -- Held AI must never outlive the app: without polls (the app is gone) every held group is released.
+  if not ATCB.watchdogScheduled then
+    ATCB.watchdogScheduled = true
+    ATCB.lastPoll = now()
+    timer.scheduleFunction(function()
+      if next(ATCB.held) ~= nil and now() - ATCB.lastPoll > ATCB.holdWatchdog then
+        local n = ATCB.releaseHeld()
+        env.info(string.format('DCS-ATC: no contact with the ATC app for %d s, %d held AI groups released', ATCB.holdWatchdog, n))
+      end
+      return now() + 15
+    end, nil, now() + 15)
   end
   local m = env.mission or {}
   return ATCB.encode({

@@ -9,6 +9,7 @@ local M = {}
 local FIELD_ELEVATION = 16
 local AL_DHAFRA = { x = -209935.48, z = -174592.06 }
 local SPOT_106 = { x = -211546.62, z = -171721.41 }
+local SPOT_60 = { x = -210836.98, z = -172642.11 }
 
 M.EVENTS = {
   S_EVENT_TAKEOFF = 3, S_EVENT_LAND = 4, S_EVENT_CRASH = 5, S_EVENT_EJECTION = 6, S_EVENT_DEAD = 8,
@@ -36,6 +37,8 @@ function M.new(opts)
     texts = {},
     menuItems = {},      -- [groupId] = list of { path = {...}, fn, arg, addedAt, clicked }
     airbases = {},
+    templates = {},      -- group templates of the mission file (env.mission), for group_hold
+    scheduled = {},      -- timer.scheduleFunction
     print = opts.print or function() end,
   }
 
@@ -66,12 +69,31 @@ function M.new(opts)
   function Unit:inAir() return self.y - FIELD_ELEVATION > 3 end
   function Unit:isExist() return self.alive end
   function Unit:isActive() return true end
+  function Unit:getCountry() return self.country or 2 end
+  -- An F-16-sized box: the nose 7.5 m ahead of the reference point.
+  function Unit:getDesc() return { box = { min = { x = -7.5, y = -2, z = -5 }, max = { x = 7.5, y = 3, z = 5 } } } end
 
   local Group = {}
   Group.__index = Group
   function Group:getName() return self.name end
   function Group:getID() return self.id end
   function Group:getUnits() return self.units end
+  function Group:destroy()
+    for i, g in ipairs(W.groups) do
+      if g == self then table.remove(W.groups, i) break end
+    end
+    for _, u in ipairs(self.units) do u.alive = false end
+    W.print(string.format('[group] %s removed', self.name))
+  end
+  -- DCS's Start command starts an uncontrolled group: engines about 2 s later, rolling a few seconds after that (W:step).
+  function Group:getController()
+    local g = self
+    return { setCommand = function(_, cmd)
+      g.commands = g.commands or {}
+      g.commands[#g.commands + 1] = cmd.id
+      if cmd.id == 'Start' and g.uncontrolled then g.startedAt = W.time end
+    end }
+  end
 
   local nextId = 1
   function W:addUnit(def)
@@ -85,8 +107,23 @@ function M.new(opts)
     nextId = nextId + 1
     g.units[1] = u
     self.groups[#self.groups + 1] = g
+    g.uncontrolled = def.uncontrolled
+    if def.start then
+      local kind = ({ cold = 'TakeOffParking', hot = 'TakeOffParkingHot', runway = 'TakeOff' })[def.start] or 'Turning Point'
+      self.templates[#self.templates + 1] = { name = def.group, uncontrolled = def.uncontrolled, route = { points = { { type = kind } } },
+        units = { { name = def.name, type = def.typeName, x = def.x, y = def.z, heading = math.rad(def.hdg or 0), callsign = def.callsign } } }
+    end
     return u
   end
+
+  --- A unit by name (after a respawn it is a new object).
+  function W:unit(name)
+    for _, g in ipairs(self.groups) do
+      for _, u in ipairs(g.units) do if u.name == name then return u end end
+    end
+  end
+
+
 
   -- Airbases ---------------------------------------------------------------------------------------
 
@@ -122,7 +159,12 @@ function M.new(opts)
   local env = setmetatable({}, { __index = _G })
   W.env = env
 
-  env.Group = { Category = { AIRPLANE = 0, HELICOPTER = 1, GROUND = 2, SHIP = 3, TRAIN = 4 } }
+  env.Group = {
+    Category = { AIRPLANE = 0, HELICOPTER = 1, GROUND = 2, SHIP = 3, TRAIN = 4 },
+    getByName = function(name)
+      for _, g in ipairs(W.groups) do if g.name == name then return g end end
+    end,
+  }
   env.Object = { Category = { UNIT = 1, WEAPON = 2, STATIC = 3, BASE = 4, SCENERY = 5, CARGO = 6 } }
 
   env.coalition = {
@@ -133,7 +175,27 @@ function M.new(opts)
       end
       return out
     end,
+    -- Spawns a group from a template (as group_hold does): planes only, on the ground, at the units' x / y.
+    addGroup = function(country, cat, tpl)
+      local first
+      for _, ut in ipairs(tpl.units or {}) do
+        local u = W:addUnit({ name = ut.name, group = tpl.name, typeName = ut.type, cat = cat, coal = 2, callsign = ut.callsign,
+          x = ut.x, y = FIELD_ELEVATION, z = ut.y, hdg = math.deg(ut.heading or 0), uncontrolled = tpl.uncontrolled })
+        first = first or u
+        u.group.country = country
+      end
+      W.print(string.format('[group] %s spawned%s', tpl.name, tpl.uncontrolled and ', uncontrolled' or ''))
+      return first and first.group
+    end,
   }
+  env.Unit = {
+    getByName = function(name)
+      for _, g in ipairs(W.groups) do
+        for _, u in ipairs(g.units) do if u.name == name then return u end end
+      end
+    end,
+  }
+
 
   env.world = {
     -- No fog.
@@ -155,8 +217,14 @@ function M.new(opts)
     getTemperatureAndPressure = function() return 303.15, 101130 end,
   }
   env.land = { getHeight = function() return FIELD_ELEVATION end }
-  env.timer = { getTime = function() return W.time end, getAbsTime = function() return 8 * 3600 + W.time end }
-  env.env = { mission = { theatre = 'PersianGulf', date = { Year = 2026, Month = 10, Day = 18 }, start_time = 8 * 3600,
+  env.timer = {
+    getTime = function() return W.time end,
+    getAbsTime = function() return 8 * 3600 + W.time end,
+    scheduleFunction = function(fn, arg, t) W.scheduled[#W.scheduled + 1] = { fn = fn, arg = arg, t = t } end,
+  }
+  env.env = { info = function(s) W.print('[env.info] ' .. tostring(s)) end,
+    mission = { theatre = 'PersianGulf', date = { Year = 2026, Month = 10, Day = 18 }, start_time = 8 * 3600,
+    coalition = { blue = { country = { { plane = { group = W.templates } } } } },
     -- Few clouds at 8300 ft (preset 1 at its default base), 80 km visibility.
     weather = { visibility = { distance = 80000 }, enable_dust = false, dust_density = 0,
       clouds = { base = 2520, thickness = 200, density = 0, preset = 'Preset1', iprecptns = 0 } } } }
@@ -288,6 +356,13 @@ function M.new(opts)
       { t = 0.5, run = function() self:fire('birth', self.viper); self:fire('birth', self.helo); self:fire('birth', self.tanker) end },
       { t = 3, run = function() self:fire('engine_startup', self.viper) end },
     }
+    if opts.ai then
+      -- An AI flight parked uncontrolled (as Liberation / Retribution do); the mission starts it after 8 s. Like the real
+      -- AI (measured): engines about 2 s after a start, rolling a few seconds later.
+      self.enfield = self:addUnit({ name = 'Enfield 1-1', group = 'Enfield 1', typeName = 'F-16C_50', cat = 0, coal = 2,
+        callsign = 'Enfield11', x = SPOT_60.x, y = FIELD_ELEVATION, z = SPOT_60.z, hdg = 220, start = 'cold', uncontrolled = true })
+      table.insert(self.script, { t = 8, run = function() self.enfield.group.startedAt = self.time end })
+    end
     if not opts.static then
       table.insert(self.script, { t = 6, run = function() self.viper.speed = 7; self.viper.hdg = math.rad(130) end })
       table.insert(self.script, { t = 30, run = function() self.viper.speed = 80 end })
@@ -309,6 +384,25 @@ function M.new(opts)
       end
     end
     if self.tanker then self.tanker.hdg = self.tanker.hdg + math.rad(1.5) * dt end
+    -- Started AI groups: engines 2 s after the start, rolling 4 s after the engines (a held group waits for Start).
+    local ab = self.airbases['Al Dhafra AFB']
+    for _, g in ipairs(self.groups) do
+      if g.startedAt and not g.enginesAt and self.time >= g.startedAt + 2 then
+        g.enginesAt = self.time
+        for _, u in ipairs(g.units) do self:fire('engine_startup', u, ab) end
+        self.print(string.format('[AI] %s engines running', g.name))
+      elseif g.enginesAt and not g.rolling and self.time >= g.enginesAt + 4 then
+        g.rolling = true
+        for _, u in ipairs(g.units) do u.speed = 6 end
+        self.print(string.format('[AI] %s starts to taxi', g.name))
+      end
+    end
+    for _, s in ipairs(self.scheduled) do
+      if s.t and self.time >= s.t then
+        local nextTime = s.fn(s.arg, self.time)
+        s.t = type(nextTime) == 'number' and nextTime or nil
+      end
+    end
     for _, s in ipairs(self.script or {}) do
       if not s.done and self.time >= s.t then
         s.done = true
@@ -321,7 +415,9 @@ function M.new(opts)
 end
 
 --- Loads the bridge hook into `W` with stubbed Sim/net/log/lfs and returns its callbacks.
-function M.loadHook(W, bridgeRoot, port, startTime)
+--- Loads the real hook; `config` (optional) is what Scripts/DcsAtc/DcsAtcConfig.lua returns (the port is added), or a
+-- string: the file does not load, with that error.
+function M.loadHook(W, bridgeRoot, port, startTime, config)
   local callbacks
   local sim = {
     getMissionName = function() return 'Fake Al Dhafra test' end,
@@ -337,7 +433,12 @@ function M.loadHook(W, bridgeRoot, port, startTime)
     lfs = { writedir = function() return bridgeRoot end },
     loadfile = function(path)
       if path:match('DcsAtcConfig%.lua$') then
-        return function() return { port = port } end
+        if type(config) == 'string' then return nil, config end
+        return function()
+          local c = { port = port }
+          for k, v in pairs(config or {}) do c[k] = v end
+          return c
+        end
       end
       return loadfile(path)
     end,

@@ -15,6 +15,7 @@ using DcsAtc.Voice;
 //       [--srs 127.0.0.1:5002]       SRS server the controllers speak on
 //       [--voice <id>]               ATC voice from data/voice/voices.json (default: its "default", else a Windows voice)
 //       [--no-voice]                 text messages only
+//       [--no-ai]                    leave AI departures to DCS (never held)
 //       [--transcribe [<id>]]        voice requests: what pilots say to the controllers on SRS is recognized and answered like
 //                                    the F10 menu, written to the console and recorded (out/heard); recognizer from
 //                                    data/voice/recognition.json
@@ -28,6 +29,7 @@ bool keepStockAtc = false;
 string srs = "127.0.0.1:5002";
 string? voiceId = null;
 bool noVoice = false;
+bool manageAi = true;
 string? transcribe = null;
 string recordings = Path.Combine("out", "heard");
 var dump = new List<string>();
@@ -48,6 +50,7 @@ for (int i = 0; i < args.Length; i++)
         case "--srs": srs = Next(); break;
         case "--voice": voiceId = Next(); break;
         case "--no-voice": noVoice = true; break;
+        case "--no-ai": manageAi = false; break;
         case "--transcribe": transcribe = i + 1 < args.Length && !args[i + 1].StartsWith("--") ? args[++i] : ""; break;
         case "--recordings": recordings = Next(); break;
         default:
@@ -84,6 +87,7 @@ var app = new AtcApp(client, new AppOptions
     KeepStockAtc = keepStockAtc,
     Radio = radio,
     VoiceAliases = recognition?.Aliases,
+    ManageAi = manageAi,
 });
 if (transcriber is not null)
     transcriber.Recognized += (station, t, text) => _ = app.OnVoiceAsync(station, t.Sender?.Name, t.Sender?.UnitId, text, cts.Token);

@@ -147,6 +147,36 @@ test('commands: replies, text, airbase info, radio silence, unknown', function()
   eq(replies[4].ok, false, 'unknown command fails'); eq(replies[5].ok, false, 'missing airbase fails')
 end)
 
+test('commands: hold and release an AI group', function()
+  local W, ATCB = missionWorld()
+  W:addUnit({ name = 'Enfield 1-1', group = 'Enfield 1', typeName = 'F-16C_50', cat = 0, coal = 2, callsign = 'Enfield11',
+    x = -210836.98, y = 16, z = -172642.11, hdg = 220, start = 'cold' })
+  W:unit('Enfield 1-1').group.startedAt = 0
+  ATCB.command({ cmd = 'group_hold', req = 1, group = 'Enfield 1' })
+  ATCB.command({ cmd = 'group_hold', req = 2, group = 'Spawned by a script' })
+  local replies = {}
+  for _, m in ipairs(poll(W, false).msgs) do if m.type == 'reply' then replies[m.req] = m end end
+  eq(replies[1].ok, true, 'held')
+  eq(replies[2].ok, false, 'not in the mission file')
+  -- Spawned again from the mission file: same name and spot, uncontrolled, not started.
+  local u = W:unit('Enfield 1-1')
+  eq(u.group.uncontrolled, true, 'uncontrolled'); eq(u.group.startedAt, nil, 'engines off')
+  eq(math.floor(u.x + 0.5), -210837, 'same spot'); eq(ATCB.held['Enfield 1'], true, 'remembered as held')
+  ATCB.command({ cmd = 'group_release', req = 3, group = 'Enfield 1' })
+  eq(u.group.commands[1], 'Start', 'released with Start')
+  eq(ATCB.held['Enfield 1'], nil, 'no longer held')
+end)
+
+test('held AI groups are released when the app stops polling', function()
+  local W, ATCB = missionWorld()
+  W:addUnit({ name = 'Enfield 1-1', group = 'Enfield 1', typeName = 'F-16C_50', cat = 0, coal = 2, x = 0, y = 16, z = 0, start = 'cold' })
+  ATCB.command({ cmd = 'group_hold', group = 'Enfield 1' })
+  for _ = 1, 40 do W:step(1); poll(W, false) end
+  eq(W:unit('Enfield 1-1').group.commands, nil, 'held while the app polls')
+  for _ = 1, 90 do W:step(1) end
+  eq(W:unit('Enfield 1-1').group.commands[1], 'Start', 'released after 60 s without polls')
+end)
+
 local function hookEndToEnd(port, fixedReturns)
   local start = socket.gettime()
   local W = fake.new({ fixedReturns = fixedReturns })
@@ -212,6 +242,100 @@ local function hookEndToEnd(port, fixedReturns)
   eq(find(function(m) return m.type == 'mission_stop' end) ~= nil, true, 'mission_stop')
   client:close()
 end
+
+test('hook: held AI groups are released when the app disconnects', function()
+  local port = 42792
+  local W = fake.new({})
+  W:setupScenario({ ai = true })
+  local cb = fake.loadHook(W, root, port, socket.gettime())
+  local client = assert(socket.connect('127.0.0.1', port))
+  client:settimeout(0)
+  local function pump(seconds)
+    local untilTime = socket.gettime() + seconds
+    while socket.gettime() < untilTime do
+      W:step(0.05)
+      cb.onSimulationFrame()
+      repeat local line = client:receive('*l') until not line
+      socket.sleep(0.01)
+    end
+  end
+  cb.onSimulationStart()
+  pump(0.2)
+  client:send('{"cmd":"group_hold","group":"Enfield 1"}\n')
+  pump(0.3)
+  eq(W:unit('Enfield 1-1').group.uncontrolled, true, 'held')
+  client:close()
+  pump(0.3)
+  eq(W:unit('Enfield 1-1').group.commands[1], 'Start', 'released when the app went away')
+end)
+
+test('hook: a server can turn AI handling off', function()
+  local port = 42793
+  local W = fake.new({})
+  W:setupScenario({ ai = true })
+  local cb = fake.loadHook(W, root, port, socket.gettime(), { manageAi = false })
+  local client = assert(socket.connect('127.0.0.1', port))
+  client:settimeout(0)
+  local lines, buffer = {}, ''
+  local function pump(seconds)
+    local untilTime = socket.gettime() + seconds
+    while socket.gettime() < untilTime do
+      W:step(0.05)
+      cb.onSimulationFrame()
+      repeat
+        local line, _, partial = client:receive('*l')
+        if line then lines[#lines + 1] = json.decode(buffer .. line); buffer = ''
+        elseif partial then buffer = buffer .. partial end
+      until not line
+      socket.sleep(0.01)
+    end
+  end
+  local function find(pred)
+    for _, m in ipairs(lines) do
+      if pred(m) then return m end
+      for _, inner in ipairs(m.msgs or {}) do if pred(inner) then return inner end end
+    end
+  end
+  cb.onSimulationStart()
+  pump(0.2)
+  eq(find(function(m) return m.type == 'hello' end).manageAi, false, 'hello tells the app')
+  client:send('{"cmd":"group_hold","req":7,"group":"Enfield 1"}\n')
+  pump(0.3)
+  local r = find(function(m) return m.type == 'reply' and m.req == 7 end)
+  eq(r.ok, false, 'group_hold refused')
+  eq(r.error, 'AI handling is turned off on this server (manageAi = false in DcsAtcConfig.lua)', 'why')
+  eq(W:unit('Enfield 1-1').group.uncontrolled, true, 'still the mission\'s group (parked uncontrolled, not respawned)')
+  eq(W:unit('Enfield 1-1').group.commands, nil, 'no commands')
+  client:close()
+  pump(0.1)
+end)
+
+test('hook: a broken settings file is reported and the defaults are used', function()
+  -- Without its settings the hook listens on the default port; skipped while something else (DCS) uses it.
+  local probe = socket.bind('127.0.0.1', 42700)
+  if not probe then print('      (skipped: port 42700 is in use)') return end
+  probe:close()
+  local W = fake.new({})
+  W:setupScenario({ static = true })
+  local cb = fake.loadHook(W, root, nil, socket.gettime(), "DcsAtcConfig.lua:7: '}' expected near 'port'")
+  local client = assert(socket.connect('127.0.0.1', 42700))
+  client:settimeout(0)
+  local hello
+  local untilTime = socket.gettime() + 0.3
+  while not hello and socket.gettime() < untilTime do
+    cb.onSimulationFrame()
+    local line = client:receive('*l')
+    if line then
+      local m = json.decode(line)
+      if m.type == 'hello' then hello = m end
+    end
+    socket.sleep(0.01)
+  end
+  client:close()
+  cb.onSimulationFrame()
+  eq(hello.error, "DcsAtcConfig.lua ignored: DcsAtcConfig.lua:7: '}' expected near 'port'", 'reported to the app')
+  eq(hello.manageAi, true, 'defaults')
+end)
 
 test('commands: weather and F10 map drawings', function()
   local W, ATCB = missionWorld()
