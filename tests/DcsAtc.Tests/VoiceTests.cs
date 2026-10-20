@@ -16,6 +16,15 @@ public class VoiceTests
     }
 
     [Fact]
+    public void Traffic_instructions_say_their_taxiways_the_ICAO_way()
+    {
+        Assert.Equal("[hold short of] [Bravo] | [give way to the F-16 opposite direction on] [Alpha]",
+            Spoken("hold short of B, give way to the F-16 opposite direction on A."));
+        Assert.Equal("[hold short of] [Mike one three] | [give way to the Hornet from the left]",
+            Spoken("hold short of M13, give way to the Hornet from the left."));
+    }
+
+    [Fact]
     public void Numbers_runways_taxiways_and_frequencies()
     {
         Assert.Equal("[contact Tower on] [two seven zero decimal zero] [when ready for departure]", Spoken("contact Tower on 270.0 when ready for departure."));
