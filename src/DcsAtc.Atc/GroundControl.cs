@@ -108,6 +108,13 @@ public sealed class GroundControl(IDcsCommands dcs, AirfieldCatalog airfields, F
     private readonly Dictionary<int, TaxiClearance> _clearances = [];
     private readonly Dictionary<int, StartupApproval> _startups = [];
     private readonly Func<DateTime> _now = clock ?? (() => DateTime.UtcNow);
+    private readonly SpotMarks _marks = new(dcs, clock);
+
+    /// <summary>A wingman's parking spot is at most this far from the lead's (metres).</summary>
+    public const double MemberSpotRange = 500;
+
+    /// <summary>The drawing keys of the flights' parking spots marked now (one per member, until it is on it).</summary>
+    public IReadOnlyCollection<string> SpotMarkKeys => _marks.Keys;
 
     /// <summary>Clearances by party key (the lead's group id).</summary>
     public IReadOnlyDictionary<int, TaxiClearance> Clearances => _clearances;
@@ -174,7 +181,11 @@ public sealed class GroundControl(IDcsCommands dcs, AirfieldCatalog airfields, F
         if (await OnGroundAtAirfieldAsync(unit, units, at, ct) is not { } who) return;
         var (party, lead, airfield) = who;
 
-        var others = units.Values.Where(u => !party.Units.Contains(u.Name) && !u.InAir).Select(u => new Vec2(u.X, u.Z));
+        // Taken: spots with an aircraft on them, and those given to other flights.
+        var others = units.Values.Where(u => !party.Units.Contains(u.Name) && !u.InAir).Select(u => new Vec2(u.X, u.Z))
+            .Concat(_marks.TakenExcept($"park-{party.Key}-"))
+            .Concat(_clearances.Values.Where(c => c.Key != party.Key && c.Spot is not null).Select(c => c.Spot!.Position))
+            .ToList();
         var parking = airfield.Layout.RouteToParking(new Vec2(lead.X, lead.Z), lead.IsHelicopter, others);
         if (parking is not { } found)
         {
@@ -196,6 +207,30 @@ public sealed class GroundControl(IDcsCommands dcs, AirfieldCatalog airfields, F
             Spot = spot,
             Helicopter = lead.IsHelicopter,
         }, ParkingColor, area.ToUpperInvariant(), ct);
+        if (party.IsFlight) await MarkMemberSpotsAsync(party, lead.Coal, airfield, spot, others, units, ct);
+    }
+
+    /// <summary>
+    /// A flight taxiing in: a spot for every member on the ground here, the free ones nearest the lead's (side by side),
+    /// each marked on the F10 map with the member's number. The flight taxis in trail on the lead's route.
+    /// </summary>
+    private async Task MarkMemberSpotsAsync(Party party, int coalition, GroundAirfield airfield, ParkingSpot leadSpot, List<Vec2> taken, IReadOnlyDictionary<string, UnitState> units, CancellationToken ct)
+    {
+        await _marks.RemoveAsync($"park-{party.Key}-", ct);
+        taken = [.. taken, leadSpot.Position];
+        foreach (var member in SpotMarks.Members(party, units))
+        {
+            if (member.InAir || !airfield.Layout.Covers(new Vec2(member.X, member.Z))) continue;
+            var spot = member.Name == party.LeadUnit ? leadSpot
+                : airfield.Layout.Parking
+                    .Where(s => Airfield.SpotSuits(s, member.IsHelicopter) && s.Position.DistanceTo(leadSpot.Position) <= MemberSpotRange
+                                && !taken.Any(q => q.DistanceTo(s.Position) < SpotMarks.Reached))
+                    .MinBy(s => s.Position.DistanceTo(leadSpot.Position));
+            if (spot is null) continue;
+            if (spot != leadSpot) taken.Add(spot.Position);
+            string label = SpotMarks.Label(Phraseology.Callsign(member));
+            await _marks.AddAsync($"park-{party.Key}-{label}", member.Name, coalition, spot.Position, 10, ParkingColor, label, ct);
+        }
     }
 
     public async Task CancelTaxiAsync(UnitState unit, IReadOnlyDictionary<string, UnitState> units, CancellationToken ct = default)
@@ -203,6 +238,7 @@ public sealed class GroundControl(IDcsCommands dcs, AirfieldCatalog airfields, F
         if (ClearanceFor(unit, units) is not { } c) return;
         _clearances.Remove(c.Key);
         await ClearDrawingsAsync(c, ct);
+        await _marks.RemoveAsync($"park-{c.Key}-", ct);
         await SayAsync(c.Party, c.Airfield, Phraseology.TaxiCancelled(c.Callsign, c.Airfield.Facility), 15, ct);
     }
 
@@ -243,6 +279,7 @@ public sealed class GroundControl(IDcsCommands dcs, AirfieldCatalog airfields, F
     /// <summary>Checks every taxiing flight against its clearance.</summary>
     public async Task OnUnitsAsync(IReadOnlyDictionary<string, UnitState> units, CancellationToken ct = default)
     {
+        await _marks.OnUnitsAsync(units, ct);
         // A startup approval lasts until the flight is airborne (or gone); a helicopter's until it leaves the field.
         foreach (var s in _startups.Values.Where(s => !units.TryGetValue(s.UnitName, out var lead) || !Helicopters.OnField(lead)).ToList()) _startups.Remove(s.Key);
 
@@ -459,6 +496,7 @@ public sealed class GroundControl(IDcsCommands dcs, AirfieldCatalog airfields, F
     {
         _clearances.Clear();
         _startups.Clear();
+        _marks.Reset();
     }
 
     private async Task ArriveAsync(TaxiClearance c, CancellationToken ct)

@@ -36,6 +36,31 @@ public class PhraseologyTests
     [InlineData("Khasab", "Khasab")]
     public void Strips_airbase_suffixes(string name, string expected) => Assert.Equal(expected, Phraseology.Facility(name));
 
+    [Theory]
+    [InlineData("Hangman 1-2", "1-2")]
+    [InlineData("Enfield 21-3", "21-3")]
+    [InlineData("DiGii", "DiGii")]
+    public void Flight_members_are_marked_by_their_number(string callsign, string expected) => Assert.Equal(expected, SpotMarks.Label(callsign));
+
+    [Fact]
+    public void A_flights_pads_are_listed_lead_first()
+    {
+        Assert.Equal("pad 4", Phraseology.Pads([4]));
+        Assert.Equal("pads 4 and 5", Phraseology.Pads([4, 5]));
+        Assert.Equal("pads 4, 5 and 2", Phraseology.Pads([4, 5, 2]));
+    }
+
+    [Theory]
+    [InlineData("F-16C_50", "F-16")]
+    [InlineData("FA-18C_hornet", "Hornet")]
+    [InlineData("MiG-29S", "MiG-29")]
+    [InlineData("AV8BNA", "Harrier")]
+    [InlineData("F-15ESE", "Strike Eagle")]
+    [InlineData("Yak-52", "Yak-52")]
+    [InlineData("Bf-109K-4", "Bf-109")]
+    [InlineData("something odd", "aircraft")]
+    public void Ground_names_traffic_by_type(string dcsType, string expected) => Assert.Equal(expected, Phraseology.SpokenType(dcsType));
+
     /// <summary>Wind from <paramref name="from"/> degrees at <paramref name="knots"/>: DCS gives the vector it blows towards.</summary>
     private static AirbaseWeather Weather(double from, double knots, double pressure = 101325, double elevation = 0)
     {

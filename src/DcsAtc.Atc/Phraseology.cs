@@ -122,6 +122,14 @@ public static partial class Phraseology
     /// <summary>A helicopter departure that has to wait: "Hangman 1-1, Al Dhafra Tower, hold position, traffic on final."</summary>
     public static string HoldPosition(string callsign, string station, string reason) => $"{callsign}, {station}, hold position, {reason}.";
 
+    /// <summary>A flight's pads, the lead's first: "pad 4", "pads 4 and 5", "pads 4, 5 and 6".</summary>
+    public static string Pads(IReadOnlyList<int> numbers) => numbers.Count switch
+    {
+        0 => "pad",
+        1 => $"pad {numbers[0]}",
+        _ => $"pads {string.Join(", ", numbers.Take(numbers.Count - 1))} and {numbers[^1]}",
+    };
+
     /// <summary>"Hangman 1-1, Al Dhafra Tower, make straight-in to Apron 3, wind 310 degrees, 10 knots, cleared to land." (a FARP: "…, FOB Laos, make straight-in to pad 4, …")</summary>
     public static string LandAtSpot(string callsign, string station, string? area, AirbaseWeather? weather) =>
         $"{callsign}, {station}, make straight-in to {area ?? "the spot marked on your map"}, {(weather is null ? "" : Wind(weather) + ", ")}cleared to land.";
@@ -319,6 +327,7 @@ public static partial class Phraseology
                 yield return HelicopterDeparture(cs, site.Name, turn, direction, weather);
         yield return HoldPosition(cs, site.Name, HelicopterTraffic);
         foreach (var pad in site.Pads) yield return LandAtSpot(cs, site.Name, $"pad {pad.Number}", weather);
+        if (site.Pads.Count > 1) yield return LandAtSpot(cs, site.Name, Pads(site.Pads.Select(p => p.Number).ToList()), weather);
         yield return PadsOccupied(cs, site.Name);
         yield return ContactAfterDeparture(cs, null);
         yield return SayAgainPlease(cs, site.Name);
