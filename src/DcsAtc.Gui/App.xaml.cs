@@ -82,6 +82,22 @@ public partial class App : Application
         if (minimized) _toldAboutTray = true;
         else _window.Show();
         if (_store.Current.StartAtcOnOpen) _ = _vm.StartAsync();
+        _vm.Updates.PropertyChanged += (_, p) =>
+        {
+            if (p.PropertyName == nameof(UpdatesViewModel.Version)) AnnounceUpdate();
+        };
+        AnnounceUpdate();
+    }
+
+    private string? _announced;
+
+    // A new version: the sidebar shows it; with the window in the notification area (or minimized), the icon says so too.
+    private void AnnounceUpdate()
+    {
+        if (_vm!.Updates.Version is not { } version || version == _announced || _tray is null) return;
+        if (_window!.IsVisible && _window.WindowState != WindowState.Minimized) return;
+        _announced = version;
+        _tray.ShowBalloonTip(8000, "DigiTower update", $"DigiTower {version} is available. Open DigiTower to update.", Forms.ToolTipIcon.Info);
     }
 
     // One control panel per session: a second start asks the first one to show itself.
@@ -121,9 +137,19 @@ public partial class App : Application
         var menu = new Forms.ContextMenuStrip();
         menu.Items.Add("Open DigiTower", null, (_, _) => ShowWindow());
         var startStop = menu.Items.Add("Start ATC", null, (_, _) => _vm!.StartStopCommand.Execute(null));
+        var update = menu.Items.Add("Update", null, (_, _) =>
+        {
+            ShowWindow();
+            _vm!.Updates.UpdateCommand.Execute(null);
+        });
         menu.Items.Add(new Forms.ToolStripSeparator());
         menu.Items.Add("Quit DigiTower", null, (_, _) => Dispatcher.BeginInvoke(QuitAsync));
-        menu.Opening += (_, _) => startStop.Text = _vm!.Running ? "Stop ATC" : "Start ATC";
+        menu.Opening += (_, _) =>
+        {
+            startStop.Text = _vm!.Running ? "Stop ATC" : "Start ATC";
+            update.Visible = _vm.Updates.Available;
+            update.Text = $"Update to {_vm.Updates.Version}";
+        };
         _tray = new Forms.NotifyIcon
         {
             Icon = new System.Drawing.Icon(stream, Forms.SystemInformation.SmallIconSize),
@@ -131,6 +157,7 @@ public partial class App : Application
             Visible = true,
         };
         _tray.DoubleClick += (_, _) => ShowWindow();
+        _tray.BalloonTipClicked += (_, _) => ShowWindow();
         _tray.MouseClick += (_, a) =>
         {
             if (a.Button == Forms.MouseButtons.Left) ShowWindow();
