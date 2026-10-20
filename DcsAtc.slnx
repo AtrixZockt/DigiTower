@@ -4,6 +4,8 @@
     <Project Path="src/DcsAtc.App/DcsAtc.App.csproj" />
     <Project Path="src/DcsAtc.Atc/DcsAtc.Atc.csproj" />
     <Project Path="src/DcsAtc.Bridge/DcsAtc.Bridge.csproj" />
+    <Project Path="src/DcsAtc.Gui/DcsAtc.Gui.csproj" />
+    <Project Path="src/DcsAtc.Host/DcsAtc.Host.csproj" />
     <Project Path="src/DcsAtc.Recognition/DcsAtc.Recognition.csproj" />
     <Project Path="src/DcsAtc.Srs/DcsAtc.Srs.csproj" />
     <Project Path="src/DcsAtc.Voice/DcsAtc.Voice.csproj" />

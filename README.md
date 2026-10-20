@@ -10,7 +10,7 @@ behind it are in [RESEARCH.md](RESEARCH.md).
 |---|---|
 | `bridge/Scripts/Hooks/DigiTowerHook.lua` | Runs inside DCS. Talks to the app over 127.0.0.1:42700 and injects the mission side. |
 | `bridge/Scripts/DigiTower/DigiTowerMission.lua` | Runs in the mission: unit states, events, F10 menus, text, airbase data. |
-| `bridge/install.ps1` | Installs/uninstalls the bridge in a DCS Saved Games folder. |
+| `bridge/install.ps1` | Installs/uninstalls the bridge in a DCS Saved Games folder (the control panel's Install page does the same). |
 | `bridge/tests/` | Lua tests and a **fake DCS** that runs the real hook without the game. |
 | `src/DcsAtc.Bridge` | C# client for the bridge. |
 | `src/DcsAtc.Airfields` | Airfield data: reader for DCS taxi networks (`.rn5`), routing graph, runways and holding points, taxi routing. |
@@ -21,7 +21,9 @@ behind it are in [RESEARCH.md](RESEARCH.md).
 | `src/DcsAtc.Voice` | The ATC voice: how text is said, TTS engines (Kokoro/Piper via sherpa-onnx, Windows), clip cache, stitching. |
 | `src/DcsAtc.Recognition` | Speech recognition for voice requests: Whisper (whisper.cpp) and Parakeet (sherpa-onnx), transcript normalising, test calls ([docs/voice.md](docs/voice.md#speech-recognition-spike-s5)). |
 | `data/voice/` | `voices.json` (the voices), `recognition.json` (the recognizers), `test-calls.txt` (the recognition test); `models/` and `cache/` are downloaded / generated, not in git ([docs/voice.md](docs/voice.md)). |
-| `src/DcsAtc.App` | The DigiTower app (`DigiTower.exe`, console): connects to DCS, F10 menus, runs the controllers, speaks on SRS. |
+| `src/DcsAtc.Host` | Runs DigiTower for both programs: connects to DCS, F10 menus, runs the controllers, speaks on SRS; the settings file, the log, the bridge installer, model downloads. |
+| `src/DcsAtc.Gui` | The control panel, `DigiTower.exe` (WPF): status, flight strips, log, settings, install. |
+| `src/DcsAtc.App` | The console program, `DigiTowerConsole.exe`: the same without a window (servers, scheduled tasks). |
 | `tools/DcsAtc.Rn5Tool` | Inspects `.rn5` files, renders them as SVG, scans whole DCS installs. |
 | `tools/DcsAtc.VoiceTool` | Voice audition, test transmissions, SRS check without DCS, model download, speech-recognition bake-off. |
 | `tools/Convert-WhisperModel.ps1` | Converts a Whisper model from Hugging Face (a fine-tune) to whisper.cpp format for the app. |
@@ -29,6 +31,7 @@ behind it are in [RESEARCH.md](RESEARCH.md).
 | `docs/bridge-protocol.md` | The JSON protocol between DCS and the app. |
 | `docs/labeling.md` | How to add taxiway names for an airfield. |
 | `docs/voice.md` | The ATC voice on SRS: how it works, setup, choosing the voice, the SRS protocol. |
+| `docs/releasing.md` | Making a release: `tools/Publish-Release.ps1`, the installer and updates (Velopack), uploading to GitHub. |
 
 ## Requirements
 
@@ -47,12 +50,35 @@ lua bridge/tests/test_bridge.lua              # Lua tests (hook + mission side)
 
 ```powershell
 lua bridge/tests/fake_dcs.lua --static --click "Request taxi"   # terminal 1: fake mission at Al Dhafra (real layout)
-dotnet run --project src/DcsAtc.App                             # terminal 2
+dotnet run --project src/DcsAtc.Gui                             # terminal 2: the control panel (or src/DcsAtc.App, the console)
 ```
+
+## The control panel and the console
+
+DigiTower comes as two programs that share one settings file, `%APPDATA%\DigiTower\settings.json`:
+
+- **`DigiTower.exe`**, the control panel. *Operations*: start and stop the ATC, status lights (DCS bridge, SRS,
+  voice, voice requests, AI handling, map drawings), the mission, and per airfield the flight progress strips of
+  Ground, Tower and Approach (or the FARP's controller) with how long each has had its clearance and what it waits
+  for. *Log*: everything the controllers say and do, by category, with search; which categories are shown and which
+  go to the log file is set there and applies at once. *Settings*: the rest (DCS folder, SRS, voice, voice requests,
+  AI, map drawings, the Approach distances); the ATC uses them from its next start. *Install*: the bridge in each DCS
+  Saved Games folder with its settings, and the voice and recognition models to download. Closing the window while
+  the ATC runs keeps it running in the notification area (a setting); opening DigiTower again shows it.
+- **`DigiTowerConsole.exe`**, the console: the same ATC without a window, for a server box, a scheduled task or a
+  service. Its options override the settings file for that run:
+  `--settings <file>`, `--host`/`--port` (the bridge), `--dcs <folder>`, `--data <folder>`, `--srs host:port`,
+  `--voice <id>`, `--no-voice`, `--transcribe [<id>]`, `--recordings <folder>`, `--no-ai`, `--no-drawings`,
+  `--silence <airbase>`, `--keep-stock-atc`, `--dump <airbase>`, `--debug`.
+
+Run from the repository (`dotnet run`), both find `D:\DCS\DCS World` (or `DIGITOWER_DCS_DIR`) and the repository's
+`data\` and keep what they make where they did before: `data\voice\models`, `out\heard`, `out\logs`. Installed, the
+models, recordings and logs go to `%LOCALAPPDATA%\DigiTower`.
 
 ## ATC in DCS (Ground and Tower)
 
-1. Install (or update) the bridge in the server and **restart the server** (hooks load at start-up):
+1. Install (or update) the bridge in the server and **restart the server** (hooks load at start-up): on the
+   control panel's *Install* page, or
    ```powershell
    .\bridge\install.ps1 -Instance DCS.dcs_serverrelease
    ```
@@ -61,11 +87,11 @@ dotnet run --project src/DcsAtc.App                             # terminal 2
    server that does not want DigiTower to handle its AI adds `-NoAi` (`-Ai` turns it back on); one that does not want
    taxi routes and landing spots on the F10 map adds `-NoMapDrawings` (`-MapDrawings`; the app's `--no-drawings` does
    the same for one app).
-2. Start the SRS server and the mission, then the app from the repository folder (it finds
+2. Start the SRS server and the mission, then DigiTower from the repository folder (it finds
    `D:\DCS\DCS World` and `data\`):
    ```powershell
-   dotnet run --project tools/DcsAtc.VoiceTool -- fetch   # once: the voice model (else a Windows voice speaks)
-   dotnet run --project src/DcsAtc.App                    # options: --srs host:port, --voice <id>, --no-voice, --transcribe [<id>], --no-ai
+   dotnet run --project tools/DcsAtc.VoiceTool -- fetch   # once: the voice model (or the control panel's Install page; else a Windows voice speaks)
+   dotnet run --project src/DcsAtc.Gui                    # the control panel; or the console: src/DcsAtc.App (options above)
    ```
    The controllers speak on SRS (127.0.0.1:5002) at **every airfield**, on the ATC frequencies DCS gives it, the
    ones in your briefing: Ground, Tower and Approach share them (VHF and UHF AM, e.g. Al Minhad **118.55** and
@@ -97,8 +123,8 @@ dotnet run --project src/DcsAtc.App                             # terminal 2
    | Report final | Report final early (landing clearance as soon as the runway allows). |
    | Report initial | Overhead: *break approved*; cleared to land on the downwind (or on final) when the runway allows. |
    | Check in (Tower) | After Approach's *contact Tower*: Tower already expects you for that airfield and runway (even if another airfield is nearer) and answers *cleared to land* or *continue approach*; if you do not check in, it calls you itself at 6 NM. Without Approach, *Request landing* goes to the airfield you are lined up on final for, else the nearest one with chart data. |
-   | Request approach → ILS / TACAN / Visual / Overhead | Within 60 NM: *radar contact, 35 miles northwest*, a descent, QNH, the approach to expect (with the localizer frequency or TACAN channel from DCS), then radar vectors: join, downwind, base, intercept, *maintain 3000 feet until established on the localizer, cleared ILS approach runway 31R*, and at about 8 NM *contact Tower*. Arrivals are spaced about 5 NM on final (*extend downwind, number 2*); with more than three at once the later ones *hold over the Al Dhafra TACAN* at 7000 ft and up until a slot is free. Visual: *report field in sight* → *cleared visual approach*. Overhead: *proceed to initial*, at 20 NM down to 1500 ft, then *contact Tower, report initial*. Approach watches altitude and heading (*check altitude / check heading*) and calls traffic: *traffic, 2 o'clock, 5 miles, opposite direction, 2000 feet above*. |
-   | Check in (Approach) | After Tower's hand-off on departure: *radar contact*; held below descending arrivals if need be (*maintain 5000 feet until advised* → *climb unrestricted*); at 40 NM *radar service terminated*. |
+   | Request approach → ILS / TACAN / Visual / Overhead | Within 60 NM (Settings: *Approach request range*): *radar contact, 35 miles northwest*, a descent, QNH, the approach to expect (with the localizer frequency or TACAN channel from DCS), then radar vectors: join, downwind, base, intercept, *maintain 3000 feet until established on the localizer, cleared ILS approach runway 31R*, and at about 8 NM *contact Tower*. Arrivals are spaced about 5 NM on final (*extend downwind, number 2*); with more than three at once the later ones *hold over the Al Dhafra TACAN* at 7000 ft and up until a slot is free. Visual: *report field in sight* → *cleared visual approach*. Overhead: *proceed to initial*, at 20 NM down to 1500 ft, then *contact Tower, report initial*. Approach watches altitude and heading (*check altitude / check heading*) and calls traffic: *traffic, 2 o'clock, 5 miles, opposite direction, 2000 feet above*. |
+   | Check in (Approach) | After Tower's hand-off on departure: *radar contact*; held below descending arrivals if need be (*maintain 5000 feet until advised* → *climb unrestricted*); at 40 NM (Settings: *Radar service radius*) *radar service terminated*. |
    | Field in sight, Cancel approach, Say again (Approach) | As named. |
    | Request taxi to parking | Route to the free spot that is quickest to reach, named by its area: *"taxi to Apron 1 West via D2, A"*. |
    | Cancel taxi, Say again (Ground / Tower), ATIS, Frequencies | As named. *Debug → Where am I?* shows your position. |
@@ -107,7 +133,7 @@ dotnet run --project src/DcsAtc.App                             # terminal 2
    | **Helicopters** | *Request taxi* becomes **air-taxi** (*"air-taxi to holding point runway 31L via U9"*): hovering is fine (DCS calls a hover "in the air"; below 300 ft over the airfield it still counts as on the field), no speed limit, warned above 100 ft (*remain at or below 100 feet*) or far off the route. Unless Ground sent you to the runway, **Request departure → Own navigation / Departure north, east, south, west** clears you from where you stand, however close a runway is: *"Hangman 1-1, Al Dhafra Tower, from present position, make right turn for north departure, wind 310 degrees, 10 knots, cleared for takeoff"*; you *hold position* while your way out crosses a runway in use (traffic on final, a takeoff or landing cleared, an aircraft on it) or another helicopter takes off or lands within 200 ft. After *Request taxi* to the runway, *Ready for departure* at the holding point works as for jets. **Request landing** gives you a free helicopter spot (helicopter-only first, then open parking), marked on the F10 map: *"make straight-in to Apron 3, wind …, cleared to land"*; no runway, no taxi-in, and jets on the runway are not held for you (no free spot: a runway landing). Hovering low over the field you get both the ground calls and *Request landing*; no *Report initial*. |
    | Flight → Flight of 2 / 3 / 4, Single ship | Declares a flight: you and the players with your callsign prefix ("Hangman 1-1", "Hangman 1-2" → "Hangman 1 flight"), lowest number leads; members who spawn later join until the flight is complete. Ground and Tower then give one clearance to *"Hangman 1 flight"* (sent to every member, from the lead's position), and members are never traffic to each other. Any member may make the calls. The flight takes off on one clearance, formation or interval as you like; Tower keeps the runway for it until the last member is airborne. Taxiing in, every member gets its own parking spot next to the lead's, marked on the F10 map with its number (1-1, 1-2, …); a helicopter flight gets a landing spot or FARP pad each (*"make straight-in to pads 1 and 2"*). *Single ship* leaves the flight. |
 
-   **Voice:** with `--transcribe`, the same calls can be made by talking on the frequency with your normal SRS
+   **Voice:** with *voice requests* on (Settings, or the console's `--transcribe`), the same calls can be made by talking on the frequency with your normal SRS
    push-to-talk ("Al Dhafra Ground, Hangman 1-2, request taxi"): [docs/voice.md](docs/voice.md#voice-requests).
 
    **AI departures** (in your missions and Liberation / Retribution campaigns): when an AI plane starts its engines

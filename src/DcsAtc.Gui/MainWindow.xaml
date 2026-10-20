@@ -1,0 +1,82 @@
+<Window x:Class="DcsAtc.Gui.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:DcsAtc.Gui.ViewModels"
+        Title="{Binding StateText, StringFormat=DigiTower · {0}}"
+        Width="1440" Height="960" MinWidth="1100" MinHeight="680"
+        Background="{StaticResource Bg}" Foreground="{StaticResource Text}"
+        FontFamily="{StaticResource UiFont}" FontSize="14"
+        Icon="pack://application:,,,/DigiTower;component/Assets/DigiTower.ico"
+        UseLayoutRounding="True" SnapsToDevicePixels="True"
+        TextOptions.TextFormattingMode="Display">
+    <Window.Resources>
+        <Style x:Key="NavIcon" TargetType="Path">
+            <Setter Property="Width" Value="18" />
+            <Setter Property="Height" Value="18" />
+            <Setter Property="StrokeThickness" Value="1.5" />
+            <Setter Property="Stroke" Value="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" />
+            <Setter Property="Margin" Value="0,0,12,0" />
+        </Style>
+    </Window.Resources>
+    <Grid Background="{StaticResource Bg}">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="210" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <Border Background="{StaticResource Panel}" BorderBrush="{StaticResource Edge}" BorderThickness="0,0,1,0">
+            <DockPanel Margin="0,20,0,20">
+                <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="20,0,20,26">
+                    <Canvas Width="28" Height="28" Margin="0,0,10,0">
+                        <Ellipse Canvas.Left="3" Canvas.Top="3" Width="22" Height="22" Stroke="{StaticResource AccentBright}" StrokeThickness="1.6" />
+                        <Ellipse Canvas.Left="8" Canvas.Top="8" Width="12" Height="12" Stroke="{StaticResource AccentBright}" StrokeThickness="1.6" />
+                        <Line X1="14" Y1="14" X2="22" Y2="6" Stroke="{StaticResource AccentBright}" StrokeThickness="1.6" />
+                        <Ellipse Canvas.Left="12.4" Canvas.Top="12.4" Width="3.2" Height="3.2" Fill="{StaticResource AccentBright}" />
+                    </Canvas>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="DigiTower" FontSize="18" FontWeight="Bold" Foreground="{StaticResource TextBright}" />
+                        <TextBlock Text="CONTROL PANEL" FontSize="11" Foreground="{StaticResource TextDim}" />
+                    </StackPanel>
+                </StackPanel>
+                <TextBlock DockPanel.Dock="Bottom" Margin="20,0" FontSize="11" Foreground="{StaticResource TextDim}" Text="{Binding Version}"
+                           ToolTip="{Binding Updates.Problem}" />
+                <Border DockPanel.Dock="Bottom" Margin="12,0,12,14" Padding="10" Background="{StaticResource AccentWell}" BorderBrush="{StaticResource Accent}" BorderThickness="1"
+                        Visibility="{Binding Updates.Available, Converter={StaticResource VisibleWhen}}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource Caption}" Foreground="{StaticResource AccentBright}" Text="UPDATE AVAILABLE" />
+                        <TextBlock Margin="0,2,0,8" Foreground="{StaticResource TextBright}" Text="{Binding Updates.Version, StringFormat=DigiTower {0}}" />
+                        <Button Style="{StaticResource PrimaryButton}" Content="{Binding Updates.ButtonText}" Command="{Binding Updates.UpdateCommand}" />
+                    </StackPanel>
+                </Border>
+                <StackPanel>
+                    <RadioButton Style="{StaticResource NavItem}" IsChecked="{Binding Page, Converter={StaticResource Is}, ConverterParameter=Operations}" AutomationProperties.Name="Operations">
+                        <StackPanel Orientation="Horizontal">
+                            <Path Style="{StaticResource NavIcon}" Data="M2,3 h14 v4 h-14 Z M2,9 h14 v4 h-14 Z M2,16 h14" />
+                            <TextBlock Text="OPERATIONS" />
+                        </StackPanel>
+                    </RadioButton>
+                    <RadioButton Style="{StaticResource NavItem}" IsChecked="{Binding Page, Converter={StaticResource Is}, ConverterParameter=Log}" AutomationProperties.Name="Log">
+                        <StackPanel Orientation="Horizontal">
+                            <Path Style="{StaticResource NavIcon}" Data="M3,4 h12 M3,8 h12 M3,12 h8 M3,16 h10" />
+                            <TextBlock Text="LOG" />
+                        </StackPanel>
+                    </RadioButton>
+                    <RadioButton Style="{StaticResource NavItem}" IsChecked="{Binding Page, Converter={StaticResource Is}, ConverterParameter=Settings}" AutomationProperties.Name="Settings">
+                        <StackPanel Orientation="Horizontal">
+                            <Path Style="{StaticResource NavIcon}" Data="M3,5 h7 M13,5 h2 M3,13 h2 M8,13 h7 M9.9,5 a1.6,1.6 0 1 0 3.2,0 a1.6,1.6 0 1 0 -3.2,0 M4.9,13 a1.6,1.6 0 1 0 3.2,0 a1.6,1.6 0 1 0 -3.2,0" />
+                            <TextBlock Text="SETTINGS" />
+                        </StackPanel>
+                    </RadioButton>
+                    <RadioButton Style="{StaticResource NavItem}" IsChecked="{Binding Page, Converter={StaticResource Is}, ConverterParameter=Install}" AutomationProperties.Name="Install">
+                        <StackPanel Orientation="Horizontal">
+                            <Path Style="{StaticResource NavIcon}" Data="M9,2 v9 M5.5,7.5 L9,11 L12.5,7.5 M3,13 v3 h12 v-3" />
+                            <TextBlock Text="INSTALL" />
+                        </StackPanel>
+                    </RadioButton>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <ContentControl Grid.Column="1" Content="{Binding CurrentPage}" Focusable="False" />
+    </Grid>
+</Window>

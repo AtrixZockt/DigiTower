@@ -1,0 +1,25 @@
+<Application x:Class="DcsAtc.Gui.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:DcsAtc.Gui"
+             xmlns:vm="clr-namespace:DcsAtc.Gui.ViewModels"
+             xmlns:views="clr-namespace:DcsAtc.Gui.Views"
+             ShutdownMode="OnExplicitShutdown">
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="Theme.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+            <local:VisibleWhen x:Key="VisibleWhen" />
+            <local:Is x:Key="Is" />
+            <local:Not x:Key="Not" />
+            <local:TopRuleWhen x:Key="TopRuleWhen" />
+
+            <!-- Each page's view. -->
+            <DataTemplate DataType="{x:Type vm:OperationsViewModel}"><views:OperationsView /></DataTemplate>
+            <DataTemplate DataType="{x:Type vm:LogViewModel}"><views:LogView /></DataTemplate>
+            <DataTemplate DataType="{x:Type vm:SettingsViewModel}"><views:SettingsView /></DataTemplate>
+            <DataTemplate DataType="{x:Type vm:InstallViewModel}"><views:InstallView /></DataTemplate>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>

@@ -5,7 +5,7 @@ using DcsAtc.Atc;
 using DcsAtc.Srs;
 using DcsAtc.Voice;
 
-namespace DcsAtc.App;
+namespace DcsAtc.Host;
 
 public sealed record SrsRadioOptions
 {
@@ -51,6 +51,13 @@ public sealed class SrsRadio : IAtcRadio, IAsyncDisposable
 
     /// <summary>A pilot's transmission heard by an airfield's controllers (the airfield, "Al Dhafra"), when listening is on.</summary>
     public event Action<string, SrsTransmission>? Heard;
+
+    /// <summary>The SRS server ("host:port").</summary>
+    public string Server => $"{_options.Host}:{_options.Port}";
+
+    /// <summary>The controllers' SRS clients (one per airfield on the air and coalition, one per ATIS) and how many are connected.</summary>
+    public (int Clients, int Connected) Connections =>
+        (_stations.Count + _broadcasts.Count, _stations.Values.Count(s => s.IsConnected) + _broadcasts.Values.Count(b => b.IsConnected));
 
     public void Transmit(RadioCall call) => StationFor(call.Facility, call.Stations, call.Coalition).Enqueue(call);
 
@@ -129,6 +136,8 @@ public sealed class SrsRadio : IAtcRadio, IAsyncDisposable
         private readonly Channel<(RadioCall Call, long Queued)> _queue = Channel.CreateUnbounded<(RadioCall, long)>(new UnboundedChannelOptions { SingleReader = true });
         private readonly Task _run, _work;
         private long _lastError = -1;
+
+        public bool IsConnected => _client.IsConnected;
 
         public Station(SrsRadio radio, string facility, int coalition, IReadOnlyList<SrsFrequency> frequencies)
         {
@@ -226,6 +235,8 @@ public sealed class SrsRadio : IAtcRadio, IAsyncDisposable
 
         /// <summary>The text to repeat; null: silent.</summary>
         public volatile string? Text;
+
+        public bool IsConnected => _client.IsConnected;
 
         /// <summary>Someone has a radio on one of the frequencies (SRS tells every client the others' radios).</summary>
         private bool Listened => _client.Peers.Values.Any(p => p.Radios.Any(r => _frequencies.Any(r.SameChannel)));

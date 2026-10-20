@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <!-- The control panel: DigiTower.exe (the console program is DigiTowerConsole.exe, src/DcsAtc.App). -->
+    <AssemblyName>DigiTower</AssemblyName>
+    <RootNamespace>DcsAtc.Gui</RootNamespace>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <UseWPF>true</UseWPF>
+    <!-- Only for the notification area icon (NotifyIcon). -->
+    <UseWindowsForms>true</UseWindowsForms>
+    <ApplicationIcon>Assets\DigiTower.ico</ApplicationIcon>
+    <!-- Program.Main: Velopack's install and update hooks run before the window. -->
+    <StartupObject>DcsAtc.Gui.Program</StartupObject>
+    <Product>DigiTower</Product>
+    <Description>DigiTower control panel: ATC for DCS World</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- WPF and WinForms share names (Application, MessageBox, …): WinForms only where it is named. -->
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
+    <!-- WPF leaves these out (System.Windows.Shapes.Path); no view model uses the shapes. -->
+    <Using Include="System.IO" />
+    <Using Include="System.Net.Http" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <PackageReference Include="Velopack" Version="1.2.161" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DcsAtc.Host\DcsAtc.Host.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="Fonts\*.ttf" />
+    <Resource Include="Assets\DigiTower.ico" />
+    <None Include="Fonts\LICENSE-DejaVu.txt" CopyToOutputDirectory="PreserveNewest" Link="licenses\DejaVu-fonts.txt" />
+  </ItemGroup>
+
+</Project>

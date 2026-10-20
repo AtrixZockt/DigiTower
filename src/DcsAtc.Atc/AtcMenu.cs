@@ -259,7 +259,7 @@ public sealed class AtcMenu(AirfieldCatalog airfields, GroundControl ground, Tow
         else if (inAir && !here(s.Tower?.Airfield))
         {
             if (here(s.CheckInWith) && s.Approach is null) yield return ("Check in (Approach)", "approach.checkin", null);
-            if (miles <= ApproachControl.ProceduresOf(airfield).RequestRange)
+            if (miles <= approach.ProceduresFor(airfield).RequestRange)
             {
                 foreach (var (id, label, type) in Approaches)
                 {
