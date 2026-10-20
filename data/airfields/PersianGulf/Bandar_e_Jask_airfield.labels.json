@@ -1,0 +1,36 @@
+{
+  "airfield": "Bandar-e-Jask",
+  "rn5": "Bandar_e_Jask_airfield",
+  "source": "CombatWombat's airfield diagrams, Persian Gulf (page 3036, \"Bandar-e-Jask (OIZJ)\"); georeferenced on the runway ends (approximate). A: the taxiway from the 06 end to the apron. The chart's frequencies are not used.",
+  "georeference": {
+    "controlPoints": [
+      {
+        "chart": [
+          160.0,
+          681.0
+        ],
+        "x": -57753.1,
+        "z": 155261.4
+      },
+      {
+        "chart": [
+          662.0,
+          410.0
+        ],
+        "x": -56746.9,
+        "z": 157122.5
+      }
+    ]
+  },
+  "taxiways": [
+    {
+      "name": "A",
+      "path": [
+        [
+          -57729.3,
+          155136.0
+        ]
+      ]
+    }
+  ]
+}

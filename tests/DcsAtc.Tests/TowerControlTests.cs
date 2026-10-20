@@ -50,7 +50,11 @@ public partial class TowerControlTests
     /// The world at Al Dhafra's layout under another airbase name and id (an airbase without chart frequencies when no
     /// labels file names it), with the ATC frequencies DCS reports.
     /// </summary>
-    private static async Task<World?> CreateAsync(string name, int id, IReadOnlyList<AirbaseRadios>? radios, params AirbaseSummary[] others)
+    private static Task<World?> CreateAsync(string name, int id, IReadOnlyList<AirbaseRadios>? radios, params AirbaseSummary[] others) =>
+        CreateInAsync(Path.Combine(TestPaths.RepoRoot, "data"), name, id, radios, others);
+
+    /// <param name="dataDirectory">The data folder the catalog reads labels files from.</param>
+    private static async Task<World?> CreateInAsync(string dataDirectory, string name, int id, IReadOnlyList<AirbaseRadios>? radios, AirbaseSummary[] others)
     {
         if (TestPaths.Terrains is null) return null;
         string dump = Path.Combine(TestPaths.RepoRoot, "data", "dcs", "Al Dhafra AFB.json");
@@ -60,7 +64,7 @@ public partial class TowerControlTests
         var airbase = new AirbaseSummary { Name = name, Id = id, Category = 0, Coalition = 2, X = info.X, Y = info.Y, Z = info.Z };
         var dcs = new FakeDcs([airbase, .. others], info, weather);
         dcs.Radios.AddRange(radios ?? []);
-        var catalog = new AirfieldCatalog(dcs, Path.GetDirectoryName(Path.GetDirectoryName(TestPaths.Terrains)), Path.Combine(TestPaths.RepoRoot, "data"));
+        var catalog = new AirfieldCatalog(dcs, Path.GetDirectoryName(Path.GetDirectoryName(TestPaths.Terrains)), dataDirectory);
         catalog.SetMission("PersianGulf", [airbase, .. others], radios);
         var clock = new TestClock { Now = new DateTime(2026, 10, 18, 12, 0, 0) };
         var flights = new FlightRegistry(dcs);

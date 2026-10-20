@@ -411,7 +411,7 @@ public partial class TowerControlTests
         }
     }
 
-    /// <summary>Abu Dhabi International (about 20 NM from Al Dhafra): a real DCS taxi network, no chart data of ours.</summary>
+    /// <summary>Abu Dhabi International (about 20 NM from Al Dhafra): a real DCS taxi network; the test gives it no chart data.</summary>
     private static AirbaseSummary? AbuDhabi()
     {
         if (TestPaths.Terrains is null) return null;
@@ -430,7 +430,23 @@ public partial class TowerControlTests
     {
         var abuDhabi = AbuDhabi();
         Skip.If(abuDhabi is null, "Abu Dhabi network not available");
-        var w = await CreateAsync(abuDhabi!);
+        // A data folder with Al Dhafra's chart data only (the repository's has Abu Dhabi's too).
+        var data = Directory.CreateTempSubdirectory("dcsatc-data-");
+        try
+        {
+            string theatre = Directory.CreateDirectory(Path.Combine(data.FullName, "airfields", "PersianGulf")).FullName;
+            File.Copy(Path.Combine(TestPaths.RepoRoot, "data", "airfields", "PersianGulf", "Dhafra_AFB.labels.json"), Path.Combine(theatre, "Dhafra_AFB.labels.json"));
+            await LandingPicksAsync(abuDhabi!, data.FullName);
+        }
+        finally
+        {
+            data.Delete(recursive: true);
+        }
+    }
+
+    private static async Task LandingPicksAsync(AirbaseSummary abuDhabi, string dataDirectory)
+    {
+        var w = await CreateInAsync(dataDirectory, "Al Dhafra AFB", 4, null, [abuDhabi]);
         Skip.If(w is null, "DCS install or Al Dhafra dump not available");
         var dhafraField = new Vec2(-211188, -173477);
         var abuDhabiField = new Vec2(abuDhabi!.X, abuDhabi.Z);

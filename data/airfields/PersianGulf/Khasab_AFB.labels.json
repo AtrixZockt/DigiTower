@@ -1,0 +1,14 @@
+{
+  "airfield": "Khasab",
+  "rn5": "Khasab_AFB",
+  "source": "Master Arms, \"OOKB - Khasab\" aerodrome chart (light), https://wiki.masterarms.se/index.php/Persian_Gulf_Charts (2026), georeferenced on the two runway ends. A: the northern connector and the stretch beside the runway down to the apron; B: the southern connector to the apron. The chart's frequencies are a template and are not used.",
+  "georeference": { "controlPoints": [ { "chart": [425, 885], "x": -1347.1, "z": -458.9 }, { "chart": [615, 140], "x": 901.5, "z": 102.0 } ] },
+  "taxiways": [
+    { "name": "A", "path": [[-446.7, -249.8]] },
+    { "name": "A", "path": [[-432.1, -239.9]] },
+    { "name": "A", "path": [[-566.7, -378.4]] },
+    { "name": "B", "path": [[-978.5, -379.5]] },
+    { "name": "B", "path": [[-962.1, -385.6]] },
+    { "name": "B", "path": [[-948.7, -446.7]] }
+  ]
+}

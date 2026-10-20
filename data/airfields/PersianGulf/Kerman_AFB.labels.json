@@ -1,0 +1,108 @@
+{
+  "airfield": "Kerman",
+  "rn5": "Kerman_AFB",
+  "source": "CombatWombat's airfield diagrams, Persian Gulf (page 3023, \"Kerman (OIKK)\"); georeferenced on the runway ends. B: the link from 16/34 to the tower area (about 890 m from the 16 end). A: the taxiway from there south to the terminal. H, H1: the link east from A and the loop behind it. F: the link at the 34 end. Not in DCS: C, D and the diagonal (old runway); B1 and E are left out (not clear in DCS). The chart's frequencies are not used.",
+  "georeference": {
+    "controlPoints": [
+      {
+        "chart": [
+          98.0,
+          197.0
+        ],
+        "x": 455862.9,
+        "z": 70403.3
+      },
+      {
+        "chart": [
+          370.0,
+          890.0
+        ],
+        "x": 452416.4,
+        "z": 71770.8
+      }
+    ]
+  },
+  "taxiways": [
+    {
+      "name": "A",
+      "path": [
+        [
+          454648.0,
+          71310.7
+        ]
+      ]
+    },
+    {
+      "name": "A",
+      "path": [
+        [
+          453739.7,
+          71670.8
+        ]
+      ]
+    },
+    {
+      "name": "B",
+      "path": [
+        [
+          455046.9,
+          70744.8
+        ]
+      ]
+    },
+    {
+      "name": "B",
+      "path": [
+        [
+          455035.1,
+          70744.3
+        ]
+      ]
+    },
+    {
+      "name": "H",
+      "path": [
+        [
+          454941.8,
+          71446.1
+        ]
+      ]
+    },
+    {
+      "name": "H",
+      "path": [
+        [
+          454944.8,
+          71735.9
+        ]
+      ]
+    },
+    {
+      "name": "H1",
+      "path": [
+        [
+          454835.5,
+          71657.8
+        ]
+      ]
+    },
+    {
+      "name": "H1",
+      "path": [
+        [
+          454641.6,
+          71765.6
+        ]
+      ]
+    },
+    {
+      "name": "F",
+      "path": [
+        [
+          452379.0,
+          71838.1
+        ]
+      ]
+    }
+  ]
+}

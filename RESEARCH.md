@@ -540,7 +540,7 @@ Brain as in B. The mission-side bridge script is also usable as a normal mission
 | M2 | Tower: line up / takeoff, pattern, landing, go-around, exit, taxi to parking. |
 | M3 | Departure and approach: radar contact, vectors, ILS/TACAN, sequencing, holding, handoffs. |
 | M4 | AI traffic, best effort (§9): hold by respawn + `Start`, holding stacks, release-to-land, traffic advisories. |
-| M5 | Scale: rest of Al Dhafra labeled; Al Minhad; then the remaining PG airfields. |
+| M5 | Scale: rest of Al Dhafra labeled; Al Minhad; then the remaining PG airfields. **Persian Gulf done:** every airfield with a chart that names taxiways (Master Arms, CombatWombat) has a labels file, 27 in all; Sir Abu Nuayr and Tunb Kochak have no names on their charts, Quasoura has no chart. |
 | M6 | Voice polish: readback checking, "say again" handling, multi-voice controllers, AI-pilot readbacks. |
 | M7 | **Multiplayer traffic on the ground** (your request): predict conflicts between cleared routes and moving aircraft, e.g. head-on on one taxiway, crossing at a junction, closing from behind. Then instruct: *hold position*, *give way to …*, *follow …*, or a hold short at the junction before the conflict. |
 | M8 | **Flights of 2–4** (your request): one clearance and route for the flight, addressed to the lead ("Hangman 1 flight"), formation takeoff, one landing sequence. Flight membership from the DCS group and/or a shared callsign prefix (Hangman 1-1, 1-2, …). |

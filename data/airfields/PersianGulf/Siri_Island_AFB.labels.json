@@ -1,0 +1,11 @@
+{
+  "airfield": "Sirri Island",
+  "rn5": "Siri_Island_AFB",
+  "source": "Master Arms, \"OIBS - Sirri Island\" aerodrome chart (light), https://wiki.masterarms.se/index.php/Persian_Gulf_Charts (2026), georeferenced on the two runway ends. DCS has one taxiway, the connector near the 30 end to the terminal parking: A. Not in DCS: the taxiway to the GA parking. The chart's frequencies are a template and are not used.",
+  "georeference": { "controlPoints": [ { "chart": [95, 195], "x": -26244.1, "z": -171668.8 }, { "chart": [740, 668], "x": -27972.3, "z": -169395.1 } ] },
+  "taxiways": [
+    { "name": "A", "path": [[-27672.1, -169973.4]] },
+    { "name": "A", "path": [[-27610.2, -169889.0]] },
+    { "name": "A", "path": [[-27577.4, -169935.6]] }
+  ]
+}

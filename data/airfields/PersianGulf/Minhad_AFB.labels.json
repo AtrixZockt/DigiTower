@@ -1,0 +1,198 @@
+{
+  "airfield": "Al Minhad AFB",
+  "rn5": "Minhad_AFB",
+  "source": "CombatWombat's airfield diagrams, Persian Gulf (page 3012, \"Al Minhad Airbase (OMDM)\"); georeferenced on the ends of the paved strip, which DCS's runway covers (the chart's runway bar is shorter). A-G: the links from the parallel taxiway south of 09/27 to the runway, west to east (A around the 09 end, C the angled one, F the angled one near 27, G around the 27 end); B is about 250 m further west in DCS than on the chart. H: the link into the eastern parking area. The parallel taxiway has no name on the chart; the links' names reach onto it next to each link. The chart's frequencies are not used.",
+  "georeference": {
+    "controlPoints": [
+      {
+        "chart": [
+          54.0,
+          420.0
+        ],
+        "x": -126013.4,
+        "z": -90997.9
+      },
+      {
+        "chart": [
+          662.6,
+          419.5
+        ],
+        "x": -126013.8,
+        "z": -87126.7
+      }
+    ]
+  },
+  "taxiways": [
+    {
+      "name": "A",
+      "path": [
+        [
+          -126069.4,
+          -91045.4
+        ]
+      ]
+    },
+    {
+      "name": "B",
+      "path": [
+        [
+          -126025.5,
+          -90119.0
+        ]
+      ]
+    },
+    {
+      "name": "B",
+      "path": [
+        [
+          -126024.5,
+          -90079.1
+        ]
+      ]
+    },
+    {
+      "name": "C",
+      "path": [
+        [
+          -126068.8,
+          -89443.2
+        ]
+      ]
+    },
+    {
+      "name": "D",
+      "path": [
+        [
+          -126029.9,
+          -89232.9
+        ]
+      ]
+    },
+    {
+      "name": "D",
+      "path": [
+        [
+          -126032.7,
+          -89179.2
+        ]
+      ]
+    },
+    {
+      "name": "D",
+      "path": [
+        [
+          -126156.4,
+          -89199.5
+        ]
+      ]
+    },
+    {
+      "name": "D",
+      "path": [
+        [
+          -126154.5,
+          -89207.9
+        ]
+      ]
+    },
+    {
+      "name": "D",
+      "path": [
+        [
+          -126110.0,
+          -89204.2
+        ]
+      ]
+    },
+    {
+      "name": "E",
+      "path": [
+        [
+          -126031.5,
+          -88626.4
+        ]
+      ]
+    },
+    {
+      "name": "E",
+      "path": [
+        [
+          -126030.5,
+          -88682.9
+        ]
+      ]
+    },
+    {
+      "name": "E",
+      "path": [
+        [
+          -126108.1,
+          -88653.2
+        ]
+      ]
+    },
+    {
+      "name": "E",
+      "path": [
+        [
+          -126156.9,
+          -88658.2
+        ]
+      ]
+    },
+    {
+      "name": "E",
+      "path": [
+        [
+          -126157.2,
+          -88648.0
+        ]
+      ]
+    },
+    {
+      "name": "F",
+      "path": [
+        [
+          -126100.9,
+          -87800.9
+        ]
+      ]
+    },
+    {
+      "name": "G",
+      "path": [
+        [
+          -126147.5,
+          -87143.7
+        ]
+      ]
+    },
+    {
+      "name": "H",
+      "path": [
+        [
+          -126198.8,
+          -88146.0
+        ]
+      ]
+    },
+    {
+      "name": "H",
+      "path": [
+        [
+          -126198.7,
+          -88137.9
+        ]
+      ]
+    },
+    {
+      "name": "H",
+      "path": [
+        [
+          -126255.6,
+          -88142.0
+        ]
+      ]
+    }
+  ]
+}

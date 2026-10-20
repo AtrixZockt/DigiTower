@@ -157,6 +157,14 @@ switch (args[0])
             return 0;
         }
 
+    case "names":
+        {
+            // rn5tool names <file.rn5>: the taxiway name of every named edge, "edge<TAB>name" (for comparing labels files)
+            var airfield = LoadAirfield(args[1], null);
+            foreach (var (edge, name) in airfield.TaxiwayNames.OrderBy(e => e.Key)) Console.WriteLine($"{edge}\t{name}");
+            return 0;
+        }
+
     case "lists":
         foreach (var (offset, count, header) in Rn5Reader.FindPointLists(File.ReadAllBytes(args[1])))
             Console.WriteLine($"0x{offset:x6}  n={count,4}  header {string.Join(" ", header)}");

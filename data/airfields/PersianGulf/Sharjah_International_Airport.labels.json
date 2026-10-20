@@ -1,0 +1,367 @@
+{
+  "airfield": "Sharjah Intl",
+  "rn5": "Sharjah_International_Airport",
+  "source": "CombatWombat's airfield diagrams, Persian Gulf (page 3008, \"Sharjah Intl. (OMSJ)\") and Master Arms \"OMSJ - Sharjah Intl\" (https://wiki.masterarms.se/index.php/Persian_Gulf_Charts). The chart's runways are the full pavement, which reaches 300-430 m past DCS's runway ends, so the georeference uses the pavement ends of DCS's taxi network on CombatWombat's chart. A: the parallel taxiway south of 12R/30L and its way around the west end to both runways. D: the taxiway from A to 12R/30L in front of the terminal. F: the two arms of the pad near the 30L end. G: around the end of 30L and across to 30R. Not in DCS's taxi network: B2-B19 (between the runways) and E; B and C are only dead ends there. Areas: Master Arms' apron names, placed on DCS's stand rows. The charts' frequencies are not used.",
+  "georeference": {
+    "controlPoints": [
+      {
+        "chart": [
+          131.7,
+          342.3
+        ],
+        "x": -91507.5,
+        "z": -74970.6
+      },
+      {
+        "chart": [
+          650,
+          679.3
+        ],
+        "x": -93636.6,
+        "z": -71691.0
+      },
+      {
+        "chart": [
+          115.7,
+          380.7
+        ],
+        "x": -91686.9,
+        "z": -75158.3
+      },
+      {
+        "chart": [
+          636.7,
+          716.7
+        ],
+        "x": -93909.7,
+        "z": -71732.1
+      }
+    ]
+  },
+  "taxiways": [
+    {
+      "name": "A",
+      "path": [
+        [
+          -92250.8,
+          -74621.1
+        ]
+      ]
+    },
+    {
+      "name": "A",
+      "path": [
+        [
+          -92704.3,
+          -73922.7
+        ]
+      ]
+    },
+    {
+      "name": "A",
+      "path": [
+        [
+          -92845.8,
+          -73703.8
+        ]
+      ]
+    },
+    {
+      "name": "A",
+      "path": [
+        [
+          -92976.8,
+          -73501.7
+        ]
+      ]
+    },
+    {
+      "name": "A",
+      "path": [
+        [
+          -93061.5,
+          -73371.2
+        ]
+      ]
+    },
+    {
+      "name": "A",
+      "path": [
+        [
+          -93121.1,
+          -73279.4
+        ]
+      ]
+    },
+    {
+      "name": "A",
+      "path": [
+        [
+          -93159.8,
+          -73219.8
+        ]
+      ]
+    },
+    {
+      "name": "A",
+      "path": [
+        [
+          -93201.6,
+          -73155.5
+        ]
+      ]
+    },
+    {
+      "name": "A",
+      "path": [
+        [
+          -93242.7,
+          -73092.2
+        ]
+      ]
+    },
+    {
+      "name": "A",
+      "path": [
+        [
+          -93286.5,
+          -73024.8
+        ]
+      ]
+    },
+    {
+      "name": "A",
+      "path": [
+        [
+          -93316.4,
+          -72978.6
+        ]
+      ]
+    },
+    {
+      "name": "A",
+      "path": [
+        [
+          -93342.7,
+          -72938.1
+        ]
+      ]
+    },
+    {
+      "name": "A",
+      "path": [
+        [
+          -93361.6,
+          -72909.0
+        ]
+      ]
+    },
+    {
+      "name": "A",
+      "path": [
+        [
+          -93405.5,
+          -72841.0
+        ]
+      ]
+    },
+    {
+      "name": "A",
+      "path": [
+        [
+          -93441.2,
+          -72786.2
+        ]
+      ]
+    },
+    {
+      "name": "A",
+      "path": [
+        [
+          -93466.5,
+          -72747.5
+        ]
+      ]
+    },
+    {
+      "name": "A",
+      "path": [
+        [
+          -93684.8,
+          -72412.0
+        ]
+      ]
+    },
+    {
+      "name": "A",
+      "path": [
+        [
+          -93859.7,
+          -72143.3
+        ]
+      ]
+    },
+    {
+      "name": "A",
+      "path": [
+        [
+          -91946.4,
+          -75088.6
+        ]
+      ]
+    },
+    {
+      "name": "A",
+      "path": [
+        [
+          -91941.5,
+          -75321.0
+        ]
+      ]
+    },
+    {
+      "name": "A",
+      "path": [
+        [
+          -91778.7,
+          -75217.1
+        ]
+      ]
+    },
+    {
+      "name": "A",
+      "path": [
+        [
+          -91732.0,
+          -75187.3
+        ]
+      ]
+    },
+    {
+      "name": "A",
+      "path": [
+        [
+          -91516.8,
+          -74975.8
+        ]
+      ]
+    },
+    {
+      "name": "A",
+      "path": [
+        [
+          -91823.2,
+          -75046.6
+        ]
+      ]
+    },
+    {
+      "name": "D",
+      "path": [
+        [
+          -93274.6,
+          -72877.7
+        ]
+      ]
+    },
+    {
+      "name": "D",
+      "path": [
+        [
+          -93200.9,
+          -72849.8
+        ]
+      ]
+    },
+    {
+      "name": "D",
+      "path": [
+        [
+          -93217.4,
+          -72822.3
+        ]
+      ]
+    },
+    {
+      "name": "F",
+      "path": [
+        [
+          -93682.9,
+          -72197.6
+        ]
+      ]
+    },
+    {
+      "name": "F",
+      "path": [
+        [
+          -93747.0,
+          -72059.1
+        ]
+      ]
+    },
+    {
+      "name": "G",
+      "path": [
+        [
+          -93979.4,
+          -71923.3
+        ]
+      ]
+    },
+    {
+      "name": "G",
+      "path": [
+        [
+          -93673.1,
+          -71691.0
+        ]
+      ]
+    },
+    {
+      "name": "G",
+      "path": [
+        [
+          -93880.7,
+          -71803.7
+        ]
+      ]
+    },
+    {
+      "name": "G",
+      "path": [
+        [
+          -93855.0,
+          -71789.9
+        ]
+      ]
+    }
+  ],
+  "areas": [
+    {
+      "name": "Apron Maintenance",
+      "x": -92060.1,
+      "z": -75409.9
+    },
+    {
+      "name": "Service Area",
+      "x": -92430.7,
+      "z": -74875.5
+    },
+    {
+      "name": "Apron Cargo",
+      "x": -93037.5,
+      "z": -74160.6
+    },
+    {
+      "name": "Apron East",
+      "x": -93090.6,
+      "z": -73575.2
+    },
+    {
+      "name": "Apron Terminal",
+      "x": -93433.1,
+      "z": -73082.2
+    }
+  ]
+}

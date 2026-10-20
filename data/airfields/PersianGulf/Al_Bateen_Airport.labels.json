@@ -1,0 +1,153 @@
+{
+  "airfield": "Al-Bateen",
+  "rn5": "Al_Bateen_Airport",
+  "source": "CombatWombat's airfield diagrams, Persian Gulf (page 3015, \"Al Bateen Executive (OMAD)\"); georeferenced on the threshold marks, which match DCS's runway ends. A: around the 13 end. B-E: the links from the parallel taxiway to 13/31 (D the angled one). F: around the 31 end. The parallel taxiway has no name on the chart; the links' names reach onto it next to each link. The chart's frequencies are not used.",
+  "georeference": {
+    "controlPoints": [
+      {
+        "chart": [
+          150.0,
+          273.0
+        ],
+        "x": -190217.7,
+        "z": -182826.0
+      },
+      {
+        "chart": [
+          611.0,
+          662.0
+        ],
+        "x": -191615.0,
+        "z": -181105.0
+      }
+    ]
+  },
+  "taxiways": [
+    {
+      "name": "A",
+      "path": [
+        [
+          -190065.7,
+          -183011.6
+        ]
+      ]
+    },
+    {
+      "name": "B",
+      "path": [
+        [
+          -190545.7,
+          -182443.0
+        ]
+      ]
+    },
+    {
+      "name": "B",
+      "path": [
+        [
+          -190559.1,
+          -182428.8
+        ]
+      ]
+    },
+    {
+      "name": "B",
+      "path": [
+        [
+          -190612.0,
+          -182481.7
+        ]
+      ]
+    },
+    {
+      "name": "C",
+      "path": [
+        [
+          -190732.2,
+          -182223.0
+        ]
+      ]
+    },
+    {
+      "name": "C",
+      "path": [
+        [
+          -190751.8,
+          -182203.1
+        ]
+      ]
+    },
+    {
+      "name": "C",
+      "path": [
+        [
+          -190726.9,
+          -182387.7
+        ]
+      ]
+    },
+    {
+      "name": "D",
+      "path": [
+        [
+          -191119.0,
+          -181845.9
+        ]
+      ]
+    },
+    {
+      "name": "D",
+      "path": [
+        [
+          -191108.5,
+          -181755.1
+        ]
+      ]
+    },
+    {
+      "name": "D",
+      "path": [
+        [
+          -191135.4,
+          -181726.4
+        ]
+      ]
+    },
+    {
+      "name": "E",
+      "path": [
+        [
+          -191209.9,
+          -181634.4
+        ]
+      ]
+    },
+    {
+      "name": "E",
+      "path": [
+        [
+          -191219.5,
+          -181618.6
+        ]
+      ]
+    },
+    {
+      "name": "E",
+      "path": [
+        [
+          -191266.9,
+          -181667.0
+        ]
+      ]
+    },
+    {
+      "name": "F",
+      "path": [
+        [
+          -191983.8,
+          -180969.6
+        ]
+      ]
+    }
+  ]
+}

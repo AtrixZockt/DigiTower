@@ -1,0 +1,144 @@
+{
+  "airfield": "Sas Al Nakheel",
+  "rn5": "Sas_Al_Nakheel_Airport",
+  "source": "CombatWombat's airfield diagrams, Persian Gulf (page 3014, \"Sas Al Nakeel (OMNK)\"); georeferenced on the runway ends. A-E: the links from 16/34 to the northern aprons (A at the 16 end, B, D, E); F, G: the links to the western apron in the south. Not in DCS: C; H is printed in an island with no DCS link next to it, so it is left out. The chart's frequencies are not used.",
+  "georeference": {
+    "controlPoints": [
+      {
+        "chart": [
+          270.0,
+          165.0
+        ],
+        "x": -188821.4,
+        "z": -176226.8
+      },
+      {
+        "chart": [
+          500.0,
+          881.0
+        ],
+        "x": -190400.6,
+        "z": -175721.2
+      }
+    ]
+  },
+  "taxiways": [
+    {
+      "name": "A",
+      "path": [
+        [
+          -188664.0,
+          -176342.5
+        ]
+      ]
+    },
+    {
+      "name": "B",
+      "path": [
+        [
+          -188931.7,
+          -176228.4
+        ]
+      ]
+    },
+    {
+      "name": "B",
+      "path": [
+        [
+          -189011.1,
+          -176203.8
+        ]
+      ]
+    },
+    {
+      "name": "D",
+      "path": [
+        [
+          -189169.8,
+          -176157.6
+        ]
+      ]
+    },
+    {
+      "name": "E",
+      "path": [
+        [
+          -189319.4,
+          -176103.5
+        ]
+      ]
+    },
+    {
+      "name": "E",
+      "path": [
+        [
+          -189348.8,
+          -176061.7
+        ]
+      ]
+    },
+    {
+      "name": "E",
+      "path": [
+        [
+          -189328.4,
+          -176070.9
+        ]
+      ]
+    },
+    {
+      "name": "F",
+      "path": [
+        [
+          -190030.1,
+          -175936.6
+        ]
+      ]
+    },
+    {
+      "name": "F",
+      "path": [
+        [
+          -190016.9,
+          -175855.7
+        ]
+      ]
+    },
+    {
+      "name": "F",
+      "path": [
+        [
+          -189998.2,
+          -175865.5
+        ]
+      ]
+    },
+    {
+      "name": "G",
+      "path": [
+        [
+          -190348.8,
+          -175838.5
+        ]
+      ]
+    },
+    {
+      "name": "G",
+      "path": [
+        [
+          -190313.8,
+          -175764.5
+        ]
+      ]
+    },
+    {
+      "name": "G",
+      "path": [
+        [
+          -190334.2,
+          -175758.0
+        ]
+      ]
+    }
+  ]
+}

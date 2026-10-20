@@ -1,0 +1,45 @@
+{
+  "airfield": "Jiroft",
+  "rn5": "Jiroft_airfield",
+  "source": "CombatWombat's airfield diagrams, Persian Gulf (page 3024, \"Jiroft Airport (OIKJ)\"); georeferenced on the runway ends (approximate). A: the taxiway from 13/31 to the apron. The chart's frequencies are not used.",
+  "georeference": {
+    "controlPoints": [
+      {
+        "chart": [
+          60.0,
+          298.0
+        ],
+        "x": 283539.8,
+        "z": 140505.1
+      },
+      {
+        "chart": [
+          640.0,
+          765.0
+        ],
+        "x": 281674.5,
+        "z": 142867.5
+      }
+    ]
+  },
+  "taxiways": [
+    {
+      "name": "A",
+      "path": [
+        [
+          282759.5,
+          141521.2
+        ]
+      ]
+    },
+    {
+      "name": "A",
+      "path": [
+        [
+          282740.4,
+          141543.4
+        ]
+      ]
+    }
+  ]
+}

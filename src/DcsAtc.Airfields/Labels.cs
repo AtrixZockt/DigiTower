@@ -80,7 +80,23 @@ public sealed record ControlPoint(double[] Chart, double X, double Z);
 
 public sealed record Georeference(IReadOnlyList<ControlPoint> ControlPoints)
 {
-    public ChartAffine Affine() => ChartAffine.Fit(ControlPoints.Select(c => (c.Chart[0], c.Chart[1], new Vec2(c.X, c.Z))).ToList());
+    /// <summary>
+    /// The fit. With only two points (the ends of a single runway) the chart is taken as north-up, unskewed and evenly
+    /// scaled: a third point at right angles to the two, on the chart and on the map, fixes it.
+    /// </summary>
+    public ChartAffine Affine()
+    {
+        var points = ControlPoints.Select(c => (Px: c.Chart[0], Py: c.Chart[1], Dcs: new Vec2(c.X, c.Z))).ToList();
+        if (points.Count == 2)
+        {
+            var (p, q) = (points[0], points[1]);
+            var d = q.Dcs - p.Dcs;
+            var mid = (p.Dcs + q.Dcs) * 0.5;
+            // A quarter turn clockwise: on the chart (right, down) (u, v) -> (-v, u); on the map (north, east) (x, z) -> (-z, x).
+            points.Add(((p.Px + q.Px) / 2 - (q.Py - p.Py), (p.Py + q.Py) / 2 + (q.Px - p.Px), new Vec2(mid.X - d.Z, mid.Z + d.X)));
+        }
+        return ChartAffine.Fit(points);
+    }
 }
 
 /// <summary>

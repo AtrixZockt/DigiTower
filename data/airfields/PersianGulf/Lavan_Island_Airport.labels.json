@@ -1,0 +1,45 @@
+{
+  "airfield": "Lavan Island",
+  "rn5": "Lavan_Island_Airport",
+  "source": "CombatWombat's airfield diagrams, Persian Gulf (page 3028, \"Lavan Island (OIBV)\"); georeferenced on the runway ends (approximate). A: the link from 11/29 to the apron. Not in DCS: B. The chart's frequencies are not used.",
+  "georeference": {
+    "controlPoints": [
+      {
+        "chart": [
+          45.0,
+          430.0
+        ],
+        "x": 76282.8,
+        "z": -288002.8
+      },
+      {
+        "chart": [
+          395.0,
+          573.0
+        ],
+        "x": 75307.5,
+        "z": -285626.5
+      }
+    ]
+  },
+  "taxiways": [
+    {
+      "name": "A",
+      "path": [
+        [
+          75822.2,
+          -286925.6
+        ]
+      ]
+    },
+    {
+      "name": "A",
+      "path": [
+        [
+          75815.2,
+          -286901.7
+        ]
+      ]
+    }
+  ]
+}

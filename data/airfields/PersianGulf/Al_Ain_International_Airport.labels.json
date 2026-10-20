@@ -1,0 +1,99 @@
+{
+  "airfield": "Al Ain Intl",
+  "rn5": "Al_Ain_International_Airport",
+  "source": "CombatWombat's airfield diagrams, Persian Gulf (page 3017, \"Al Ain International (OMAL)\"); georeferenced on the pavement ends of DCS's taxi network. A-E: the links from the parallel taxiway east of 01/19 to the runway, south to north (A around the 01 end, B and D angled, C straight, E around the 19 end). The chart's other letters (F-Q, S) are printed in islands and aprons and are not used; the parallel taxiway has no name on the chart. The western parking area has no taxi link in DCS. The chart's frequencies are not used.",
+  "georeference": {
+    "controlPoints": [
+      {
+        "chart": [
+          289.0,
+          852.0
+        ],
+        "x": -212967.9,
+        "z": -65690.6
+      },
+      {
+        "chart": [
+          391.0,
+          107.0
+        ],
+        "x": -209062.6,
+        "z": -65139.2
+      }
+    ]
+  },
+  "taxiways": [
+    {
+      "name": "A",
+      "path": [
+        [
+          -213017.9,
+          -65654.6
+        ]
+      ]
+    },
+    {
+      "name": "A",
+      "path": [
+        [
+          -213015.1,
+          -65581.0
+        ]
+      ]
+    },
+    {
+      "name": "B",
+      "path": [
+        [
+          -211831.0,
+          -65494.2
+        ]
+      ]
+    },
+    {
+      "name": "C",
+      "path": [
+        [
+          -211010.6,
+          -65392.6
+        ]
+      ]
+    },
+    {
+      "name": "C",
+      "path": [
+        [
+          -211048.6,
+          -65397.3
+        ]
+      ]
+    },
+    {
+      "name": "C",
+      "path": [
+        [
+          -211049.6,
+          -65283.2
+        ]
+      ]
+    },
+    {
+      "name": "D",
+      "path": [
+        [
+          -210317.4,
+          -65250.8
+        ]
+      ]
+    },
+    {
+      "name": "E",
+      "path": [
+        [
+          -209095.1,
+          -65094.3
+        ]
+      ]
+    }
+  ]
+}

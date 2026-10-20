@@ -1,0 +1,11 @@
+{
+  "airfield": "Bandar Lengeh",
+  "rn5": "Bandar_Lengeh_Airport",
+  "source": "CombatWombat's airfield diagrams, Persian Gulf (page 3030, \"Bandar Lengeh (OIBL)\") and Master Arms \"OIBL - Bandar Lengeh\" (https://wiki.masterarms.se/index.php/Persian_Gulf_Charts); georeferenced on the two runway ends (CombatWombat's chart). One taxiway, the connector to the main apron: A. The charts' frequencies are not used.",
+  "georeference": { "controlPoints": [ { "chart": [50, 515], "x": 41359.1, "z": -142182.8 }, { "chart": [518, 443], "x": 41714.7, "z": -139783.0 } ] },
+  "taxiways": [
+    { "name": "A", "path": [[41456.4, -140655.3]] },
+    { "name": "A", "path": [[41573.1, -140692.0]] },
+    { "name": "A", "path": [[41574.5, -140659.3]] }
+  ]
+}

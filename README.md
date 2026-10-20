@@ -157,6 +157,8 @@ dotnet run --project tools/DcsAtc.Rn5Tool -- scan "D:\DCS\DCS World\Mods\terrain
 dotnet run --project tools/DcsAtc.Rn5Tool -- airfield "<file.rn5>" "data\dcs\Al Dhafra AFB.json" out\dhafra.svg
 # taxi route from a parking spot (DCS Term_Index) to a runway's departure holding point
 dotnet run --project tools/DcsAtc.Rn5Tool -- route "<file.rn5>" "data\dcs\Al Dhafra AFB.json" 106 13L out\route.svg [--steps]
+# every taxi network edge that has a taxiway name (from the airfield's labels file)
+dotnet run --project tools/DcsAtc.Rn5Tool -- names "<file.rn5>"
 ```
 
 ## License
@@ -179,6 +181,7 @@ Third-party parts keep their own licenses:
 | DCS World and its files (taxi networks, beacons, cloud presets: read from your installation, not included) | Eagle Dynamics |
 
 Credits: the SRS client follows the protocol of [DCS-SimpleRadioStandalone](https://github.com/ciribob/DCS-SimpleRadioStandalone)
-(GPL-3.0; implemented from its documentation and source, no SRS code is included). Al Dhafra's taxiway names come from
-the Master Arms "OMAM - Al Dhafra" chart ([wiki.masterarms.se](https://wiki.masterarms.se/index.php/Persian_Gulf_Charts)).
+(GPL-3.0; implemented from its documentation and source, no SRS code is included). The Persian Gulf taxiway names come
+from the Master Arms charts ([wiki.masterarms.se](https://wiki.masterarms.se/index.php/Persian_Gulf_Charts)) and
+CombatWombat's airfield diagrams for the Persian Gulf (each labels file names its chart).
 The maps' time zones follow [MOOSE](https://github.com/FlightControl-Master/MOOSE).
