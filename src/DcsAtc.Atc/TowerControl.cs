@@ -276,7 +276,7 @@ public sealed class TowerControl(IDcsCommands dcs, AirfieldCatalog airfields, Gr
         var c = spot.Position;
         Vec2[] square = [c + new Vec2(-15, -15), c + new Vec2(-15, 15), c + new Vec2(15, 15), c + new Vec2(15, -15), c + new Vec2(-15, -15)];
         await dcs.DrawRouteAsync(flight.SpotDrawingKey, lead.Coal, square.Select(p => (p.X, p.Z)), SpotColor, "LANDING SPOT", ct);
-        await SayAsync(flight, Phraseology.LandAtSpot(party.Callsign, airfield.Facility, airfield.Layout.AreaNear(spot.Position), weather), ct);
+        await SayAsync(flight, Phraseology.LandAtSpot(party.Callsign, $"{airfield.Facility} Tower", airfield.Layout.AreaNear(spot.Position), weather), ct);
         return true;
     }
 
@@ -642,12 +642,12 @@ public sealed class TowerControl(IDcsCommands dcs, AirfieldCatalog airfields, Gr
             string? direction = bearing is null ? null : f.Intent.ToString().ToLowerInvariant();
             string? turn = bearing is double b ? Phraseology.TurnTo(unit.Hdg, b) : null;
             Enter(f, TowerPhase.ClearedForTakeoff);
-            await SayAsync(f, Phraseology.HelicopterDeparture(f.Callsign, f.Airfield.Facility, turn, direction, weather), ct);
+            await SayAsync(f, Phraseology.HelicopterDeparture(f.Callsign, $"{f.Airfield.Facility} Tower", turn, direction, weather), ct);
         }
         else if (requested || f.LastReason != reason)
         {
             f.LastReason = reason;
-            await SayAsync(f, Phraseology.HoldPosition(f.Callsign, f.Airfield.Facility, reason), ct);
+            await SayAsync(f, Phraseology.HoldPosition(f.Callsign, $"{f.Airfield.Facility} Tower", reason), ct);
         }
     }
 

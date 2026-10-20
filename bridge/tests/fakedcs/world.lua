@@ -167,6 +167,24 @@ function M.new(opts)
     airfield12_0 = { [0] = { 3800000, 0 }, [1] = { 38500000, 0 }, [2] = { 118550000, 0 }, [3] = { 250100000, 0 } },
   }
 
+  -- A FOB east of Al Dhafra as Retribution builds them: single-pad invisible FARPs (airbases of category 1), all on
+  -- the default FARP frequency and callsign; in the mission file as statics of category "Heliports".
+  local Farp = setmetatable({}, { __index = Airbase })
+  Farp.__index = Farp
+  function Farp:getDesc() return { category = 1 } end
+  function Farp:getRunways() return {} end
+  function Farp:getParking()
+    return { { Term_Index = 1, Term_Index_0 = 0, Term_Type = 40, vTerminalPos = { x = self.x, y = FIELD_ELEVATION, z = self.z }, fDistToRW = 0, TO_AC = false } }
+  end
+  W.farpStatics = {}
+  for i = 0, 1 do
+    local name = 'FOB Test Invisible FARP ' .. i
+    local x, z = AL_DHAFRA.x + 500 + 150 * i, AL_DHAFRA.z + 6000
+    W.airbases[name] = setmetatable({ name = name, id = 100 + i, callsign = 'London', x = x, z = z }, Farp)
+    W.farpStatics[#W.farpStatics + 1] = { units = { { category = 'Heliports', type = 'Invisible FARP', name = name, x = x, y = z,
+      heliport_frequency = 127.5, heliport_modulation = 0, heliport_callsign_id = 1 } } }
+  end
+
   -- The scripting environment ------------------------------------------------------------------------
 
   local env = setmetatable({}, { __index = _G })
@@ -237,7 +255,7 @@ function M.new(opts)
   }
   env.env = { info = function(s) W.print('[env.info] ' .. tostring(s)) end,
     mission = { theatre = 'PersianGulf', date = { Year = 2026, Month = 10, Day = 18 }, start_time = 8 * 3600,
-    coalition = { blue = { country = { { plane = { group = W.templates } } } } },
+    coalition = { blue = { country = { { plane = { group = W.templates }, static = { group = W.farpStatics } } } } },
     -- Few clouds at 8300 ft (preset 1 at its default base), 80 km visibility.
     weather = { visibility = { distance = 80000 }, enable_dust = false, dust_density = 0,
       clouds = { base = 2520, thickness = 200, density = 0, preset = 'Preset1', iprecptns = 0 } } } }

@@ -13,7 +13,8 @@ public sealed record MenuEntry(IReadOnlyList<string> Path, string Label, string 
 /// (ready for departure, request landing, initial, check in, report final, say again), Approach (request approach,
 /// check in, field in sight, cancel, say again), and its frequencies. Then Flight (declare / leave) and Debug.
 /// </summary>
-public sealed class AtcMenu(AirfieldCatalog airfields, GroundControl ground, TowerControl tower, ApproachControl approach, FlightRegistry flights)
+public sealed class AtcMenu(AirfieldCatalog airfields, GroundControl ground, TowerControl tower, ApproachControl approach, FlightRegistry flights,
+    FarpControl? farps = null)
 {
     private const double Nm = 1852;
 
@@ -57,6 +58,13 @@ public sealed class AtcMenu(AirfieldCatalog airfields, GroundControl ground, Tow
     public static DepartureIntent? IntentOf(string action) =>
         Departures.FirstOrDefault(d => action == $"tower.ready.{d.Id}") is { Label: not null } d ? d.Intent : null;
 
+    /// <summary>The direction of a FARP departure entry ("farp.depart.north").</summary>
+    public static DepartureIntent? FarpIntentOf(string action) =>
+        Departures.FirstOrDefault(d => action == $"farp.depart.{d.Id}") is { Label: not null } d ? d.Intent : null;
+
+    /// <summary>In the air a helicopter's menu lists this many FARP sites within landing range.</summary>
+    public const int FarpCount = 3;
+
     public static ApproachType? ApproachOf(string action) =>
         Approaches.FirstOrDefault(a => action == $"approach.{a.Id}") is { Label: not null } a ? a.Type : null;
 
@@ -92,6 +100,17 @@ public sealed class AtcMenu(AirfieldCatalog airfields, GroundControl ground, Tow
             var calls = Calls(airfield, situation).ToList();
             foreach (var (label, action, submenu) in calls)
                 entries.Add(new(submenu is null ? path : [.. path, submenu], label, IdFor(id, action)));
+        }
+
+        if (farps is not null)
+        {
+            var working = farps.Flights.GetValueOrDefault(party.Key);
+            foreach (var site in FarpSites(lead, working))
+            {
+                string[] path = [Root, site.Name];
+                foreach (var (label, action, submenu) in FarpCalls(site, unit, lead, working, units))
+                    entries.Add(new(submenu is null ? path : [.. path, submenu], label, IdFor(site.Id, action)));
+            }
         }
 
         if (flights.FlightOf(unit.Name) is not null)
@@ -257,6 +276,44 @@ public sealed class AtcMenu(AirfieldCatalog airfields, GroundControl ground, Tow
     }
 
     private static double Distance(AirbaseSummary a, Vec2 p) => new Vec2(a.X, a.Z).DistanceTo(p);
+
+    /// <summary>The FARP site the flight is at; in the air (helicopters) the nearest within landing range; any working it.</summary>
+    private List<FarpSite> FarpSites(UnitState lead, FarpFlight? working)
+    {
+        var position = new Vec2(lead.X, lead.Z);
+        var list = new List<FarpSite>();
+        if (farps!.SiteAt(lead) is { } at) list.Add(at);
+        else if (lead.IsHelicopter && lead.InAir)
+            list.AddRange(farps.Sites.Where(s => s.Center.DistanceTo(position) <= FarpControl.LandingRange).OrderBy(s => s.Center.DistanceTo(position)).Take(FarpCount));
+        if (working is not null && !list.Contains(working.Site)) list.Add(working.Site);
+        return list;
+    }
+
+    /// <summary>The calls to a FARP site: start up and departure on its pads, landing (helicopters in the air), say again, its frequency.</summary>
+    private IEnumerable<(string Label, string Action, string? Submenu)> FarpCalls(FarpSite site, UnitState unit, UnitState lead, FarpFlight? working,
+        IReadOnlyDictionary<string, UnitState> units)
+    {
+        var position = new Vec2(lead.X, lead.Z);
+        if (working?.Site == site)
+        {
+            if (working.LastText != "") yield return ("Say again", "farp.repeat", null);
+        }
+        else if (working is null && farps!.SiteAt(lead) == site)
+        {
+            bool onPad = !lead.InAir && site.Pads.Any(p => p.Position.DistanceTo(position) < ParkedDistance);
+            bool startup = farps.HasStartup(unit, units, site);
+            if (onPad && !startup) yield return ("Request startup", "farp.startup", null);
+            foreach (var d in Departures.Where(d => d.Intent != DepartureIntent.ClosedTraffic))
+                yield return (d.Label, $"farp.depart.{d.Id}", "Request departure");
+            if (lead.InAir) yield return ("Request landing", "farp.landing", null);
+            if (startup) yield return ("Say again", "farp.repeat", null);
+        }
+        else if (working is null && lead.IsHelicopter && lead.InAir)
+        {
+            yield return ("Request landing", "farp.landing", null);
+        }
+        yield return ("Frequencies", "farp.frequencies", null);
+    }
 
     /// <summary>Closing on the airfield (more than 30 knots towards it) or already over it (1.5 NM): what an arrival does, a departure does not.</summary>
     public static bool Inbound(GroundAirfield airfield, UnitState unit)

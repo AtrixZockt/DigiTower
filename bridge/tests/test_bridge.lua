@@ -269,6 +269,19 @@ test('hook: held AI groups are released when the app disconnects', function()
   eq(W:unit('Enfield 1-1').group.commands[1], 'Start', 'released when the app went away')
 end)
 
+test('commands: the FARPs of the mission file, with their pads', function()
+  local W, ATCB = missionWorld()
+  ATCB.command({ cmd = 'farp_list', req = 1 })
+  local reply
+  for _, m in ipairs(poll(W, false).msgs) do if m.type == 'reply' and m.req == 1 then reply = m end end
+  eq(reply.ok, true, 'answered')
+  eq(#reply.data, 2, 'two FARPs')
+  local f = reply.data[1]
+  eq(f.name:match('^FOB Test Invisible FARP %d$') ~= nil, true, 'name')
+  eq(f.frequency, 127.5, 'the mission frequency'); eq(f.modulation, 0, 'AM'); eq(f.callsignId, 1, 'callsign id')
+  eq(f.callsign, 'London', 'callsign from DCS'); eq(f.coalition, 2, 'coalition'); eq(#f.pads, 1, 'one pad')
+end)
+
 test('commands: a map pin for one group', function()
   local W, ATCB = missionWorld()
   ATCB.command({ cmd = 'mark_group', req = 1, key = 'pin-5', groupId = 5, x = 100, z = 200, text = 'Only Hangman 1-2 should see this' })

@@ -128,6 +128,28 @@ public sealed record AirbaseRadios
     public IReadOnlyList<AtcFrequency> Frequencies { get; init; } = [];
 }
 
+/// <summary>A FARP of the mission file (bridge <c>farp_list</c>): its frequency and callsign as the mission sets them, its pads from DCS.</summary>
+public sealed record FarpInfo
+{
+    public string Name { get; init; } = "";
+    public string? Type { get; init; }
+    /// <summary>Its DCS airbase id (null: the FARP is not in the mission now).</summary>
+    public int? Id { get; init; }
+    public double X { get; init; }
+    public double Z { get; init; }
+    public int Coalition { get; init; }
+    /// <summary>MHz, as the mission editor sets it (127.5 by default).</summary>
+    public double? Frequency { get; init; }
+    /// <summary>0 AM, 1 FM.</summary>
+    public int Modulation { get; init; }
+    public int? CallsignId { get; init; }
+    /// <summary>The callsign DCS gives it ("London").</summary>
+    public string? Callsign { get; init; }
+    public IReadOnlyList<FarpPadInfo> Pads { get; init; } = [];
+}
+
+public sealed record FarpPadInfo(int Index, double X, double Z);
+
 /// <param name="Modulation">0 AM, 1 FM.</param>
 public sealed record AtcFrequency(double Hz, int Modulation)
 {

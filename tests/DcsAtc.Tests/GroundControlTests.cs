@@ -24,6 +24,11 @@ internal sealed class FakeDcs(IReadOnlyList<AirbaseSummary> airbases, AirbaseInf
     public Task<AirbaseInfo?> GetAirbaseAsync(string name, CancellationToken ct = default) => Task.FromResult(info);
     public AirbaseWeather? Weather { get; set; } = weather;
     public Task<AirbaseWeather?> GetAirbaseWeatherAsync(string name, CancellationToken ct = default) => Task.FromResult(Weather);
+    /// <summary>The mission's FARPs (none unless a test sets them).</summary>
+    public List<FarpInfo> Farps { get; } = [];
+    public Task<IReadOnlyList<FarpInfo>> GetFarpsAsync(CancellationToken ct = default) =>
+        OldBridge ? throw new BridgeCommandException("unknown command: farp_list") : Task.FromResult<IReadOnlyList<FarpInfo>>(Farps);
+
     /// <summary>The airdromes' ATC frequencies DCS reports (none unless a test sets them).</summary>
     public List<AirbaseRadios> Radios { get; } = [];
     public Task<IReadOnlyList<AirbaseRadios>> GetAirbaseRadiosAsync(CancellationToken ct = default) =>
