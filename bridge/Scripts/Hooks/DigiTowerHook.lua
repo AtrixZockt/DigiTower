@@ -1,17 +1,17 @@
--- DCS-ATC bridge hook.
+-- DigiTower bridge hook.
 --
--- Install: Saved Games\<DCS instance>\Scripts\Hooks\DcsAtcBridgeHook.lua
---          Saved Games\<DCS instance>\Scripts\DcsAtc\DcsAtcMission.lua
+-- Install: Saved Games\<DCS instance>\Scripts\Hooks\DigiTowerHook.lua
+--          Saved Games\<DCS instance>\Scripts\DigiTower\DigiTowerMission.lua
 --
 -- Listens on 127.0.0.1 for the ATC app (newline-delimited JSON, see docs/bridge-protocol.md).
--- When a mission starts, it injects DcsAtcMission.lua into the mission scripting environment,
+-- When a mission starts, it injects DigiTowerMission.lua into the mission scripting environment,
 -- polls it a few times per second and forwards the app's commands to it.
 --
 -- Running code in the mission needs this in Saved Games\<DCS instance>\Config\autoexec.cfg:
 --   net.allow_unsafe_api = { "userhooks" }
 --   net.allow_dostring_in = { "mission" }
 
-local DcsAtcBridge = {}
+local DigiTowerBridge = {}
 
 local Sim = Sim or DCS
 local dcslog = log
@@ -26,29 +26,29 @@ local CONFIG = {
   mapDrawings = true,   -- false: nothing is drawn on the F10 map (DCS shows drawings to a whole side, not one player)
 }
 
-local scriptDir = lfs.writedir() .. 'Scripts/DcsAtc/'
+local scriptDir = lfs.writedir() .. 'Scripts/DigiTower/'
 
-local function logInfo(msg) dcslog.write('DCS-ATC', dcslog.INFO, msg) end
-local function logError(msg) dcslog.write('DCS-ATC', dcslog.ERROR, msg) end
+local function logInfo(msg) dcslog.write('DigiTower', dcslog.INFO, msg) end
+local function logError(msg) dcslog.write('DigiTower', dcslog.ERROR, msg) end
 
--- Settings: Scripts/DcsAtc/DcsAtcConfig.lua (written by bridge/install.ps1) returning e.g. { port = 42701, manageAi = false }.
+-- Settings: Scripts/DigiTower/DigiTowerConfig.lua (written by bridge/install.ps1) returning e.g. { port = 42701, manageAi = false }.
 -- A broken file is reported (in dcs.log and to the app) and the defaults are used.
 local configError
 do
-  local chunk, err = loadfile(scriptDir .. 'DcsAtcConfig.lua')
+  local chunk, err = loadfile(scriptDir .. 'DigiTowerConfig.lua')
   if chunk then
     local ok, overrides = pcall(chunk)
     if ok and type(overrides) == 'table' then
       for k, v in pairs(overrides) do CONFIG[k] = v end
     else
-      configError = 'DcsAtcConfig.lua ignored, it must return a table { ... }: ' .. tostring(overrides)
+      configError = 'DigiTowerConfig.lua ignored, it must return a table { ... }: ' .. tostring(overrides)
     end
   elseif err and not tostring(err):find('cannot open', 1, true) then
-    configError = 'DcsAtcConfig.lua ignored: ' .. tostring(err)
+    configError = 'DigiTowerConfig.lua ignored: ' .. tostring(err)
   end
   if configError then logError(configError) end
-  if CONFIG.manageAi == false then logInfo('AI handling turned off (manageAi = false in DcsAtcConfig.lua)') end
-  if CONFIG.mapDrawings == false then logInfo('F10 map drawings turned off (mapDrawings = false in DcsAtcConfig.lua)') end
+  if CONFIG.manageAi == false then logInfo('AI handling turned off (manageAi = false in DigiTowerConfig.lua)') end
+  if CONFIG.mapDrawings == false then logInfo('F10 map drawings turned off (mapDrawings = false in DigiTowerConfig.lua)') end
 end
 
 package.path = package.path .. ';.\\LuaSocket\\?.lua'
@@ -256,7 +256,7 @@ local function handleLine(line)
     return
   end
   if CONFIG.manageAi == false and (cmd.cmd == 'group_hold' or cmd.cmd == 'group_release') then
-    reply(cmd, false, 'AI handling is turned off on this server (manageAi = false in DcsAtcConfig.lua)')
+    reply(cmd, false, 'AI handling is turned off on this server (manageAi = false in DigiTowerConfig.lua)')
     return
   end
   if not state.missionRunning then
@@ -309,7 +309,7 @@ end
 ---------------------------------------------------------------------------------------------------
 
 local function injectMission()
-  local file, openErr = io.open(scriptDir .. 'DcsAtcMission.lua', 'r')
+  local file, openErr = io.open(scriptDir .. 'DigiTowerMission.lua', 'r')
   if not file then
     logError('mission script not found: ' .. tostring(openErr))
     return
@@ -339,12 +339,12 @@ local function guarded(fn)
   end
 end
 
-function DcsAtcBridge.onSimulationStart()
+function DigiTowerBridge.onSimulationStart()
   if not Sim.isServer() then return end
   injectMission()
 end
 
-function DcsAtcBridge.onSimulationStop()
+function DigiTowerBridge.onSimulationStop()
   if state.missionRunning then
     state.missionRunning = false
     state.missionInfo = nil
@@ -353,7 +353,7 @@ function DcsAtcBridge.onSimulationStop()
   end
 end
 
-function DcsAtcBridge.onSimulationFrame()
+function DigiTowerBridge.onSimulationFrame()
   accept()
   if not state.client then return end
   receive()
@@ -362,7 +362,7 @@ function DcsAtcBridge.onSimulationFrame()
 end
 
 local callbacks = {}
-for name, fn in pairs(DcsAtcBridge) do
+for name, fn in pairs(DigiTowerBridge) do
   callbacks[name] = guarded(fn)
 end
 

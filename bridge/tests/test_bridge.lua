@@ -1,4 +1,4 @@
--- Tests for the DCS-ATC bridge (mission side and hook) against the fake DCS in fakedcs/world.lua.
+-- Tests for the DigiTower bridge (mission side and hook) against the fake DCS in fakedcs/world.lua.
 -- Run from the repository root with Lua 5.1 + LuaSocket (e.g. Lua for Windows):
 --   lua bridge/tests/test_bridge.lua
 
@@ -38,7 +38,7 @@ end
 local function missionWorld(opts)
   local W = fake.new(opts)
   W:setupScenario()
-  local f = assert(io.open(root .. 'Scripts/DcsAtc/DcsAtcMission.lua')):read('*a')
+  local f = assert(io.open(root .. 'Scripts/DigiTower/DigiTowerMission.lua')):read('*a')
   local info, ok = runInMission(W, f .. '\nreturn ATCB.start()')
   assert(ok and info ~= '', 'mission did not start: ' .. tostring(info))
   return W, W.env.ATCB, info
@@ -364,7 +364,7 @@ test('hook: a server can turn AI handling off', function()
   pump(0.3)
   local r = find(function(m) return m.type == 'reply' and m.req == 7 end)
   eq(r.ok, false, 'group_hold refused')
-  eq(r.error, 'AI handling is turned off on this server (manageAi = false in DcsAtcConfig.lua)', 'why')
+  eq(r.error, 'AI handling is turned off on this server (manageAi = false in DigiTowerConfig.lua)', 'why')
   eq(W:unit('Enfield 1-1').group.uncontrolled, true, 'still the mission\'s group (parked uncontrolled, not respawned)')
   eq(W:unit('Enfield 1-1').group.commands, nil, 'no commands')
   client:close()
@@ -376,7 +376,7 @@ test('hook: a broken settings file is reported and the defaults are used', funct
   local port = 42796
   local W = fake.new({})
   W:setupScenario({ static = true })
-  local cb = fake.loadHook(W, root, port, socket.gettime(), "DcsAtcConfig.lua:7: '}' expected near 'port'")
+  local cb = fake.loadHook(W, root, port, socket.gettime(), "DigiTowerConfig.lua:7: '}' expected near 'port'")
   local client = assert(socket.connect('127.0.0.1', port))
   client:settimeout(0)
   local hello
@@ -392,7 +392,7 @@ test('hook: a broken settings file is reported and the defaults are used', funct
   end
   client:close()
   cb.onSimulationFrame()
-  eq(hello.error, "DcsAtcConfig.lua ignored: DcsAtcConfig.lua:7: '}' expected near 'port'", 'reported to the app')
+  eq(hello.error, "DigiTowerConfig.lua ignored: DigiTowerConfig.lua:7: '}' expected near 'port'", 'reported to the app')
   eq(hello.manageAi, true, 'defaults')
 end)
 

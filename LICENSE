@@ -1,7 +1,7 @@
-DCS-ATC
+DigiTower (formerly DCS-ATC)
 Copyright (c) 2026 Julian | DiGii
 
-DCS-ATC is licensed under the PolyForm Strict License 1.0.0 (below), with the
+DigiTower is licensed under the PolyForm Strict License 1.0.0 (below), with the
 additional permissions that follow. In short: you may download it and use it for
 any noncommercial purpose, including on DCS servers you run; you may change it for
 your own use and send your changes to this project; you may not distribute it or
@@ -25,7 +25,7 @@ not, or works based on it, in any other way.
 
 ## Third-Party Parts
 
-This license covers DCS-ATC's own code and data only. Libraries it uses (such as
+This license covers DigiTower's own code and data only. Libraries it uses (such as
 sherpa-onnx, Concentus and System.Speech), voice models it downloads, and DCS World,
 SRS and their files keep their own licenses. See README.md ("License").
 

@@ -1,6 +1,6 @@
-# DCS-ATC
+# DigiTower
 
-A realistic air traffic control for DCS World: clearance, ground (with real taxi routes), tower,
+*ATC for DCS World* (formerly DCS-ATC). A realistic air traffic control for DCS World: clearance, ground (with real taxi routes), tower,
 departure and approach, for jets and helicopters, on your own server. The plan and the research
 behind it are in [RESEARCH.md](RESEARCH.md).
 
@@ -8,8 +8,8 @@ behind it are in [RESEARCH.md](RESEARCH.md).
 
 | Path | What |
 |---|---|
-| `bridge/Scripts/Hooks/DcsAtcBridgeHook.lua` | Runs inside DCS. Talks to the app over 127.0.0.1:42700 and injects the mission side. |
-| `bridge/Scripts/DcsAtc/DcsAtcMission.lua` | Runs in the mission: unit states, events, F10 menus, text, airbase data. |
+| `bridge/Scripts/Hooks/DigiTowerHook.lua` | Runs inside DCS. Talks to the app over 127.0.0.1:42700 and injects the mission side. |
+| `bridge/Scripts/DigiTower/DigiTowerMission.lua` | Runs in the mission: unit states, events, F10 menus, text, airbase data. |
 | `bridge/install.ps1` | Installs/uninstalls the bridge in a DCS Saved Games folder. |
 | `bridge/tests/` | Lua tests and a **fake DCS** that runs the real hook without the game. |
 | `src/DcsAtc.Bridge` | C# client for the bridge. |
@@ -21,7 +21,7 @@ behind it are in [RESEARCH.md](RESEARCH.md).
 | `src/DcsAtc.Voice` | The ATC voice: how text is said, TTS engines (Kokoro/Piper via sherpa-onnx, Windows), clip cache, stitching. |
 | `src/DcsAtc.Recognition` | Speech recognition for voice requests: Whisper (whisper.cpp) and Parakeet (sherpa-onnx), transcript normalising, test calls ([docs/voice.md](docs/voice.md#speech-recognition-spike-s5)). |
 | `data/voice/` | `voices.json` (the voices), `recognition.json` (the recognizers), `test-calls.txt` (the recognition test); `models/` and `cache/` are downloaded / generated, not in git ([docs/voice.md](docs/voice.md)). |
-| `src/DcsAtc.App` | The ATC app (console): connects to DCS, F10 menus, runs the controllers, speaks on SRS. |
+| `src/DcsAtc.App` | The DigiTower app (`DigiTower.exe`, console): connects to DCS, F10 menus, runs the controllers, speaks on SRS. |
 | `tools/DcsAtc.Rn5Tool` | Inspects `.rn5` files, renders them as SVG, scans whole DCS installs. |
 | `tools/DcsAtc.VoiceTool` | Voice audition, test transmissions, SRS check without DCS, model download, speech-recognition bake-off. |
 | `tools/Convert-WhisperModel.ps1` | Converts a Whisper model from Hugging Face (a fine-tune) to whisper.cpp format for the app. |
@@ -57,8 +57,8 @@ dotnet run --project src/DcsAtc.App                             # terminal 2
    .\bridge\install.ps1 -Instance DCS.dcs_serverrelease
    ```
    The first install also writes the bridge settings, every setting explained, to
-   `Saved Games\DCS.dcs_serverrelease\Scripts\DcsAtc\DcsAtcConfig.lua`; installing again keeps your changes. A
-   server that does not want DCS-ATC to handle its AI adds `-NoAi` (`-Ai` turns it back on); one that does not want
+   `Saved Games\DCS.dcs_serverrelease\Scripts\DigiTower\DigiTowerConfig.lua`; installing again keeps your changes. A
+   server that does not want DigiTower to handle its AI adds `-NoAi` (`-Ai` turns it back on); one that does not want
    taxi routes and landing spots on the F10 map adds `-NoMapDrawings` (`-MapDrawings`; the app's `--no-drawings` does
    the same for one app).
 2. Start the SRS server and the mission, then the app from the repository folder (it finds
@@ -146,7 +146,7 @@ dotnet run --project src/DcsAtc.App                             # terminal 2
    ```powershell
    .\bridge\install.ps1 -Instance DCS.dcs_serverrelease
    ```
-   This copies two Lua files, writes the settings file `Scripts\DcsAtc\DcsAtcConfig.lua` if there is none, and
+   This copies two Lua files, writes the settings file `Scripts\DigiTower\DigiTowerConfig.lua` if there is none (an install from before the rename, as DCS-ATC, is moved over: old files removed, settings kept), and
    adds a marked block to that instance's `Config\autoexec.cfg` (`-Uninstall` removes the files and the block and
    keeps the settings).
 2. Start the server with a mission that has a client slot at Al Dhafra, then start the app:
@@ -155,7 +155,7 @@ dotnet run --project src/DcsAtc.App                             # terminal 2
    ```
 3. Join and spawn. F10 → Other → **ATC (test)** → *Ping* / *Where am I?* answer with a text message.
    The console shows traffic and events; `data/dcs/Al Dhafra AFB.json` gets the real runway and parking data.
-4. If nothing happens, look for `DCS-ATC` lines in `Saved Games\DCS.dcs_serverrelease\Logs\dcs.log`.
+4. If nothing happens, look for `DigiTower` lines in `Saved Games\DCS.dcs_serverrelease\Logs\dcs.log`.
 
 ## Taxi networks
 
@@ -174,7 +174,7 @@ dotnet run --project tools/DcsAtc.Rn5Tool -- names "<file.rn5>"
 
 ## License
 
-DCS-ATC is free to download and use for any noncommercial purpose, including on DCS servers you run. You may
+DigiTower is free to download and use for any noncommercial purpose, including on DCS servers you run. You may
 change it for your own use and send your changes to this project (pull requests), but you may not distribute it
 or your changed versions of it. The terms are the [PolyForm Strict License 1.0.0](https://polyformproject.org/licenses/strict/1.0.0)
 with two additional permissions; see [LICENSE](LICENSE).

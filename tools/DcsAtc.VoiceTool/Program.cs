@@ -3,7 +3,7 @@ using DcsAtc.Recognition;
 using DcsAtc.Srs;
 using DcsAtc.Voice;
 
-// DCS-ATC voice tool.
+// DigiTower voice tool.
 //
 //   srs-test [--host 127.0.0.1] [--port 5002] [--freq 247.2] [--wav in.wav] [--out echo.wav]
 //       Joins the SRS server, transmits on an SRS test frequency (the server echoes those back to the sender),
@@ -14,7 +14,7 @@ using DcsAtc.Voice;
 //   units "text"
 //       Shows the clips a transmission is made of: [Hangman] [one one] | [Al Dafra Ground] ‖ ...
 //
-//   say "text" [--voice id] [--out say.wav] [--srs] [--host] [--port 5002] [--freq 250.0] [--name "DCS-ATC say"]
+//   say "text" [--voice id] [--out say.wav] [--srs] [--host] [--port 5002] [--freq 250.0] [--name "DigiTower say"]
 //       Renders a transmission with a voice (default: the catalogue default) and writes it as WAV; with --srs it is
 //       also transmitted. New clips are generated once into data/voice/cache/<voice>/.
 //
@@ -94,14 +94,14 @@ static async Task<int> SrsTestAsync(Options o, CancellationToken ct)
     {
         Host = o.Get("host", "127.0.0.1"),
         Port = int.Parse(o.Get("port", "5002")),
-        Name = "DCS-ATC test",
+        Name = "DigiTower test",
         Coalition = 2,
     }, Console.WriteLine);
     var listener = !pair ? client : new SrsClient(new SrsOptions
     {
         Host = client.Options.Host,
         Port = client.Options.Port,
-        Name = "DCS-ATC listener",
+        Name = "DigiTower listener",
         Coalition = 2,
         Receive = [frequency],
     }, Console.WriteLine);
@@ -183,7 +183,7 @@ static async Task<int> SayAsync(Options o, CancellationToken ct)
     if (o.Find("srs") is null) return 0;
 
     // --name: talk as that SRS client, e.g. a pilot's player name to test voice requests.
-    var client = new SrsClient(new SrsOptions { Host = o.Get("host", "127.0.0.1"), Port = int.Parse(o.Get("port", "5002")), Name = o.Get("name", "DCS-ATC say") }, Console.WriteLine);
+    var client = new SrsClient(new SrsOptions { Host = o.Get("host", "127.0.0.1"), Port = int.Parse(o.Get("port", "5002")), Name = o.Get("name", "DigiTower say") }, Console.WriteLine);
     using var session = CancellationTokenSource.CreateLinkedTokenSource(ct);
     var run = client.RunAsync(session.Token);
     try
@@ -294,7 +294,7 @@ static async Task<int> ListenAsync(Options o, CancellationToken ct)
     {
         Host = o.Get("host", "127.0.0.1"),
         Port = int.Parse(o.Get("port", "5002")),
-        Name = "DCS-ATC listener",
+        Name = "DigiTower listener",
         Coalition = int.Parse(o.Get("coalition", "2")),
         Receive = frequencies,
     }, Console.WriteLine);

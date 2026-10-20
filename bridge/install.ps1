@@ -1,15 +1,18 @@
 <#
 .SYNOPSIS
-    Installs (or removes) the DCS-ATC bridge in a DCS Saved Games folder.
+    Installs (or removes) the DigiTower bridge in a DCS Saved Games folder.
 
 .DESCRIPTION
     Copies the hook and the mission-side script into <Saved Games>\<Instance>\Scripts and adds a
     marked block to <Saved Games>\<Instance>\Config\autoexec.cfg that lets hooks run code in the
     mission scripting environment. -Uninstall removes both again.
 
-    The bridge settings are in <Saved Games>\<Instance>\Scripts\DcsAtc\DcsAtcConfig.lua. The first install writes it
-    with every setting explained; later installs keep it. -NoAi / -Ai switch AI handling off / on there,
+    The bridge settings are in <Saved Games>\<Instance>\Scripts\DigiTower\DigiTowerConfig.lua. The first install writes
+    it with every setting explained; later installs keep it. -NoAi / -Ai switch AI handling off / on there,
     -NoMapDrawings / -MapDrawings the taxi routes and landing spots on the F10 map.
+
+    An install from before the rename (DCS-ATC: Scripts\Hooks\DcsAtcBridgeHook.lua, Scripts\DcsAtc\) is moved over:
+    its files are removed, its settings file becomes the new one, its autoexec.cfg block is replaced.
 
 .EXAMPLE
     .\bridge\install.ps1                                  # the dedicated server (DCS.dcs_serverrelease)
@@ -21,9 +24,9 @@
 param(
     [string]$Instance = "DCS.dcs_serverrelease",
     [string]$SavedGames = (Join-Path $env:USERPROFILE "Saved Games"),
-    # Do not let DCS-ATC hold or release AI on this DCS (manageAi = false in DcsAtcConfig.lua).
+    # Do not let DigiTower hold or release AI on this DCS (manageAi = false in DigiTowerConfig.lua).
     [switch]$NoAi,
-    # Let DCS-ATC hold AI departures and release them in turn again (manageAi = true).
+    # Let DigiTower hold AI departures and release them in turn again (manageAi = true).
     [switch]$Ai,
     # Draw nothing on the F10 map (mapDrawings = false): DCS shows drawings to the whole side, not one player.
     [switch]$NoMapDrawings,
@@ -38,15 +41,34 @@ if ($NoMapDrawings -and $MapDrawings) { throw "-NoMapDrawings and -MapDrawings c
 $target = Join-Path $SavedGames $Instance
 if (-not (Test-Path $target)) { throw "DCS folder not found: $target" }
 
-$files = @("Hooks\DcsAtcBridgeHook.lua", "DcsAtc\DcsAtcMission.lua")
-$config = Join-Path $target "Scripts\DcsAtc\DcsAtcConfig.lua"
+$files = @("Hooks\DigiTowerHook.lua", "DigiTower\DigiTowerMission.lua")
+$config = Join-Path $target "Scripts\DigiTower\DigiTowerConfig.lua"
 $autoexec = Join-Path $target "Config\autoexec.cfg"
-$begin = "-- >>> DCS-ATC bridge"
-$end = "-- <<< DCS-ATC bridge"
+$begin = "-- >>> DigiTower bridge"
+$end = "-- <<< DigiTower bridge"
+# Before the rename the project was called DCS-ATC: its files, settings file and autoexec.cfg block.
+$oldFiles = @("Hooks\DcsAtcBridgeHook.lua", "DcsAtc\DcsAtcMission.lua")
+$oldConfig = Join-Path $target "Scripts\DcsAtc\DcsAtcConfig.lua"
+$oldBegin = "-- >>> DCS-ATC bridge"
+$oldEnd = "-- <<< DCS-ATC bridge"
 $noBom = New-Object System.Text.UTF8Encoding($false)
 
-function Remove-Block([string]$text) {
-    return [regex]::Replace($text, "(?ms)^" + [regex]::Escape($begin) + ".*?^" + [regex]::Escape($end) + "[^\r\n]*\r?\n?", "")
+function Remove-Block([string]$text, [string]$from, [string]$to) {
+    return [regex]::Replace($text, "(?ms)^" + [regex]::Escape($from) + ".*?^" + [regex]::Escape($to) + "[^\r\n]*\r?\n?", "")
+}
+
+# The old hook goes on install and on uninstall: two hooks would both listen on the port.
+foreach ($f in $oldFiles) {
+    $path = Join-Path $target "Scripts\$f"
+    if (Test-Path $path) { Remove-Item $path; Write-Host "removed the old (DCS-ATC) $path" }
+}
+if (Test-Path $autoexec) {
+    $text = [System.IO.File]::ReadAllText($autoexec)
+    $clean = Remove-Block $text $oldBegin $oldEnd
+    if ($clean -ne $text) {
+        [System.IO.File]::WriteAllText($autoexec, $clean, $noBom)
+        Write-Host "removed the old (DCS-ATC) block from $autoexec"
+    }
 }
 
 if ($Uninstall) {
@@ -56,15 +78,26 @@ if ($Uninstall) {
     }
     if (Test-Path $autoexec) {
         $text = [System.IO.File]::ReadAllText($autoexec)
-        $clean = Remove-Block $text
+        $clean = Remove-Block $text $begin $end
         if ($clean -ne $text) {
             [System.IO.File]::WriteAllText($autoexec, $clean, $noBom)
-            Write-Host "removed the DCS-ATC block from $autoexec"
+            Write-Host "removed the DigiTower block from $autoexec"
         }
     }
-    if (Test-Path $config) { Write-Host "kept your settings in $config (delete it if you do not install DCS-ATC again)" }
+    foreach ($c in @($config, $oldConfig)) {
+        if (Test-Path $c) { Write-Host "kept your settings in $c (delete it if you do not install DigiTower again)" }
+    }
     return
 }
+
+# The old settings file becomes the new one, with your changes.
+if ((Test-Path $oldConfig) -and -not (Test-Path $config)) {
+    New-Item -ItemType Directory -Force (Split-Path $config) | Out-Null
+    Move-Item $oldConfig $config
+    Write-Host "moved your settings from $oldConfig to $config"
+}
+$oldDir = Split-Path $oldConfig
+if ((Test-Path $oldDir) -and -not (Get-ChildItem $oldDir -Force)) { Remove-Item $oldDir; Write-Host "removed the empty $oldDir" }
 
 foreach ($f in $files) {
     $dest = Join-Path $target "Scripts\$f"
@@ -75,10 +108,10 @@ foreach ($f in $files) {
 
 # The settings file: written with every setting explained on the first install, kept (with your changes) after that.
 $configTemplate = @'
--- DCS-ATC bridge settings for this DCS. DCS reads them when it starts: restart DCS (or the server) after a change.
+-- DigiTower bridge settings for this DCS. DCS reads them when it starts: restart DCS (or the server) after a change.
 -- Installing the bridge again keeps this file.
 return {
-  -- true:  DCS-ATC holds AI departures at their parking spots and releases them in turn, players first.
+  -- true:  DigiTower holds AI departures at their parking spots and releases them in turn, players first.
   -- false: AI is left to DCS. The ATC still talks to players and counts AI as traffic.
   -- (bridge\install.ps1 -NoAi / -Ai switches this.)
   manageAi = true,
@@ -89,7 +122,7 @@ return {
   -- (bridge\install.ps1 -NoMapDrawings / -MapDrawings switches this.)
   mapDrawings = true,
 
-  -- The port the ATC app connects to (on this PC only).
+  -- The port the DigiTower app connects to (on this PC only).
   port = 42700,
 }
 '@
@@ -120,8 +153,8 @@ Write-Host ("AI handling: " + $(if (Test-Off "manageAi") { "off (AI is left to D
 Write-Host ("F10 map drawings: " + $(if (Test-Off "mapDrawings") { "off" } else { "on" }) + ", switch with -NoMapDrawings / -MapDrawings")
 
 $block = @"
-$begin (added by DCS_ATC\bridge\install.ps1; run it with -Uninstall to remove)
--- Lets Scripts\Hooks run code in the mission scripting environment (needed by DcsAtcBridgeHook.lua).
+$begin (added by DigiTower's bridge\install.ps1; run it with -Uninstall to remove)
+-- Lets Scripts\Hooks run code in the mission scripting environment (needed by DigiTowerHook.lua).
 net = net or {}
 net.allow_unsafe_api = net.allow_unsafe_api or {}
 table.insert(net.allow_unsafe_api, "userhooks")
@@ -134,17 +167,17 @@ $end
 New-Item -ItemType Directory -Force (Split-Path $autoexec) | Out-Null
 $existing = if (Test-Path $autoexec) { [System.IO.File]::ReadAllText($autoexec) } else { "" }
 if ($existing.Contains($begin)) {
-    Write-Host "autoexec.cfg already contains the DCS-ATC block"
+    Write-Host "autoexec.cfg already contains the DigiTower block"
 } else {
     if ($existing -ne "") {
-        Copy-Item $autoexec "$autoexec.bak-dcsatc" -Force
+        Copy-Item $autoexec "$autoexec.bak-digitower" -Force
         if (-not $existing.EndsWith("`n")) { $existing += "`r`n" }
     }
     [System.IO.File]::WriteAllText($autoexec, $existing + $block.Replace("`r`n", "`n").Replace("`n", "`r`n"), $noBom)
-    Write-Host "added the DCS-ATC block to $autoexec"
+    Write-Host "added the DigiTower block to $autoexec"
 }
 
-$others = Get-ChildItem (Join-Path $target "Scripts\Hooks") -Filter *.lua | Where-Object { $_.Name -ne "DcsAtcBridgeHook.lua" }
+$others = Get-ChildItem (Join-Path $target "Scripts\Hooks") -Filter *.lua | Where-Object { $_.Name -ne "DigiTowerHook.lua" }
 if ($others) {
     Write-Warning ("These other hooks in $Instance can now also run code in missions: " + (($others | ForEach-Object Name) -join ", ") +
         ". Make sure none of them accepts code from the network.")

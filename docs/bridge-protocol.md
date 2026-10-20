@@ -1,7 +1,7 @@
 # Bridge protocol
 
-The hook (`bridge/Scripts/Hooks/DcsAtcBridgeHook.lua`) listens on **127.0.0.1:42700**. Its settings are in
-`Scripts/DcsAtc/DcsAtcConfig.lua`, which `bridge/install.ps1` writes on the first install (every setting explained)
+The hook (`bridge/Scripts/Hooks/DigiTowerHook.lua`) listens on **127.0.0.1:42700**. Its settings are in
+`Scripts/DigiTower/DigiTowerConfig.lua`, which `bridge/install.ps1` writes on the first install (every setting explained)
 and keeps after that: `port`, `manageAi` (false: the server does not let the app hold or release AI;
 `install.ps1 -NoAi` / `-Ai`) and `mapDrawings` (false: `draw_route` draws nothing and answers `{ marks = 0 }`;
 `install.ps1 -NoMapDrawings` / `-MapDrawings`). A file that does not load is reported in `hello.error` and the defaults are used.
@@ -60,7 +60,7 @@ them into a Lua table literal and the mission side runs one of the whitelisted h
 | `group_release` | `group` | `true`: DCS's `Start` command for the group (a held group starts its engines and taxis) |
 | `debug_events` | `on` | `{ allEvents }`: while on, every DCS event is forwarded, not only those listed above (diagnostics) |
 
-With `manageAi = false` in the server's `DcsAtcConfig.lua`, the hook refuses `group_hold` and `group_release`
+With `manageAi = false` in the server's `DigiTowerConfig.lua`, the hook refuses `group_hold` and `group_release`
 (`AI handling is turned off on this server ...`).
 
 **Held AI never stays held without the app:** when the app disconnects the hook releases every held group, and the

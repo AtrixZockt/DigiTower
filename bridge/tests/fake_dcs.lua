@@ -7,7 +7,7 @@
 -- --static        the jet stays parked (no scripted taxi and takeoff).
 -- --ai            adds an AI departure: "Enfield 1-1", parked uncontrolled at spot 60, started by the mission after 8 s
 --                 (engines 2 s later, rolling 4 s after that, unless the app holds it).
--- --server-no-ai  the server turns AI handling off (manageAi = false in DcsAtcConfig.lua).
+-- --server-no-ai  the server turns AI handling off (manageAi = false in DigiTowerConfig.lua).
 
 local root = (arg and arg[0] or ''):gsub('\\', '/'):match('^(.*/)tests/[^/]*$') or 'bridge/'
 package.path = root .. 'tests/?.lua;' .. package.path

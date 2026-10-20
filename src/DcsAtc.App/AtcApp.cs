@@ -373,8 +373,8 @@ public sealed class AtcApp
                 Log($"bridge protocol {h.Protocol}, mission '{h.Mission}', running: {h.MissionRunning}, multiplayer: {h.Multiplayer}");
                 if (h.Error is not null) Log($"bridge error: {h.Error}");
                 _serverAllowsAi = h.ManageAi != false;
-                if (_options.ManageAi && !_serverAllowsAi) Log("AI traffic off: turned off on this server (manageAi = false in Scripts\\DcsAtc\\DcsAtcConfig.lua)");
-                if (h.MapDrawings == false) Log("F10 map drawings off on this server (mapDrawings = false in Scripts\\DcsAtc\\DcsAtcConfig.lua)");
+                if (_options.ManageAi && !_serverAllowsAi) Log("AI traffic off: turned off on this server (manageAi = false in Scripts\\DigiTower\\DigiTowerConfig.lua)");
+                if (h.MapDrawings == false) Log("F10 map drawings off on this server (mapDrawings = false in Scripts\\DigiTower\\DigiTowerConfig.lua)");
                 if (h.MissionRunning) await OnMissionRunningAsync(h.Info, ct);
                 break;
             case MissionStartedMessage m:
@@ -690,7 +690,7 @@ public sealed class AtcApp
             var offset = position - new Vec2(nearest.X, nearest.Z);
             where = $"{offset.Length / 1852:F1} NM, bearing {offset.Heading:000}° from {nearest.Name}";
         }
-        return $"DCS-ATC: {Phraseology.Callsign(u)}, {where}. Heading {u.Hdg:000}°, ground speed {u.GroundSpeed * 1.94384:F0} kt, " +
+        return $"DigiTower: {Phraseology.Callsign(u)}, {where}. Heading {u.Hdg:000}°, ground speed {u.GroundSpeed * 1.94384:F0} kt, " +
                $"{u.Agl * 3.28084:F0} ft AGL, {(u.InAir ? "airborne" : "on the ground")}. Position x {u.X:F0}, z {u.Z:F0}.";
     }
 

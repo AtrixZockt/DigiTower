@@ -16,7 +16,7 @@ public sealed record HelloMessage : BridgeMessage
     public bool MissionRunning { get; init; }
     public MissionInfo? Info { get; init; }
     public bool Multiplayer { get; init; }
-    /// <summary>False when the server turned AI handling off (<c>manageAi = false</c> in DcsAtcConfig.lua); null from older bridges.</summary>
+    /// <summary>False when the server turned AI handling off (<c>manageAi = false</c> in DigiTowerConfig.lua); null from older bridges.</summary>
     public bool? ManageAi { get; init; }
     /// <summary>False when the server turned the F10 map drawings off (<c>mapDrawings = false</c>); null from older bridges.</summary>
     public bool? MapDrawings { get; init; }
