@@ -54,6 +54,10 @@ public sealed class FarpControl(IDcsCommands dcs, FlightRegistry flights, Action
     private static readonly double[] PadColor = [0, 0.9, 0.2, 1];
 
     private readonly Dictionary<int, FarpFlight> _flights = [];
+    private readonly SpotMarks _marks = new(dcs);
+
+    /// <summary>The drawing keys of the wingmen's pads marked now.</summary>
+    public IReadOnlyCollection<string> PadMarkKeys => _marks.Keys;
     private readonly Dictionary<int, (FarpSite Site, string Unit, int Coalition, string Text)> _startups = [];
     private IReadOnlyList<FarpSite> _sites = [];
 
@@ -68,6 +72,7 @@ public sealed class FarpControl(IDcsCommands dcs, FlightRegistry flights, Action
         _sites = sites;
         _flights.Clear();
         _startups.Clear();
+        _marks.Reset();
     }
 
     /// <summary>The mission ended: its drawings went with it.</summary>
@@ -140,17 +145,34 @@ public sealed class FarpControl(IDcsCommands dcs, FlightRegistry flights, Action
         await RemoveAsync(party.Key, ct);
 
         var weather = await WeatherAsync(site, ct);
-        var pad = FreePad(site, party, position, units);
+        var free = FreePads(site, party, units);
+        var pad = free.MinBy(p => p.Position.DistanceTo(position));
         var flight = new FarpFlight { Party = party, Site = site, Phase = FarpPhase.ClearedToLand, Pad = pad };
         _flights[party.Key] = flight;
+        var numbers = new List<int>();
         if (pad is not null)
         {
+            numbers.Add(pad.Number);
             var c = pad.Position;
             Vec2[] square = [c + new Vec2(-12, -12), c + new Vec2(-12, 12), c + new Vec2(12, 12), c + new Vec2(12, -12), c + new Vec2(-12, -12)];
-            await dcs.DrawRouteAsync(flight.DrawingKey, lead.Coal, square.Select(p => (p.X, p.Z)), PadColor, $"PAD {pad.Number}", ct);
+            string label = party.IsFlight ? $"PAD {pad.Number} {SpotMarks.Label(Phraseology.Callsign(lead))}" : $"PAD {pad.Number}";
+            await dcs.DrawRouteAsync(flight.DrawingKey, lead.Coal, square.Select(p => (p.X, p.Z)), PadColor, label, ct);
+
+            // The wingmen in the air: the free pads nearest the lead's, each marked with its number until it is down on it.
+            await _marks.RemoveAsync($"pad-{party.Key}-", ct);
+            var left = free.Where(p => p != pad).OrderBy(p => p.Position.DistanceTo(pad.Position)).ToList();
+            foreach (var member in SpotMarks.Members(party, units).Where(m => m.Name != lead.Name && m.InAir))
+            {
+                if (left.Count == 0) break;
+                var own = left[0];
+                left.RemoveAt(0);
+                numbers.Add(own.Number);
+                string number = SpotMarks.Label(Phraseology.Callsign(member));
+                await _marks.AddAsync($"pad-{party.Key}-{number}", member.Name, lead.Coal, own.Position, 12, PadColor, $"PAD {own.Number} {number}", ct);
+            }
         }
         await SayAsync(flight, pad is null ? Phraseology.PadsOccupied(party.Callsign, site.Name)
-            : Phraseology.LandAtSpot(party.Callsign, site.Name, $"pad {pad.Number}", weather), ct);
+            : Phraseology.LandAtSpot(party.Callsign, site.Name, Phraseology.Pads(numbers), weather), ct);
     }
 
     /// <summary>Repeats the last call to the flight, or its startup approval.</summary>
@@ -163,6 +185,7 @@ public sealed class FarpControl(IDcsCommands dcs, FlightRegistry flights, Action
 
     public async Task OnUnitsAsync(IReadOnlyDictionary<string, UnitState> units, CancellationToken ct = default)
     {
+        await _marks.OnUnitsAsync(units, ct);
         // A startup approval lasts while the helicopter is at its site.
         foreach (var (key, s) in _startups.ToList())
         {
@@ -246,19 +269,21 @@ public sealed class FarpControl(IDcsCommands dcs, FlightRegistry flights, Action
     }
 
     /// <summary>
-    /// The nearest pad with nobody on it, not within 200 ft of a pad another helicopter is cleared to land on or of a
-    /// helicopter taking off.
+    /// The pads with nobody on them, not within 200 ft of a pad another helicopter is cleared to land on (or a wingman's)
+    /// or of a helicopter taking off.
     /// </summary>
-    private FarpPad? FreePad(FarpSite site, Party party, Vec2 from, IReadOnlyDictionary<string, UnitState> units)
+    private List<FarpPad> FreePads(FarpSite site, Party party, IReadOnlyDictionary<string, UnitState> units)
     {
         var standing = units.Values.Where(u => !party.Units.Contains(u.Name) && Helicopters.OnField(u)).Select(Pos).ToList();
         var busy = _flights.Values.Where(o => o.Key != party.Key && o.Site == site)
             .Select(o => o.Phase == FarpPhase.ClearedToLand ? o.Pad?.Position
                 : o.Phase == FarpPhase.ClearedForTakeoff && units.TryGetValue(o.UnitName, out var u) && !Airborne(u) ? Pos(u) : (Vec2?)null)
-            .OfType<Vec2>().ToList();
+            .OfType<Vec2>()
+            .Concat(_marks.TakenExcept($"pad-{party.Key}-"))
+            .ToList();
         return site.Pads
             .Where(p => !standing.Any(q => q.DistanceTo(p.Position) < AtcMenu.ParkedDistance) && !busy.Any(q => q.DistanceTo(p.Position) < Helicopters.Separation))
-            .MinBy(p => p.Position.DistanceTo(from));
+            .ToList();
     }
 
     /// <summary>On the site's ground, or a helicopter low over it; tells the pilot otherwise.</summary>
