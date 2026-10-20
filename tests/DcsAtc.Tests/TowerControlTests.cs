@@ -19,6 +19,7 @@ public partial class TowerControlTests
         public required FakeRadio Radio { get; init; }
         public required AtcMenu Menu { get; init; }
         public required ApproachControl Approach { get; init; }
+        public required FarpControl Farps { get; init; }
         public required AirfieldNavaids Navaids { get; init; }
         public required TestClock Clock { get; init; }
         public required AirfieldCatalog Catalog { get; init; }
@@ -69,10 +70,11 @@ public partial class TowerControlTests
         var tower = new TowerControl(dcs, catalog, ground, flights, clock: () => clock.Now = clock.Now.AddSeconds(1), radio: radio);
         var field = (await catalog.GetAsync(airbase))!;
         var approach = new ApproachControl(dcs, catalog, tower, flights, clock: () => clock.Now, radio: radio);
-        var menu = new AtcMenu(catalog, ground, tower, approach, flights);
+        var farps = new FarpControl(dcs, flights, radio: radio);
+        var menu = new AtcMenu(catalog, ground, tower, approach, flights, farps);
         return new World
         {
-            Dcs = dcs, Ground = ground, Tower = tower, Approach = approach, Flights = flights, Radio = radio, Menu = menu,
+            Dcs = dcs, Ground = ground, Tower = tower, Approach = approach, Flights = flights, Radio = radio, Menu = menu, Farps = farps,
             Layout = field.Layout, Navaids = field.Radio, Weather = weather, Clock = clock, Catalog = catalog,
         };
     }

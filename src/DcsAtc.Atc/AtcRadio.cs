@@ -9,7 +9,8 @@ namespace DcsAtc.Atc;
 /// </summary>
 public sealed record RadioCall(string Facility, string Role, int Coalition, string Text, AirfieldStations Stations)
 {
-    public string Station => $"{Facility} {Role}";
+    /// <summary>"Al Dhafra Ground"; a FARP site, which has one position, is just its name ("FOB Laos").</summary>
+    public string Station => Role.Length == 0 ? Facility : $"{Facility} {Role}";
     public IReadOnlyList<double> Frequencies => Stations.For(Role);
 }
 

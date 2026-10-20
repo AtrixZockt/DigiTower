@@ -110,20 +110,28 @@ public static partial class Phraseology
 
     /// <summary>
     /// "Hangman 1-1, Al Dhafra Tower, from present position, make right turn for north departure, wind 310 degrees,
-    /// 10 knots, cleared for takeoff." (no turn when already heading that way; neither without a direction).
+    /// 10 knots, cleared for takeoff." (no turn when already heading that way; neither without a direction). The
+    /// station is Tower at an airfield, the site's name at a FARP ("FOB Laos").
     /// </summary>
-    public static string HelicopterDeparture(string callsign, string facility, string? turn, string? direction, AirbaseWeather? weather)
+    public static string HelicopterDeparture(string callsign, string station, string? turn, string? direction, AirbaseWeather? weather)
     {
         string route = direction is null ? "" : turn is null ? $"{direction} departure, " : $"make {turn} turn for {direction} departure, ";
-        return $"{callsign}, {facility} Tower, from present position, {route}{(weather is null ? "" : Wind(weather) + ", ")}cleared for takeoff.";
+        return $"{callsign}, {station}, from present position, {route}{(weather is null ? "" : Wind(weather) + ", ")}cleared for takeoff.";
     }
 
     /// <summary>A helicopter departure that has to wait: "Hangman 1-1, Al Dhafra Tower, hold position, traffic on final."</summary>
-    public static string HoldPosition(string callsign, string facility, string reason) => $"{callsign}, {facility} Tower, hold position, {reason}.";
+    public static string HoldPosition(string callsign, string station, string reason) => $"{callsign}, {station}, hold position, {reason}.";
 
-    /// <summary>"Hangman 1-1, Al Dhafra Tower, make straight-in to Apron 3, wind 310 degrees, 10 knots, cleared to land."</summary>
-    public static string LandAtSpot(string callsign, string facility, string? area, AirbaseWeather? weather) =>
-        $"{callsign}, {facility} Tower, make straight-in to {area ?? "the spot marked on your map"}, {(weather is null ? "" : Wind(weather) + ", ")}cleared to land.";
+    /// <summary>"Hangman 1-1, Al Dhafra Tower, make straight-in to Apron 3, wind 310 degrees, 10 knots, cleared to land." (a FARP: "…, FOB Laos, make straight-in to pad 4, …")</summary>
+    public static string LandAtSpot(string callsign, string station, string? area, AirbaseWeather? weather) =>
+        $"{callsign}, {station}, make straight-in to {area ?? "the spot marked on your map"}, {(weather is null ? "" : Wind(weather) + ", ")}cleared to land.";
+
+    /// <summary>Every pad of a FARP site taken: "Hangman 1-1, FOB Laos, all pads occupied, landing will be at your own risk."</summary>
+    public static string PadsOccupied(string callsign, string station) => $"{callsign}, {station}, all pads occupied, landing will be at your own risk.";
+
+    public static string NotAtFarp(string callsign) => $"{callsign}, you are not at a FARP.";
+
+    public static string NoFarpWithin(string callsign, double nm) => $"{callsign}, no FARP within {nm:0} miles.";
 
     /// <summary>Air-taxiing too high: "Hangman 1-1, Al Dhafra Ground, remain at or below 100 feet."</summary>
     public static string RemainLow(string callsign, string facility) => $"{callsign}, {facility} Ground, remain at or below 100 feet.";
@@ -291,7 +299,27 @@ public static partial class Phraseology
 
     /// <summary>"Hangman 1-2, Al Dhafra Ground, start up approved, wind 310 degrees, 10 knots, QNH 1013, altimeter 29.92."</summary>
     public static string StartupApproved(string callsign, string facility, AirbaseWeather? weather, string unitType) =>
-        $"{callsign}, {facility} Ground, start up approved{(weather is null ? "" : $", {Wind(weather)}, {Altimeter(weather, unitType)}")}.";
+        StartupApprovedBy(callsign, $"{facility} Ground", weather, unitType);
+
+    /// <summary>The same from any station: "Hangman 1-2, FOB Laos, start up approved, …".</summary>
+    public static string StartupApprovedBy(string callsign, string station, AirbaseWeather? weather, string unitType) =>
+        $"{callsign}, {station}, start up approved{(weather is null ? "" : $", {Wind(weather)}, {Altimeter(weather, unitType)}")}.";
+
+    /// <summary>Everything a FARP site's controller says (for preparing the clips), apart from the pilots' callsigns.</summary>
+    public static IEnumerable<string> FarpSamples(FarpSite site, AirbaseWeather? weather)
+    {
+        const string cs = "Viper 1-1";
+        foreach (var type in new[] { "", UsTypes.First() }) yield return StartupApprovedBy(cs, site.Name, weather, type);
+        foreach (string? direction in new[] { null, "north", "east", "south", "west" })
+            foreach (string? turn in new[] { null, "left", "right" })
+                yield return HelicopterDeparture(cs, site.Name, turn, direction, weather);
+        yield return HoldPosition(cs, site.Name, HelicopterTraffic);
+        foreach (var pad in site.Pads) yield return LandAtSpot(cs, site.Name, $"pad {pad.Number}", weather);
+        yield return PadsOccupied(cs, site.Name);
+        yield return ContactAfterDeparture(cs, null);
+        yield return SayAgainPlease(cs, site.Name);
+        yield return ReadYouFive(cs, site.Name);
+    }
 
     /// <summary>
     /// One example of every transmission Ground and Tower make at an airfield, with its runways, taxiways, parking
@@ -333,14 +361,14 @@ public static partial class Phraseology
             yield return TaxiToParking(cs, facility, area, via);
             yield return TaxiToParking(cs, facility, area, []);
             yield return TaxiToParking(cs, facility, area, via, airTaxi: true);
-            yield return LandAtSpot(cs, facility, area, weather);
+            yield return LandAtSpot(cs, $"{facility} Tower", area, weather);
         }
         // Helicopters: departures from present position, holding, landing at a spot, air-taxi height.
         foreach (string? direction in new[] { null, "north", "east", "south", "west" })
             foreach (string? turn in new[] { null, "left", "right" })
-                yield return HelicopterDeparture(cs, facility, turn, direction, weather);
-        foreach (var reason in HoldReasons.Append(HelicopterTraffic)) yield return HoldPosition(cs, facility, reason);
-        yield return LandAtSpot(cs, facility, null, weather);
+                yield return HelicopterDeparture(cs, $"{facility} Tower", turn, direction, weather);
+        foreach (var reason in HoldReasons.Append(HelicopterTraffic)) yield return HoldPosition(cs, $"{facility} Tower", reason);
+        yield return LandAtSpot(cs, $"{facility} Tower", null, weather);
         yield return RemainLow(cs, facility);
         foreach (var reason in ApproachReasons)
         {

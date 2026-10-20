@@ -328,6 +328,42 @@ local function airbaseInfo(c)
   }
 end
 
+--- The FARPs of the mission file (statics of category "Heliports"): name, type, position, and the frequency and
+-- callsign the mission gives them (what DCS's own FARP ATC uses); with their pads (parking spots), coalition and
+-- callsign name from DCS now.
+local function farpList()
+  local out = array()
+  local sides = { red = 1, blue = 2 }
+  for sideName, side in pairs((env.mission or {}).coalition or {}) do
+    for _, country in ipairs(side.country or {}) do
+      for _, g in ipairs((country.static and country.static.group) or {}) do
+        for _, u in ipairs(g.units or {}) do
+          if u.category == 'Heliports' then
+            local name = u.name
+            if type(name) == 'string' and name:sub(1, 8) == 'DictKey_' and env.getValueDictByKey then name = env.getValueDictByKey(name) end
+            local farp = {
+              name = name, type = u.type, x = u.x, z = u.y, coalition = sides[sideName] or 0,
+              frequency = tonumber(u.heliport_frequency), modulation = tonumber(u.heliport_modulation) or 0,
+              callsignId = tonumber(u.heliport_callsign_id), pads = array(),
+            }
+            local ab = Airbase.getByName(name)
+            if ab then
+              farp.id = tonumber(ab:getID())
+              farp.coalition = ab:getCoalition()
+              farp.callsign = ab:getCallsign()
+              for _, s in ipairs(ab:getParking() or {}) do
+                farp.pads[#farp.pads + 1] = { index = s.Term_Index, x = s.vTerminalPos.x, z = s.vTerminalPos.z }
+              end
+            end
+            out[#out + 1] = farp
+          end
+        end
+      end
+    end
+  end
+  return out
+end
+
 local function radioSilent(c)
   local ab = Airbase.getByName(c.name)
   if not ab then error('airbase not found: ' .. tostring(c.name)) end
@@ -516,6 +552,7 @@ local COMMANDS = {
   menu_clear = menuClear,
   airbase_list = airbaseList,
   airbase_info = airbaseInfo,
+  farp_list = farpList,
   airbase_weather = airbaseWeather,
   mission_weather = missionWeather,
   radio_silent = radioSilent,

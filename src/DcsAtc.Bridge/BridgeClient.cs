@@ -171,6 +171,13 @@ public sealed class BridgeClient : IAsyncDisposable, IDcsCommands
         }).ToList();
     }
 
+    /// <summary>The FARPs of the mission file, with the frequency and callsign the mission gives them and their pads.</summary>
+    public async Task<IReadOnlyList<FarpInfo>> GetFarpsAsync(CancellationToken ct = default)
+    {
+        var data = await RequestAsync(new JsonObject { ["cmd"] = "farp_list" }, ct);
+        return data is { ValueKind: JsonValueKind.Array } d ? d.Deserialize<List<FarpInfo>>(Json) ?? [] : [];
+    }
+
     public async Task<AirbaseInfo?> GetAirbaseAsync(string name, CancellationToken ct = default)
     {
         var data = await RequestAsync(new JsonObject { ["cmd"] = "airbase_info", ["name"] = name }, ct);

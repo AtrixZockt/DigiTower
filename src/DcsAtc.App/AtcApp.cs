@@ -39,6 +39,7 @@ public sealed class AtcApp
     private readonly ApproachControl _approach;
     private readonly AtisService _atis;
     private readonly AiTraffic _ai;
+    private readonly FarpControl _farps;
     // The server may turn AI handling off in its bridge config (hello.manageAi).
     private bool _serverAllowsAi = true;
     private readonly AtcMenu _menu;
@@ -69,7 +70,8 @@ public sealed class AtcApp
         _approach = new ApproachControl(client, _airfields, _tower, _flights, Log, radio: options.Radio);
         _atis = new AtisService(client, _airfields, options.Radio, Log, onAir: a => _onAir.Any(k => k.Id == a.Id));
         _ai = new AiTraffic(client, _airfields, _ground, _tower, _approach, Log, radio: options.Radio);
-        _menu = new AtcMenu(_airfields, _ground, _tower, _approach, _flights);
+        _farps = new FarpControl(client, _flights, Log, options.Radio);
+        _menu = new AtcMenu(_airfields, _ground, _tower, _approach, _flights, _farps);
         _reader = new PilotCallReader(options.VoiceAliases);
     }
 
@@ -127,11 +129,15 @@ public sealed class AtcApp
             Log($"voice: {sender ?? "?"} is not in an aircraft, not answered");
             return;
         }
+        // Stations sharing a frequency (a few DCS airfields; every Retribution FARP): the one nearest the pilot answers.
+        if (mhz is double heardOn && NearestOn(heardOn, unit) is { } nearest && nearest != facility) return;
+        if (_farps.Sites.FirstOrDefault(s => s.Name == facility) is { } site)
+        {
+            await FarpVoiceAsync(site, unit, text, ct);
+            return;
+        }
         var airbase = _airfields.Airbases.FirstOrDefault(a => a.Category == 0 && Phraseology.Facility(a.Name) == facility);
         if (airbase is null || await _airfields.GetAsync(airbase, ct) is not { } airfield) return;
-        // DCS gives a few airfields the same frequency: the one nearest the pilot answers.
-        if (mhz is double heardOn && _airfields.AirbasesOn(heardOn).MinBy(a => Math.Pow(a.X - unit.X, 2) + Math.Pow(a.Z - unit.Z, 2)) is { } nearest
-            && nearest.Id != airbase.Id) return;
 
         // On a position's own frequency that position was called; on a shared one, the one named, else the one that
         // fits where the aircraft is (the request itself decides below).
@@ -214,6 +220,88 @@ public sealed class AtcApp
         _ => null,
     };
 
+    /// <summary>Of the airfields and FARP sites working this frequency, the one nearest the unit.</summary>
+    private string? NearestOn(double mhz, UnitState unit)
+    {
+        var p = new Vec2(unit.X, unit.Z);
+        return _airfields.AirbasesOn(mhz).Select(a => (Facility: Phraseology.Facility(a.Name), At: new Vec2(a.X, a.Z)))
+            .Concat(_farps.Sites.Where(s => s.Frequencies.Has(mhz)).Select(s => (Facility: s.Name, At: s.Center)))
+            .OrderBy(c => c.At.DistanceTo(p)).Select(c => c.Facility).FirstOrDefault();
+    }
+
+    /// <summary>A voice request to a FARP site: start up, departure, landing, say again, radio check.</summary>
+    private async Task FarpVoiceAsync(FarpSite site, UnitState unit, string text, CancellationToken ct)
+    {
+        var party = _flights.PartyFor(unit, _units);
+        var reading = _reader.Read(text, site.Name);
+        if (reading.Call is not { } call)
+        {
+            if (reading.Readback || !reading.AimedAtAtc)
+            {
+                Log($"voice: {party.Callsign} to {site.Name}: {(reading.Readback ? "readback" : "not a call to ATC")}, no answer");
+                return;
+            }
+            Log($"voice: {party.Callsign} to {site.Name}: not understood");
+            await FarpReplyAsync(party, site, unit.Coal, Phraseology.SayAgainPlease(party.Callsign, site.Name), ct);
+            return;
+        }
+        Log($"voice: {party.Callsign} to {site.Name}: {call.Intent}{(call.Option is { } o ? $" ({o})" : "")}, match {call.Match:P0}");
+        switch (call.Intent)
+        {
+            case PilotIntent.RequestStartup:
+                await _farps.RequestStartupAsync(unit, _units, site, ct);
+                break;
+            case PilotIntent.ReadyForDeparture:
+                await _farps.RequestDepartureAsync(unit, _units, AtcMenu.IntentOf($"tower.ready.{call.Option ?? "own"}") ?? DepartureIntent.OwnNavigation, site, ct);
+                break;
+            case PilotIntent.RequestLanding or PilotIntent.CheckIn:
+                await _farps.RequestLandingAsync(unit, _units, site, ct);
+                break;
+            case PilotIntent.SayAgain:
+                await _farps.SayAgainAsync(unit, _units, ct);
+                break;
+            case PilotIntent.RadioCheck:
+                await FarpReplyAsync(party, site, unit.Coal, Phraseology.ReadYouFive(party.Callsign, site.Name), ct);
+                break;
+            default:
+                await FarpReplyAsync(party, site, unit.Coal, Phraseology.SayAgainPlease(party.Callsign, site.Name), ct);
+                break;
+        }
+        foreach (var u in PlayerGroups()) await UpdateMenuAsync(u, ct);
+    }
+
+    private async Task FarpReplyAsync(Party party, FarpSite site, int coalition, string text, CancellationToken ct)
+    {
+        foreach (var group in party.Groups) await _client.ShowTextAsync(group, text, 10, ct: ct);
+        if (_options.Radio is { } radio && site.Call(coalition, text) is { } call) radio.Transmit(call);
+        Log($"{party.Callsign}: {text}");
+    }
+
+    private async Task FarpMenuAsync(UnitState unit, int groupId, string action, FarpSite site, CancellationToken ct)
+    {
+        switch (action)
+        {
+            case "farp.startup":
+                await _farps.RequestStartupAsync(unit, _units, site, ct);
+                break;
+            case "farp.landing":
+                await _farps.RequestLandingAsync(unit, _units, site, ct);
+                break;
+            case "farp.repeat":
+                await _farps.SayAgainAsync(unit, _units, ct);
+                break;
+            case "farp.frequencies":
+                await _client.ShowTextAsync(groupId, $"{site.Name}: {FarpFrequency(site)}, {site.Pads.Count} pads.", 20, ct: ct);
+                break;
+            default:
+                if (AtcMenu.FarpIntentOf(action) is { } intent) await _farps.RequestDepartureAsync(unit, _units, intent, site, ct);
+                break;
+        }
+    }
+
+    private static string FarpFrequency(FarpSite site) =>
+        site.Frequencies.Shared.Count > 0 ? string.Join(" / ", site.Frequencies.Shared.Select(f => Phraseology.Frequency(f))) : "no frequency, text messages only";
+
     /// <summary>The position a pilot named ("…, Al Minhad Tower, …"), if any.</summary>
     private static string? NamedRole(IReadOnlyList<string> words) =>
         words.Contains("ground") ? "Ground" : words.Contains("tower") ? "Tower" : words.Contains("approach") || words.Contains("radar") ? "Approach" : null;
@@ -270,6 +358,7 @@ public sealed class AtcApp
                 await _ground.OnEventAsync(e, ct);
                 await _tower.OnEventAsync(e, ct);
                 await _approach.OnEventAsync(e, ct);
+                await _farps.OnEventAsync(e, ct);
                 if (ManagingAi) _ai.OnEvent(e);
                 break;
             case MenuSelectedMessage m:
@@ -298,6 +387,17 @@ public sealed class AtcApp
         _airfields.SetMission(info?.Theatre, airbases, radios);
         int withRadio = airbases.Count(a => _airfields.StationsFor(a).All.Count > 0);
         Log($"{airbases.Count} airbases in this mission, {withRadio} with ATC frequencies");
+        IReadOnlyList<FarpInfo> farps = [];
+        try
+        {
+            farps = await _client.GetFarpsAsync(ct);
+        }
+        catch (BridgeCommandException ex)
+        {
+            Log($"FARPs not available ({ex.Message}): update the bridge with bridge/install.ps1.");
+        }
+        _farps.SetSites(FarpSite.Build(farps));
+        foreach (var site in _farps.Sites) Log($"FARP site {site.Name}: {site.Pads.Count} pads, {FarpFrequency(site)}");
 
         foreach (var name in _options.DumpAirbases)
         {
@@ -316,6 +416,8 @@ public sealed class AtcApp
             foreach (var airbase in airbases.Where(a => a.Category == 0
                          && (_airfields.LabelsFor(a.Name) is not null || (_options.Radio is not null && _airfields.StationsFor(a).All.Count > 0))))
                 silence.Add(airbase.Name);
+            if (_options.Radio is not null)
+                foreach (var site in _farps.Sites.Where(s => s.Frequencies.All.Count > 0)) silence.UnionWith(site.Farps);
         }
         foreach (var name in silence)
             Log($"{name}: stock ATC silenced: {await _client.SetRadioSilentAsync(name, true, ct)}");
@@ -339,6 +441,7 @@ public sealed class AtcApp
         await _ground.OnUnitsAsync(_units, ct);
         await _tower.OnUnitsAsync(_units, ct);
         await _approach.OnUnitsAsync(_units, ct);
+        await _farps.OnUnitsAsync(_units, ct);
         if (ManagingAi) await _ai.OnUnitsAsync(_units, ct);
         await _atis.OnUnitsAsync(ct);
         foreach (var u in PlayerGroups()) await UpdateMenuAsync(u, ct);
@@ -351,7 +454,9 @@ public sealed class AtcApp
                     (_ground.Clearances.Values.FirstOrDefault(c => c.UnitName == p.Name) is { } c ? $"  [Ground: {c.Phase} to {c.Departure?.End.Name ?? "parking"}]" : "") +
                     (_tower.Flights.Values.FirstOrDefault(f => f.UnitName == p.Name) is { } t ? $"  [Tower: {t.Phase} {(t.Spot is { } spot ? $"spot {spot.Index}" : t.FromPresentPosition ? "from present position" : $"runway {t.End.Name}")}]" : "") +
                     (_approach.Flights.Values.FirstOrDefault(f => f.UnitName == p.Name) is { } a
-                        ? $"  [Approach: {a.Phase}{(a.IsArrival ? $" {a.Type} {a.End.Name} {a.Leg} hdg {a.Heading:000} alt {a.Altitude:0}" : "")}]" : ""));
+                        ? $"  [Approach: {a.Phase}{(a.IsArrival ? $" {a.Type} {a.End.Name} {a.Leg} hdg {a.Heading:000} alt {a.Altitude:0}" : "")}]" : "") +
+                    (_farps.Flights.Values.FirstOrDefault(f => f.UnitName == p.Name) is { } fa
+                        ? $"  [{fa.Site.Name}: {fa.Phase}{(fa.Pad is { } pad ? $" pad {pad.Number}" : "")}]" : ""));
         }
     }
 
@@ -362,6 +467,12 @@ public sealed class AtcApp
         if (unit is null) return;
         // Airfield calls carry the airfield ("ab4:ground.taxi"): the controllers work that one, not the nearest.
         var (airbaseId, action) = AtcMenu.ParseId(m.Id);
+        if (action.StartsWith("farp.", StringComparison.Ordinal))
+        {
+            if (airbaseId is int siteId && _farps.Site(siteId) is { } site) await FarpMenuAsync(unit, m.GroupId, action, site, ct);
+            foreach (var u in PlayerGroups()) await UpdateMenuAsync(u, ct);
+            return;
+        }
         var at = airbaseId is int id && _airfields.Airbases.FirstOrDefault(a => a.Id == id) is { } airbase ? await _airfields.GetAsync(airbase, ct) : null;
         switch (action)
         {
@@ -491,6 +602,15 @@ public sealed class AtcApp
                 radio.Listen(Phraseology.Facility(airbase.Name), stations, unit.Coal);
                 if (_prepared.Add(airbase.Id) && await _airfields.GetAsync(airbase, ct) is { } airfield) await PrepareAsync(airfield, radio, ct);
             }
+            foreach (var site in _farps.Sites)
+            {
+                if (site.Frequencies.All.Count == 0 || _onAir.Contains((site.Id, unit.Coal))) continue;
+                if (site.Center.DistanceTo(new Vec2(unit.X, unit.Z)) > OnAirRange * Nm) continue;
+                _onAir.Add((site.Id, unit.Coal));
+                Log($"{site.Name} (FARP) on the air for {(unit.Coal == 1 ? "red" : "blue")}: {FarpFrequency(site)}");
+                radio.Listen(site.Name, site.Frequencies, unit.Coal);
+                if (_prepared.Add(site.Id)) radio.Prepare(Phraseology.FarpSamples(site, await _client.GetAirbaseWeatherAsync(site.Farps[0], ct)));
+            }
         }
         if (atis) await _atis.UpdateAsync(ct);
     }
@@ -548,6 +668,7 @@ public sealed class AtcApp
         _approach.Reset();
         _atis.Reset();
         _ai.Reset();
+        _farps.Reset();
         _onAir.Clear();
         _prepared.Clear();
     }
