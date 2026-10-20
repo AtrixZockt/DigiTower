@@ -22,7 +22,7 @@ public class BridgeClientTests
         using var reader = new StreamReader(stream);
         await using var writer = new StreamWriter(stream) { AutoFlush = true, NewLine = "\n" };
 
-        await writer.WriteLineAsync("""{"type":"hello","protocol":1,"mission":"Test","missionRunning":true,"info":{"theatre":"PersianGulf","date":{"Year":2026,"Month":10,"Day":18}},"multiplayer":false,"manageAi":false}""");
+        await writer.WriteLineAsync("""{"type":"hello","protocol":1,"mission":"Test","missionRunning":true,"info":{"theatre":"PersianGulf","date":{"Year":2026,"Month":10,"Day":18}},"multiplayer":false,"manageAi":false,"mapDrawings":false}""");
         await writer.WriteLineAsync("""{"type":"poll","t":12.5,"msgs":[{"type":"event","ev":"takeoff","t":12.4,"unit":"Viper 1-1","groupId":3,"place":"Al Dhafra AFB"},{"type":"menu","groupId":3,"id":"taxi","t":12.45}],"units":[{"id":1001,"name":"Viper 1-1","type":"F-16C_50","cat":"plane","coal":2,"groupId":3,"player":"DiGii","x":-211800,"y":40,"z":-173400,"vx":3,"vy":0,"vz":4,"hdg":53.1,"agl":24,"inAir":true}]}""");
 
         var messages = new List<BridgeMessage>();
@@ -34,6 +34,7 @@ public class BridgeClientTests
         Assert.Equal("PersianGulf", hello.Info?.Theatre);
         Assert.Equal(new MissionDate(2026, 10, 18), hello.Info?.Date);
         Assert.False(hello.ManageAi);
+        Assert.False(hello.MapDrawings);
         var ev = Assert.IsType<DcsEventMessage>(messages[2]);
         Assert.Equal(("takeoff", "Viper 1-1", "Al Dhafra AFB", 3), (ev.Event, ev.Unit, ev.Place, ev.GroupId));
         var menu = Assert.IsType<MenuSelectedMessage>(messages[3]);

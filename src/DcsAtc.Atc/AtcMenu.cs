@@ -103,6 +103,9 @@ public sealed class AtcMenu(AirfieldCatalog airfields, GroundControl ground, Tow
             for (int n = 2; n <= 4; n++) entries.Add(new(Flight, $"Flight of {n}", $"flight.{n}"));
         }
         entries.Add(new(Debug, "Where am I?", "debug.where"));
+        // Multiplayer test: does DCS show a pin to one group only?
+        entries.Add(new(Debug, "Private pin test", "debug.pin"));
+        entries.Add(new(Debug, "Remove private pin", "debug.unpin"));
         return entries;
     }
 

@@ -8,12 +8,14 @@
     mission scripting environment. -Uninstall removes both again.
 
     The bridge settings are in <Saved Games>\<Instance>\Scripts\DcsAtc\DcsAtcConfig.lua. The first install writes it
-    with every setting explained; later installs keep it. -NoAi / -Ai switch AI handling off / on there.
+    with every setting explained; later installs keep it. -NoAi / -Ai switch AI handling off / on there,
+    -NoMapDrawings / -MapDrawings the taxi routes and landing spots on the F10 map.
 
 .EXAMPLE
     .\bridge\install.ps1                                  # the dedicated server (DCS.dcs_serverrelease)
     .\bridge\install.ps1 -Instance DCS                    # the normal game, for single-player tests
     .\bridge\install.ps1 -Instance DCS.dcs_serverrelease -NoAi   # AI departures are left to DCS on this server
+    .\bridge\install.ps1 -Instance DCS.dcs_serverrelease -NoMapDrawings   # nothing drawn on the F10 map
     .\bridge\install.ps1 -Instance DCS.dcs_serverrelease -Uninstall
 #>
 param(
@@ -23,11 +25,16 @@ param(
     [switch]$NoAi,
     # Let DCS-ATC hold AI departures and release them in turn again (manageAi = true).
     [switch]$Ai,
+    # Draw nothing on the F10 map (mapDrawings = false): DCS shows drawings to the whole side, not one player.
+    [switch]$NoMapDrawings,
+    # Draw taxi routes and helicopter landing spots on the F10 map again (mapDrawings = true).
+    [switch]$MapDrawings,
     [switch]$Uninstall
 )
 
 $ErrorActionPreference = "Stop"
 if ($NoAi -and $Ai) { throw "-NoAi and -Ai cannot be used together" }
+if ($NoMapDrawings -and $MapDrawings) { throw "-NoMapDrawings and -MapDrawings cannot be used together" }
 $target = Join-Path $SavedGames $Instance
 if (-not (Test-Path $target)) { throw "DCS folder not found: $target" }
 
@@ -76,6 +83,12 @@ return {
   -- (bridge\install.ps1 -NoAi / -Ai switches this.)
   manageAi = true,
 
+  -- true:  taxi routes and helicopter landing spots are drawn on the F10 map while they are in use. DCS shows map
+  --        drawings to everyone on that side, not to one player.
+  -- false: nothing is drawn.
+  -- (bridge\install.ps1 -NoMapDrawings / -MapDrawings switches this.)
+  mapDrawings = true,
+
   -- The port the ATC app connects to (on this PC only).
   port = 42700,
 }
@@ -84,22 +97,27 @@ if (-not (Test-Path $config)) {
     [System.IO.File]::WriteAllText($config, $configTemplate.Replace("`r`n", "`n").Replace("`n", "`r`n"), $noBom)
     Write-Host "created the settings file $config"
 }
-if ($NoAi -or $Ai) {
-    $value = if ($NoAi) { "false" } else { "true" }
+# Sets a true/false setting in the settings file (added if the file does not have it yet).
+function Set-Setting([string]$name, [bool]$on) {
+    $value = if ($on) { "true" } else { "false" }
     $text = [System.IO.File]::ReadAllText($config)
-    $setting = [regex]'(?m)^(\s*)manageAi\s*=\s*(true|false)'
+    $setting = [regex]('(?m)^(\s*)' + $name + '\s*=\s*(true|false)')
     $table = [regex]'return\s*\{'
     if ($setting.IsMatch($text)) {
-        $text = $setting.Replace($text, '${1}manageAi = ' + $value, 1)
+        $text = $setting.Replace($text, '${1}' + $name + ' = ' + $value, 1)
     } elseif ($table.IsMatch($text)) {
-        $text = $table.Replace($text, "return {`r`n  manageAi = $value,", 1)
+        $text = $table.Replace($text, "return {`r`n  $name = $value,", 1)
     } else {
-        throw "cannot set manageAi in $config (it does not return a table { ... }); set manageAi = $value there yourself"
+        throw "cannot set $name in $config (it does not return a table { ... }); set $name = $value there yourself"
     }
     [System.IO.File]::WriteAllText($config, $text, $noBom)
 }
-$aiOff = [regex]::IsMatch([System.IO.File]::ReadAllText($config), '(?m)^\s*manageAi\s*=\s*false')
-Write-Host ("AI handling: " + $(if ($aiOff) { "off (AI is left to DCS)" } else { "on" }) + ", switch with -NoAi / -Ai or in $config")
+function Test-Off([string]$name) { [regex]::IsMatch([System.IO.File]::ReadAllText($config), '(?m)^\s*' + $name + '\s*=\s*false') }
+
+if ($NoAi -or $Ai) { Set-Setting "manageAi" ([bool]$Ai) }
+if ($NoMapDrawings -or $MapDrawings) { Set-Setting "mapDrawings" ([bool]$MapDrawings) }
+Write-Host ("AI handling: " + $(if (Test-Off "manageAi") { "off (AI is left to DCS)" } else { "on" }) + ", switch with -NoAi / -Ai or in $config")
+Write-Host ("F10 map drawings: " + $(if (Test-Off "mapDrawings") { "off" } else { "on" }) + ", switch with -NoMapDrawings / -MapDrawings")
 
 $block = @"
 $begin (added by DCS_ATC\bridge\install.ps1; run it with -Uninstall to remove)

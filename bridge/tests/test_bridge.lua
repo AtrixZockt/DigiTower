@@ -269,6 +269,54 @@ test('hook: held AI groups are released when the app disconnects', function()
   eq(W:unit('Enfield 1-1').group.commands[1], 'Start', 'released when the app went away')
 end)
 
+test('commands: a map pin for one group', function()
+  local W, ATCB = missionWorld()
+  ATCB.command({ cmd = 'mark_group', req = 1, key = 'pin-5', groupId = 5, x = 100, z = 200, text = 'Only Hangman 1-2 should see this' })
+  local pin
+  for _, m in pairs(W.marks) do if m.kind == 'pin' then pin = m end end
+  eq(pin.group, 5, 'for that group'); eq(pin.text, 'Only Hangman 1-2 should see this', 'label'); eq(pin.point.z, 200, 'where')
+  ATCB.command({ cmd = 'drawing_clear', key = 'pin-5' })
+  eq(next(W.marks), nil, 'removed')
+end)
+
+test('hook: a server can turn the map drawings off', function()
+  local port = 42797
+  local W = fake.new({})
+  W:setupScenario({ static = true })
+  local cb = fake.loadHook(W, root, port, socket.gettime(), { mapDrawings = false })
+  local client = assert(socket.connect('127.0.0.1', port))
+  client:settimeout(0)
+  local lines = {}
+  local function pump(seconds)
+    local untilTime = socket.gettime() + seconds
+    while socket.gettime() < untilTime do
+      W:step(0.05)
+      cb.onSimulationFrame()
+      repeat
+        local line = client:receive('*l')
+        if line then lines[#lines + 1] = json.decode(line) end
+      until not line
+      socket.sleep(0.01)
+    end
+  end
+  local function find(pred)
+    for _, m in ipairs(lines) do
+      if pred(m) then return m end
+      for _, inner in ipairs(m.msgs or {}) do if pred(inner) then return inner end end
+    end
+  end
+  cb.onSimulationStart()
+  pump(0.2)
+  eq(find(function(m) return m.type == 'hello' end).mapDrawings, false, 'hello tells the app')
+  client:send('{"cmd":"draw_route","req":8,"key":"taxi-1","coalition":2,"points":[[0,0],[100,0]],"text":"HOLD SHORT 31R"}\n')
+  pump(0.3)
+  local r = find(function(m) return m.type == 'reply' and m.req == 8 end)
+  eq(r.ok, true, 'answered')
+  eq(next(W.marks), nil, 'nothing drawn')
+  client:close()
+  pump(0.1)
+end)
+
 test('hook: a server can turn AI handling off', function()
   local port = 42793
   local W = fake.new({})

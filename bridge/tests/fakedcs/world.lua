@@ -260,6 +260,10 @@ function M.new(opts)
         for _, m in pairs(W.marks) do if m.kind == 'line' then lines = lines + 1 end end
         W.print(string.format('[F10 map] %d route lines on the map, text "%s"', lines, text))
       end,
+      markToGroup = function(id, text, p, groupId)
+        W.marks[id] = { kind = 'pin', group = groupId, point = p, text = text }
+        W.print(string.format('[F10 map] pin for group %s: "%s"', tostring(groupId), text))
+      end,
       removeMark = function(id) W.marks[id] = nil end,
     },
   }

@@ -13,6 +13,8 @@ public sealed record BridgeOptions
     public int Port { get; init; } = 42700;
     public TimeSpan ReconnectDelay { get; init; } = TimeSpan.FromSeconds(2);
     public TimeSpan RequestTimeout { get; init; } = TimeSpan.FromSeconds(10);
+    /// <summary>False: nothing is drawn on the F10 map (DCS shows drawings to a whole side, not one player).</summary>
+    public bool MapDrawings { get; init; } = true;
 }
 
 /// <summary>A command to the bridge failed on the DCS side.</summary>
@@ -193,6 +195,7 @@ public sealed class BridgeClient : IAsyncDisposable, IDcsCommands
     /// </summary>
     public Task DrawRouteAsync(string key, int coalition, IEnumerable<(double X, double Z)> points, double[] rgba, string? text = null, CancellationToken ct = default)
     {
+        if (!_options.MapDrawings) return Task.CompletedTask;
         var cmd = new JsonObject
         {
             ["cmd"] = "draw_route",
@@ -204,6 +207,13 @@ public sealed class BridgeClient : IAsyncDisposable, IDcsCommands
         if (text is not null) cmd["text"] = text;
         return SendAsync(cmd, ct);
     }
+
+    /// <summary>
+    /// A pin with a label on the F10 map meant only for one group (DCS markToGroup); removed with <see cref="ClearDrawingAsync"/>.
+    /// For testing whether DCS really keeps it from other players.
+    /// </summary>
+    public Task MarkGroupAsync(string key, int groupId, double x, double z, string text, CancellationToken ct = default) =>
+        RequestAsync(new JsonObject { ["cmd"] = "mark_group", ["key"] = key, ["groupId"] = groupId, ["x"] = Math.Round(x, 1), ["z"] = Math.Round(z, 1), ["text"] = text }, ct);
 
     public Task ClearDrawingAsync(string key, CancellationToken ct = default) =>
         SendAsync(new JsonObject { ["cmd"] = "drawing_clear", ["key"] = key }, ct);
