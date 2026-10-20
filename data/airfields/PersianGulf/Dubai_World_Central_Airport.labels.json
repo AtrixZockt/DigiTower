@@ -1,0 +1,378 @@
+{
+  "airfield": "Al Maktoum Intl",
+  "rn5": "Dubai_World_Central_Airport",
+  "source": "CombatWombat's airfield diagrams, Persian Gulf (page 3013, \"Al Maktoum Intl. (OMDW)\"). The chart's runway is the full pavement, which reaches 300-500 m past DCS's runway ends, so the georeference uses the pavement ends of DCS's taxi network. B: the inner parallel taxiway south of 12/30 (the chart's B is on it). C, D, E: the chart prints them inside the islands along the outer parallel taxiway; read here as its sections (E west, D middle, C east) - a judgement call. A (north of the runway) is not in DCS. The chart's frequencies are not used.",
+  "georeference": {
+    "controlPoints": [
+      {
+        "chart": [
+          113.6,
+          287.0
+        ],
+        "x": -139024.9,
+        "z": -111834.8
+      },
+      {
+        "chart": [
+          656.7,
+          628.5
+        ],
+        "x": -141341.6,
+        "z": -108125.9
+      }
+    ]
+  },
+  "taxiways": [
+    {
+      "name": "B",
+      "path": [
+        [
+          -139190.5,
+          -111984.5
+        ]
+      ]
+    },
+    {
+      "name": "B",
+      "path": [
+        [
+          -140444.7,
+          -109972.5
+        ]
+      ]
+    },
+    {
+      "name": "B",
+      "path": [
+        [
+          -140493.2,
+          -109894.9
+        ]
+      ]
+    },
+    {
+      "name": "B",
+      "path": [
+        [
+          -140495.8,
+          -109889.7
+        ]
+      ]
+    },
+    {
+      "name": "B",
+      "path": [
+        [
+          -141355.2,
+          -108524.2
+        ]
+      ]
+    },
+    {
+      "name": "B",
+      "path": [
+        [
+          -141329.8,
+          -108566.8
+        ]
+      ]
+    },
+    {
+      "name": "B",
+      "path": [
+        [
+          -141047.4,
+          -109011.0
+        ]
+      ]
+    },
+    {
+      "name": "B",
+      "path": [
+        [
+          -140768.7,
+          -109459.5
+        ]
+      ]
+    },
+    {
+      "name": "B",
+      "path": [
+        [
+          -140576.4,
+          -109769.6
+        ]
+      ]
+    },
+    {
+      "name": "B",
+      "path": [
+        [
+          -140398.6,
+          -110049.2
+        ]
+      ]
+    },
+    {
+      "name": "B",
+      "path": [
+        [
+          -140310.2,
+          -110187.1
+        ]
+      ]
+    },
+    {
+      "name": "B",
+      "path": [
+        [
+          -140288.0,
+          -110220.6
+        ]
+      ]
+    },
+    {
+      "name": "B",
+      "path": [
+        [
+          -140227.9,
+          -110311.2
+        ]
+      ]
+    },
+    {
+      "name": "B",
+      "path": [
+        [
+          -140151.7,
+          -110434.3
+        ]
+      ]
+    },
+    {
+      "name": "B",
+      "path": [
+        [
+          -139928.4,
+          -110798.9
+        ]
+      ]
+    },
+    {
+      "name": "B",
+      "path": [
+        [
+          -139797.5,
+          -111010.5
+        ]
+      ]
+    },
+    {
+      "name": "B",
+      "path": [
+        [
+          -139775.2,
+          -111043.9
+        ]
+      ]
+    },
+    {
+      "name": "B",
+      "path": [
+        [
+          -139731.1,
+          -111114.1
+        ]
+      ]
+    },
+    {
+      "name": "B",
+      "path": [
+        [
+          -139493.8,
+          -111494.2
+        ]
+      ]
+    },
+    {
+      "name": "B",
+      "path": [
+        [
+          -139270.3,
+          -111855.0
+        ]
+      ]
+    },
+    {
+      "name": "B",
+      "path": [
+        [
+          -139241.7,
+          -111901.3
+        ]
+      ]
+    },
+    {
+      "name": "B",
+      "path": [
+        [
+          -139213.0,
+          -111948.1
+        ]
+      ]
+    },
+    {
+      "name": "B",
+      "path": [
+        [
+          -140443.7,
+          -109976.1
+        ]
+      ]
+    },
+    {
+      "name": "E",
+      "path": [
+        [
+          -139279.8,
+          -112018.3
+        ]
+      ]
+    },
+    {
+      "name": "E",
+      "path": [
+        [
+          -140397.6,
+          -110237.4
+        ]
+      ]
+    },
+    {
+      "name": "E",
+      "path": [
+        [
+          -140265.7,
+          -110448.5
+        ]
+      ]
+    },
+    {
+      "name": "E",
+      "path": [
+        [
+          -139995.2,
+          -110881.6
+        ]
+      ]
+    },
+    {
+      "name": "E",
+      "path": [
+        [
+          -139803.5,
+          -111188.6
+        ]
+      ]
+    },
+    {
+      "name": "E",
+      "path": [
+        [
+          -139580.4,
+          -111544.9
+        ]
+      ]
+    },
+    {
+      "name": "E",
+      "path": [
+        [
+          -139332.4,
+          -111936.1
+        ]
+      ]
+    },
+    {
+      "name": "D",
+      "path": [
+        [
+          -140831.7,
+          -109542.5
+        ]
+      ]
+    },
+    {
+      "name": "D",
+      "path": [
+        [
+          -140655.3,
+          -109824.9
+        ]
+      ]
+    },
+    {
+      "name": "D",
+      "path": [
+        [
+          -140480.2,
+          -110105.2
+        ]
+      ]
+    },
+    {
+      "name": "C",
+      "path": [
+        [
+          -141593.2,
+          -108323.0
+        ]
+      ]
+    },
+    {
+      "name": "C",
+      "path": [
+        [
+          -141570.1,
+          -108360.1
+        ]
+      ]
+    },
+    {
+      "name": "C",
+      "path": [
+        [
+          -141540.6,
+          -108407.4
+        ]
+      ]
+    },
+    {
+      "name": "C",
+      "path": [
+        [
+          -141517.5,
+          -108444.5
+        ]
+      ]
+    },
+    {
+      "name": "C",
+      "path": [
+        [
+          -141487.7,
+          -108492.2
+        ]
+      ]
+    },
+    {
+      "name": "C",
+      "path": [
+        [
+          -141163.4,
+          -109011.5
+        ]
+      ]
+    }
+  ]
+}

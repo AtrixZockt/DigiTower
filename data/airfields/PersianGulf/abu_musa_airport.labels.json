@@ -1,0 +1,11 @@
+{
+  "airfield": "Abu Musa Island",
+  "rn5": "abu_musa_airport",
+  "source": "Master Arms, \"OIBA - Abu Musa Island\" aerodrome chart (light), https://wiki.masterarms.se/index.php/Persian_Gulf_Charts (2026), georeferenced on the two runway ends. DCS has one taxiway, the connector from the runway to the tower parking: A. Not in DCS: B (to the GA parking at the east end). The chart's frequencies are a template and are not used.",
+  "georeference": { "controlPoints": [ { "chart": [68, 457], "x": -31627.7, "z": -122534.4 }, { "chart": [840, 378], "x": -31376.4, "z": -120072.8 } ] },
+  "taxiways": [
+    { "name": "A", "path": [[-31397.6, -122042.1]] },
+    { "name": "A", "path": [[-31559.1, -121995.1]] },
+    { "name": "A", "path": [[-31567.3, -122057.4]] }
+  ]
+}

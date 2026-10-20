@@ -33,6 +33,11 @@ the network route between them uses; one waypoint names the edge under it. Names
 2. **Georeference.** Note the pixel position of each runway end on the chart and take the DCS
    positions from `rn5tool airfield <file.rn5>` (it prints the runway ends). Put them in
    `georeference.controlPoints`; four runway ends give residuals of a few metres if the chart is to scale.
+   A single runway's two ends are enough for a chart that is not mirrored (the third point is taken at a
+   right angle). Some charts draw the full pavement or the real-world runway length while DCS's runway ends
+   sit inside the pavement (Sharjah 300–430 m, Dubai 500–850 m): then use the points where DCS's taxi
+   network ends on the extended centreline, or the links at the very ends. Tell-tale signs in the overlay: the
+   network's end loops run past the chart's runway, and links drift off the chart's links towards the ends.
 3. **Overlay.** Render the chart under the network, zoomed, with a 100 m grid:
    `rn5tool overlay <file.rn5> chart.png out/zoom.svg <centre x> <centre z> 1900 0.55`
    In that view `z = minZ + (px − 60) / 0.55` and `x = maxX − (py − 100) / 0.55`, with
@@ -40,7 +45,11 @@ the network route between them uses; one waypoint names the edge under it. Names
 4. **Match by topology, not by label position.** Chart labels sit beside their taxiways and parts of a
    chart may be schematic (at Al Dhafra, R, J6, F and the south-east corner are drawn up to ~200 m
    off). For each chart taxiway, find the DCS line that connects the same places and put waypoints on
-   that line, away from junctions.
+   that line, away from junctions. DCS networks contain overlapping edges (a long edge on top of several
+   short ones): a one-waypoint path names the edge nearest to it, so put the waypoint where only the
+   intended edge lies, and list the main taxiways before the links so they keep their names where edges
+   overlap. Chart taxiways that DCS does not have are left out; say which in `source`.
 5. **Check.** `rn5tool airfield <file.rn5> data/dcs/<airbase>.json out/named.svg` prints warnings
    (waypoints off the network, detours, conflicting names) and draws every named edge in its own colour.
-   `rn5tool route ...` prints the resulting "via" list for real routes.
+   `rn5tool names <file.rn5>` lists every named edge. `rn5tool route ...` prints the resulting "via" list
+   for real routes.

@@ -1,0 +1,15 @@
+{
+  "airfield": "Qeshm Island",
+  "rn5": "Qeshm_Airport",
+  "source": "CombatWombat's airfield diagrams, Persian Gulf (page 3031, \"Qeshm International (OIKQ)\") and Master Arms \"OIKQ - Qeshm Island\" (https://wiki.masterarms.se/index.php/Persian_Gulf_Charts); georeferenced on the two runway ends (CombatWombat's chart). A and B: the two connectors from the runway to the apron (A the south-western one). The charts' frequencies are not used.",
+  "georeference": { "controlPoints": [ { "chart": [90, 745], "x": 63492.6, "z": -34942.6 }, { "chart": [632, 290], "x": 66132.7, "z": -31795.8 } ] },
+  "taxiways": [
+    { "name": "A", "path": [[64387.1, -33886.8]] },
+    { "name": "A", "path": [[64415.8, -33852.8]] },
+    { "name": "A", "path": [[64489.6, -33944.1]] },
+    { "name": "B", "path": [[64795.4, -33402.6]] },
+    { "name": "B", "path": [[64818.4, -33378.2]] },
+    { "name": "B", "path": [[64974.8, -33530.1]] },
+    { "name": "B", "path": [[64922.3, -33486.1]] }
+  ]
+}

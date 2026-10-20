@@ -1,0 +1,232 @@
+{
+  "airfield": "Kish Intl",
+  "rn5": "Kish_International_Airport",
+  "source": "CombatWombat's airfield diagrams, Persian Gulf (page 3029, \"Kish International (OIBK)\") and Master Arms \"OIBK - Kish\" (https://wiki.masterarms.se/index.php/Persian_Gulf_Charts); georeferenced on the four runway ends (CombatWombat's chart). A, B, C: the sections of the parallel taxiway north of 10L/28R (A west to the apron, B in front of the apron with its runway entry, C east). The entries to the runways and the links between them are not named on the charts. The charts' frequencies are not used.",
+  "georeference": {
+    "controlPoints": [
+      {
+        "chart": [
+          100,
+          500
+        ],
+        "x": 42966.5,
+        "z": -226769.2
+      },
+      {
+        "chart": [
+          665,
+          563
+        ],
+        "x": 42603.7,
+        "z": -223433.4
+      },
+      {
+        "chart": [
+          100,
+          540
+        ],
+        "x": 42657.9,
+        "z": -226697.0
+      },
+      {
+        "chart": [
+          625,
+          598
+        ],
+        "x": 42316.4,
+        "z": -223553.3
+      }
+    ]
+  },
+  "taxiways": [
+    {
+      "name": "C",
+      "path": [
+        [
+          42931.8,
+          -225324.8
+        ]
+      ]
+    },
+    {
+      "name": "C",
+      "path": [
+        [
+          42837.8,
+          -224459.4
+        ]
+      ]
+    },
+    {
+      "name": "C",
+      "path": [
+        [
+          42770.4,
+          -223838.7
+        ]
+      ]
+    },
+    {
+      "name": "C",
+      "path": [
+        [
+          42748.7,
+          -223639.2
+        ]
+      ]
+    },
+    {
+      "name": "A",
+      "path": [
+        [
+          43054.7,
+          -226456.0
+        ]
+      ]
+    },
+    {
+      "name": "A",
+      "path": [
+        [
+          43031.0,
+          -226237.9
+        ]
+      ]
+    },
+    {
+      "name": "A",
+      "path": [
+        [
+          43011.6,
+          -226059.2
+        ]
+      ]
+    },
+    {
+      "name": "A",
+      "path": [
+        [
+          43006.8,
+          -226015.7
+        ]
+      ]
+    },
+    {
+      "name": "A",
+      "path": [
+        [
+          43002.0,
+          -225970.9
+        ]
+      ]
+    },
+    {
+      "name": "A",
+      "path": [
+        [
+          42998.0,
+          -225934.6
+        ]
+      ]
+    },
+    {
+      "name": "A",
+      "path": [
+        [
+          42991.0,
+          -225870.2
+        ]
+      ]
+    },
+    {
+      "name": "A",
+      "path": [
+        [
+          42985.6,
+          -225820.4
+        ]
+      ]
+    },
+    {
+      "name": "A",
+      "path": [
+        [
+          42981.7,
+          -225784.1
+        ]
+      ]
+    },
+    {
+      "name": "B",
+      "path": [
+        [
+          42977.6,
+          -225746.8
+        ]
+      ]
+    },
+    {
+      "name": "B",
+      "path": [
+        [
+          42973.6,
+          -225709.5
+        ]
+      ]
+    },
+    {
+      "name": "B",
+      "path": [
+        [
+          42851.2,
+          -225593.8
+        ]
+      ]
+    },
+    {
+      "name": "B",
+      "path": [
+        [
+          42850.4,
+          -225572.7
+        ]
+      ]
+    },
+    {
+      "name": "B",
+      "path": [
+        [
+          42907.1,
+          -225576.3
+        ]
+      ]
+    },
+    {
+      "name": "B",
+      "path": [
+        [
+          42939.4,
+          -225572.8
+        ]
+      ]
+    },
+    {
+      "name": "B",
+      "path": [
+        [
+          42949.5,
+          -225585.0
+        ]
+      ]
+    },
+    {
+      "name": "B",
+      "path": [
+        [
+          42946.5,
+          -225559.0
+        ]
+      ]
+    }
+  ]
+}

@@ -1,0 +1,81 @@
+{
+  "airfield": "Ras Al Khaimah Intl",
+  "rn5": "Ras_Al_Khaimah_International_Airport",
+  "source": "CombatWombat's airfield diagrams, Persian Gulf (page 3007, \"Ras Al Khaimah Airport (OMRK)\"). The chart's runway is the full pavement, which reaches about 400 m past DCS's runway ends, so the georeference uses the pavement ends of DCS's taxi network. A: the loop at the 17 end. N, S: the links to the main parking area. B: the loop at the 35 end. K: the link from the 35 end to the southern parking area. Not in DCS: M and L. The chart's frequencies are not used.",
+  "georeference": {
+    "controlPoints": [
+      {
+        "chart": [
+          283.6,
+          107.6
+        ],
+        "x": -59855.0,
+        "z": -31263.2
+      },
+      {
+        "chart": [
+          464.0,
+          789.5
+        ],
+        "x": -63433.3,
+        "z": -30317.8
+      }
+    ]
+  },
+  "taxiways": [
+    {
+      "name": "A",
+      "path": [
+        [
+          -59938.2,
+          -31152.3
+        ]
+      ]
+    },
+    {
+      "name": "A",
+      "path": [
+        [
+          -59957.4,
+          -31235.5
+        ]
+      ]
+    },
+    {
+      "name": "N",
+      "path": [
+        [
+          -61289.7,
+          -30771.9
+        ]
+      ]
+    },
+    {
+      "name": "S",
+      "path": [
+        [
+          -61490.4,
+          -30656.2
+        ]
+      ]
+    },
+    {
+      "name": "B",
+      "path": [
+        [
+          -63422.7,
+          -30240.6
+        ]
+      ]
+    },
+    {
+      "name": "K",
+      "path": [
+        [
+          -63565.3,
+          -30514.8
+        ]
+      ]
+    }
+  ]
+}

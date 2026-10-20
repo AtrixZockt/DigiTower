@@ -1,0 +1,207 @@
+{
+  "airfield": "Havadarya",
+  "rn5": "Havadarya_AFB",
+  "source": "CombatWombat's airfield diagrams, Persian Gulf (page 3026, \"Havadarya Airport (OIKP)\"); georeferenced on the runway ends (approximate). H: the parallel taxiway north of 08/26 and its link to the runway at the east end. A, B, E: the links from H to the runway (A at the 08 end). F: the link south to the eastern apron. Not in DCS: C and D. The chart's frequencies are not used.",
+  "georeference": {
+    "controlPoints": [
+      {
+        "chart": [
+          63.0,
+          557.0
+        ],
+        "x": 109077.2,
+        "z": -7422.6
+      },
+      {
+        "chart": [
+          663.0,
+          442.0
+        ],
+        "x": 109517.2,
+        "z": -5141.4
+      }
+    ]
+  },
+  "taxiways": [
+    {
+      "name": "H",
+      "path": [
+        [
+          109305.3,
+          -6774.7
+        ]
+      ]
+    },
+    {
+      "name": "H",
+      "path": [
+        [
+          109283.6,
+          -6890.9
+        ]
+      ]
+    },
+    {
+      "name": "H",
+      "path": [
+        [
+          109306.1,
+          -6766.5
+        ]
+      ]
+    },
+    {
+      "name": "H",
+      "path": [
+        [
+          109165.6,
+          -7485.8
+        ]
+      ]
+    },
+    {
+      "name": "H",
+      "path": [
+        [
+          109186.1,
+          -7379.5
+        ]
+      ]
+    },
+    {
+      "name": "H",
+      "path": [
+        [
+          109203.4,
+          -7289.7
+        ]
+      ]
+    },
+    {
+      "name": "H",
+      "path": [
+        [
+          109238.9,
+          -7105.2
+        ]
+      ]
+    },
+    {
+      "name": "H",
+      "path": [
+        [
+          109272.7,
+          -6930.1
+        ]
+      ]
+    },
+    {
+      "name": "H",
+      "path": [
+        [
+          109338.8,
+          -6586.7
+        ]
+      ]
+    },
+    {
+      "name": "H",
+      "path": [
+        [
+          109283.1,
+          -6885.8
+        ]
+      ]
+    },
+    {
+      "name": "H",
+      "path": [
+        [
+          109336.5,
+          -6097.9
+        ]
+      ]
+    },
+    {
+      "name": "H",
+      "path": [
+        [
+          109342.3,
+          -6064.1
+        ]
+      ]
+    },
+    {
+      "name": "A",
+      "path": [
+        [
+          109066.8,
+          -7474.6
+        ]
+      ]
+    },
+    {
+      "name": "B",
+      "path": [
+        [
+          109169.0,
+          -6978.2
+        ]
+      ]
+    },
+    {
+      "name": "B",
+      "path": [
+        [
+          109173.4,
+          -6951.9
+        ]
+      ]
+    },
+    {
+      "name": "E",
+      "path": [
+        [
+          109277.6,
+          -6400.3
+        ]
+      ]
+    },
+    {
+      "name": "E",
+      "path": [
+        [
+          109287.1,
+          -6358.2
+        ]
+      ]
+    },
+    {
+      "name": "E",
+      "path": [
+        [
+          109331.2,
+          -6384.2
+        ]
+      ]
+    },
+    {
+      "name": "F",
+      "path": [
+        [
+          109337.3,
+          -5813.4
+        ]
+      ]
+    },
+    {
+      "name": "F",
+      "path": [
+        [
+          109351.8,
+          -5723.6
+        ]
+      ]
+    }
+  ]
+}

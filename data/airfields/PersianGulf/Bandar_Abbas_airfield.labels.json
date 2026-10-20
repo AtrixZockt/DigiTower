@@ -1,0 +1,45 @@
+{
+  "airfield": "Bandar Abbas Intl",
+  "rn5": "Bandar_Abbas_airfield",
+  "source": "CombatWombat's airfield diagrams, Persian Gulf (page 3027, \"Bandar Abbas Intl. (OIKB)\"); georeferenced on the ends of 03R/21L. DCS has only 03R/21L as a runway; 03L/21R is a plain taxi line there (left unnamed), joined to the runway only at the ends: A at the 03 end, F1 at the 21 end. Not in DCS: B, C, D, E, F (the links between the two runways and to the parking area); F2/F3 (northern apron) are left out. The chart's frequencies are not used.",
+  "georeference": {
+    "controlPoints": [
+      {
+        "chart": [
+          196.0,
+          874.0
+        ],
+        "x": 114190.1,
+        "z": 13419.4
+      },
+      {
+        "chart": [
+          521.0,
+          266.0
+        ],
+        "x": 117352.4,
+        "z": 15102.7
+      }
+    ]
+  },
+  "taxiways": [
+    {
+      "name": "A",
+      "path": [
+        [
+          114179.8,
+          13404.4
+        ]
+      ]
+    },
+    {
+      "name": "F1",
+      "path": [
+        [
+          117363.2,
+          15093.8
+        ]
+      ]
+    }
+  ]
+}

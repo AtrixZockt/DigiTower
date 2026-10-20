@@ -1,0 +1,61 @@
+{
+  "airfield": "Tunb Island AFB",
+  "rn5": "Greater_Tunb_Island_AFB",
+  "source": "Master Arms, \"OIGI - Tunb Island AFB\" aerodrome chart (light), https://wiki.masterarms.se/index.php/Persian_Gulf_Charts (2026), georeferenced on the two runway ends. One taxiway, the connector to Apron 1: A. The chart's frequencies are a template and are not used.",
+  "georeference": {
+    "controlPoints": [
+      {
+        "chart": [
+          205,
+          755
+        ],
+        "x": 9673.5,
+        "z": -92884.7
+      },
+      {
+        "chart": [
+          525,
+          135
+        ],
+        "x": 11340.3,
+        "z": -92005.1
+      }
+    ]
+  },
+  "taxiways": [
+    {
+      "name": "A",
+      "path": [
+        [
+          10286.8,
+          -92659.2
+        ]
+      ]
+    },
+    {
+      "name": "A",
+      "path": [
+        [
+          10231.1,
+          -92598.2
+        ]
+      ]
+    },
+    {
+      "name": "A",
+      "path": [
+        [
+          10263.0,
+          -92586.3
+        ]
+      ]
+    }
+  ],
+  "areas": [
+    {
+      "name": "Apron 1",
+      "x": 10331.0,
+      "z": -92770.0
+    }
+  ]
+}

@@ -1,0 +1,216 @@
+{
+  "airfield": "Liwa AFB",
+  "rn5": "Liwa_Airbase",
+  "source": "CombatWombat's airfield diagrams, Persian Gulf (page 3019, \"Liwa Airbase (OMLW)\"); georeferenced on the pavement ends of DCS's taxi network (approximate). A: the parallel taxiway south-west of 13/31. B: the link at the 13 end. E, F: the angled links to the parking area and the hangars. G: the link at the 31 end. Not in DCS: C and D. The chart's frequencies are not used.",
+  "georeference": {
+    "controlPoints": [
+      {
+        "chart": [
+          100.0,
+          268.0
+        ],
+        "x": -274531.0,
+        "z": -249569.8
+      },
+      {
+        "chart": [
+          680.0,
+          785.0
+        ],
+        "x": -276955.6,
+        "z": -246906.1
+      }
+    ]
+  },
+  "taxiways": [
+    {
+      "name": "A",
+      "path": [
+        [
+          -274766.2,
+          -249792.9
+        ]
+      ]
+    },
+    {
+      "name": "A",
+      "path": [
+        [
+          -274772.2,
+          -249779.6
+        ]
+      ]
+    },
+    {
+      "name": "A",
+      "path": [
+        [
+          -274788.0,
+          -249762.0
+        ]
+      ]
+    },
+    {
+      "name": "A",
+      "path": [
+        [
+          -274837.0,
+          -249709.3
+        ]
+      ]
+    },
+    {
+      "name": "A",
+      "path": [
+        [
+          -275035.2,
+          -249492.7
+        ]
+      ]
+    },
+    {
+      "name": "A",
+      "path": [
+        [
+          -275313.1,
+          -249186.8
+        ]
+      ]
+    },
+    {
+      "name": "A",
+      "path": [
+        [
+          -275525.0,
+          -248951.7
+        ]
+      ]
+    },
+    {
+      "name": "A",
+      "path": [
+        [
+          -275855.3,
+          -248588.8
+        ]
+      ]
+    },
+    {
+      "name": "A",
+      "path": [
+        [
+          -276191.7,
+          -248220.7
+        ]
+      ]
+    },
+    {
+      "name": "A",
+      "path": [
+        [
+          -276377.5,
+          -248017.5
+        ]
+      ]
+    },
+    {
+      "name": "A",
+      "path": [
+        [
+          -276626.8,
+          -247743.4
+        ]
+      ]
+    },
+    {
+      "name": "A",
+      "path": [
+        [
+          -276734.8,
+          -247624.3
+        ]
+      ]
+    },
+    {
+      "name": "A",
+      "path": [
+        [
+          -276890.8,
+          -247452.0
+        ]
+      ]
+    },
+    {
+      "name": "A",
+      "path": [
+        [
+          -277042.9,
+          -247284.0
+        ]
+      ]
+    },
+    {
+      "name": "A",
+      "path": [
+        [
+          -277166.3,
+          -247147.6
+        ]
+      ]
+    },
+    {
+      "name": "A",
+      "path": [
+        [
+          -277186.7,
+          -247125.1
+        ]
+      ]
+    },
+    {
+      "name": "A",
+      "path": [
+        [
+          -277196.5,
+          -247111.3
+        ]
+      ]
+    },
+    {
+      "name": "B",
+      "path": [
+        [
+          -274539.2,
+          -249587.0
+        ]
+      ]
+    },
+    {
+      "name": "E",
+      "path": [
+        [
+          -276211.5,
+          -247914.6
+        ]
+      ]
+    },
+    {
+      "name": "F",
+      "path": [
+        [
+          -276817.0,
+          -247249.1
+        ]
+      ]
+    },
+    {
+      "name": "G",
+      "path": [
+        [
+          -277016.5,
+          -246940.7
+        ]
+      ]
+    }
+  ]
+}
