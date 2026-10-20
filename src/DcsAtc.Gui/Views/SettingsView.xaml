@@ -65,14 +65,20 @@
                     <Border Style="{StaticResource Fieldset}">
                         <StackPanel>
                             <TextBlock Style="{StaticResource SectionTitle}" Text="START" />
+                            <CheckBox Style="{StaticResource Option}" IsChecked="{Binding StartWithWindows}" AutomationProperties.Name="Start with Windows">
+                                <StackPanel>
+                                    <TextBlock Text="Start with Windows" />
+                                    <TextBlock Style="{StaticResource Hint}" Text="When you sign in, DigiTower starts in the notification area." />
+                                </StackPanel>
+                            </CheckBox>
                             <CheckBox Style="{StaticResource Option}" Content="Start the ATC when the control panel opens" IsChecked="{Binding StartAtcOnOpen}" />
-                            <CheckBox Style="{StaticResource Option}" IsChecked="{Binding MinimizeToTray}">
+                            <CheckBox Style="{StaticResource Option}" IsChecked="{Binding MinimizeToTray}" AutomationProperties.Name="Keep running in the notification area">
                                 <StackPanel>
                                     <TextBlock Text="Keep running in the notification area when the window is closed" TextWrapping="Wrap" />
                                     <TextBlock Style="{StaticResource Hint}" Text="Quit from the icon's menu." />
                                 </StackPanel>
                             </CheckBox>
-                            <CheckBox Style="{StaticResource Option}" IsChecked="{Binding CheckForUpdates}">
+                            <CheckBox Style="{StaticResource Option}" IsChecked="{Binding CheckForUpdates}" AutomationProperties.Name="Look for updates">
                                 <StackPanel>
                                     <TextBlock Text="Look for updates" />
                                     <TextBlock Style="{StaticResource Hint}" Text="On GitHub, when DigiTower is installed. It asks before it updates." />
@@ -185,7 +191,7 @@
                                 </Grid>
                                 <TextBlock Style="{StaticResource Hint}" Margin="0,5,0,0" Text="{Binding RecordingsHint}" />
                             </StackPanel>
-                            <CheckBox Style="{StaticResource Option}" IsChecked="{Binding CheckReadbacks}">
+                            <CheckBox Style="{StaticResource Option}" IsChecked="{Binding CheckReadbacks}" AutomationProperties.Name="Check readbacks">
                                 <StackPanel>
                                     <TextBlock Text="Check readbacks" />
                                     <TextBlock Style="{StaticResource Hint}" Text="Clear mistakes are corrected: &quot;negative, I say again, runway 31 right&quot;." />
@@ -197,19 +203,19 @@
                     <Border Style="{StaticResource Fieldset}">
                         <StackPanel>
                             <TextBlock Style="{StaticResource SectionTitle}" Text="TRAFFIC" />
-                            <CheckBox Style="{StaticResource Option}" IsChecked="{Binding ManageAi}">
+                            <CheckBox Style="{StaticResource Option}" IsChecked="{Binding ManageAi}" AutomationProperties.Name="Handle AI departures">
                                 <StackPanel>
                                     <TextBlock Text="Handle AI departures" />
                                     <TextBlock Style="{StaticResource Hint}" Text="Hold AI at parking while players taxi, take off or land. A server can turn this off in its bridge settings (Install page)." />
                                 </StackPanel>
                             </CheckBox>
-                            <CheckBox Style="{StaticResource Option}" IsChecked="{Binding MapDrawings}">
+                            <CheckBox Style="{StaticResource Option}" IsChecked="{Binding MapDrawings}" AutomationProperties.Name="Draw on the F10 map">
                                 <StackPanel>
                                     <TextBlock Text="Draw on the F10 map" />
                                     <TextBlock Style="{StaticResource Hint}" Text="Taxi routes, hold lines, spots and pads. DCS shows them to the whole side." />
                                 </StackPanel>
                             </CheckBox>
-                            <CheckBox Style="{StaticResource Option}" IsChecked="{Binding KeepStockAtc}">
+                            <CheckBox Style="{StaticResource Option}" IsChecked="{Binding KeepStockAtc}" AutomationProperties.Name="Keep the stock DCS ATC">
                                 <StackPanel>
                                     <TextBlock Text="Keep the stock DCS ATC" />
                                     <TextBlock Style="{StaticResource Hint}" Text="Off: it is silenced where DigiTower works." />

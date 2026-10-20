@@ -46,6 +46,9 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty] private bool _startAtcOnOpen;
     [ObservableProperty] private bool _minimizeToTray;
     [ObservableProperty] private bool _checkForUpdates;
+    /// <summary>Not in the settings file: Windows' own sign-in entry (<see cref="WindowsStartup"/>).</summary>
+    [ObservableProperty] private bool _startWithWindows;
+    private readonly WindowsStartup _startup = new();
 
     // ---- DCS
     [ObservableProperty] private string _dcsDirectory = "";
@@ -135,8 +138,11 @@ public sealed partial class SettingsViewModel : ObservableObject
         try
         {
             _store.Save(s);
+            if (StartWithWindows)
+                _startup.Enable(WindowsStartup.LauncherFor(Environment.ProcessPath!), _store.Path == DigiTowerSettings.DefaultPath ? null : _store.Path);
+            else _startup.Disable();
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
         {
             Error = $"Could not save: {ex.Message}";
             return;
@@ -222,6 +228,7 @@ public sealed partial class SettingsViewModel : ObservableObject
             StartAtcOnOpen = s.StartAtcOnOpen;
             MinimizeToTray = s.MinimizeToTray;
             CheckForUpdates = s.CheckForUpdates;
+            StartWithWindows = _startup.IsEnabled;
             DcsDirectory = s.DcsDirectory ?? "";
             BridgeHost = s.BridgeHost;
             BridgePort = s.BridgePort.ToString(CultureInfo.InvariantCulture);
