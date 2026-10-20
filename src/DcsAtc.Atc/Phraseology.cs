@@ -290,6 +290,10 @@ public static partial class Phraseology
     public static string ContactStation(string callsign, string station, string other, double mhz) =>
         $"{callsign}, {station}, contact {other} on {Frequency(mhz)}.";
 
+    /// <summary>A wrong readback corrected (ICAO): "Hangman 1-2, negative, I say again, runway 31R."</summary>
+    public static string NegativeISayAgain(string callsign, IEnumerable<string> items) =>
+        $"{callsign}, negative, I say again, {string.Join(", ", items.Distinct())}.";
+
     /// <summary>"Hangman 1-2, Al Dhafra Ground, read you five."</summary>
     public static string ReadYouFive(string callsign, string station) => $"{callsign}, {station}, read you five.";
 
@@ -344,6 +348,7 @@ public static partial class Phraseology
                 yield return ReportFinal(cs, facility, end, weather, type);
             }
             yield return HoldShortContactTower(cs, facility, end, frequencies.Own("Tower"));
+            yield return NegativeISayAgain(cs, [$"runway {end.Name}"]);
             foreach (var d in DepartureVariants(end, procedures ?? DepartureProcedures.Default))
             {
                 yield return ClearedForTakeoff(cs, end, weather, d);

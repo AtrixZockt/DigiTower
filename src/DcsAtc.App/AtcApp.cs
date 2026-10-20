@@ -40,6 +40,11 @@ public sealed class AtcApp
     private readonly AtisService _atis;
     private readonly AiTraffic _ai;
     private readonly FarpControl _farps;
+    private readonly CallLog? _calls;
+    private readonly IAtcRadio? _radio;
+
+    /// <summary>A readback is checked against the instructions of the last minute.</summary>
+    public static readonly TimeSpan ReadbackWindow = TimeSpan.FromMinutes(1);
     // The server may turn AI handling off in its bridge config (hello.manageAi).
     private bool _serverAllowsAi = true;
     private readonly AtcMenu _menu;
@@ -63,14 +68,17 @@ public sealed class AtcApp
     {
         _client = client;
         _options = options;
+        // Every transmission goes through the call log, so readbacks can be checked against it.
+        _calls = options.Radio is null ? null : new CallLog(options.Radio);
+        _radio = _calls;
         _airfields = new AirfieldCatalog(client, options.DcsDirectory, options.DataDirectory, Log);
         _flights = new FlightRegistry(client, Log);
-        _ground = new GroundControl(client, _airfields, _flights, Log, radio: options.Radio);
-        _tower = new TowerControl(client, _airfields, _ground, _flights, Log, radio: options.Radio);
-        _approach = new ApproachControl(client, _airfields, _tower, _flights, Log, radio: options.Radio);
-        _atis = new AtisService(client, _airfields, options.Radio, Log, onAir: a => _onAir.Any(k => k.Id == a.Id));
-        _ai = new AiTraffic(client, _airfields, _ground, _tower, _approach, Log, radio: options.Radio);
-        _farps = new FarpControl(client, _flights, Log, options.Radio);
+        _ground = new GroundControl(client, _airfields, _flights, Log, radio: _radio);
+        _tower = new TowerControl(client, _airfields, _ground, _flights, Log, radio: _radio);
+        _approach = new ApproachControl(client, _airfields, _tower, _flights, Log, radio: _radio);
+        _atis = new AtisService(client, _airfields, _radio, Log, onAir: a => _onAir.Any(k => k.Id == a.Id));
+        _ai = new AiTraffic(client, _airfields, _ground, _tower, _approach, Log, radio: _radio);
+        _farps = new FarpControl(client, _flights, Log, _radio);
         _menu = new AtcMenu(_airfields, _ground, _tower, _approach, _flights, _farps);
         _reader = new PilotCallReader(options.VoiceAliases);
     }
@@ -149,9 +157,14 @@ public sealed class AtcApp
         string station = $"{facility} {role}";
         if (reading.Call is not { } call)
         {
-            if (reading.Readback || !reading.AimedAtAtc)
+            if (reading.Readback)
             {
-                Log($"voice: {party.Callsign} to {station}: {(reading.Readback ? "readback" : "not a call to ATC")}, no answer");
+                await ReadbackAsync(party, facility, reading.Words, ct);
+                return;
+            }
+            if (!reading.AimedAtAtc)
+            {
+                Log($"voice: {party.Callsign} to {station}: not a call to ATC, no answer");
                 return;
             }
             Log($"voice: {party.Callsign} to {station}: not understood");
@@ -220,6 +233,24 @@ public sealed class AtcApp
         _ => null,
     };
 
+    /// <summary>
+    /// A readback: a value different from what ATC said in its latest instruction (runway, heading, altitude, frequency,
+    /// QNH) is said again by the same station, "Hangman 1-2, negative, I say again, runway 31R"; missing or misheard
+    /// parts are let go, and a correct readback gets no answer.
+    /// </summary>
+    private async Task ReadbackAsync(Party party, string facility, IReadOnlyList<string> words, CancellationToken ct)
+    {
+        if (_calls?.Correction(party.Callsign, facility, words, ReadbackWindow) is not { } correction)
+        {
+            Log($"voice: {party.Callsign} to {facility}: readback, no answer");
+            return;
+        }
+        Log($"voice: {party.Callsign} to {facility}: readback differs");
+        foreach (var group in party.Groups) await _client.ShowTextAsync(group, correction.Text, 15, ct: ct);
+        _radio!.Transmit(correction);
+        Log($"{party.Callsign}: {correction.Text}");
+    }
+
     /// <summary>Of the airfields and FARP sites working this frequency, the one nearest the unit.</summary>
     private string? NearestOn(double mhz, UnitState unit)
     {
@@ -236,9 +267,14 @@ public sealed class AtcApp
         var reading = _reader.Read(text, site.Name);
         if (reading.Call is not { } call)
         {
-            if (reading.Readback || !reading.AimedAtAtc)
+            if (reading.Readback)
             {
-                Log($"voice: {party.Callsign} to {site.Name}: {(reading.Readback ? "readback" : "not a call to ATC")}, no answer");
+                await ReadbackAsync(party, site.Name, reading.Words, ct);
+                return;
+            }
+            if (!reading.AimedAtAtc)
+            {
+                Log($"voice: {party.Callsign} to {site.Name}: not a call to ATC, no answer");
                 return;
             }
             Log($"voice: {party.Callsign} to {site.Name}: not understood");
@@ -273,7 +309,7 @@ public sealed class AtcApp
     private async Task FarpReplyAsync(Party party, FarpSite site, int coalition, string text, CancellationToken ct)
     {
         foreach (var group in party.Groups) await _client.ShowTextAsync(group, text, 10, ct: ct);
-        if (_options.Radio is { } radio && site.Call(coalition, text) is { } call) radio.Transmit(call);
+        if (_radio is { } radio && site.Call(coalition, text) is { } call) radio.Transmit(call);
         Log($"{party.Callsign}: {text}");
     }
 
@@ -318,7 +354,7 @@ public sealed class AtcApp
     private async Task ReplyAsync(Party party, GroundAirfield airfield, string role, int coalition, string text, CancellationToken ct)
     {
         foreach (var group in party.Groups) await _client.ShowTextAsync(group, text, 10, ct: ct);
-        if (_options.Radio is { } radio && airfield.Call(role, coalition, text) is { } call) radio.Transmit(call);
+        if (_radio is { } radio && airfield.Call(role, coalition, text) is { } call) radio.Transmit(call);
         Log($"{party.Callsign}: {text}");
     }
 
@@ -433,7 +469,7 @@ public sealed class AtcApp
         {
             if (_menus.ContainsKey(u.GroupId!.Value)) continue;
             Log($"ATC menu for {u.Player} ({u.Group})");
-            _options.Radio?.Prepare(Phraseology.CallsignSamples(Phraseology.Callsign(u)), soon: true);
+            _radio?.Prepare(Phraseology.CallsignSamples(Phraseology.Callsign(u)), soon: true);
         }
         await OnAirAsync(ct);
 
@@ -587,7 +623,7 @@ public sealed class AtcApp
     /// </summary>
     private async Task OnAirAsync(CancellationToken ct)
     {
-        if (_options.Radio is not { } radio) return;
+        if (_radio is not { } radio) return;
         bool atis = false;
         foreach (var unit in _units.Values.Where(u => u.IsPlayer && u.Coal is 1 or 2))
         {
