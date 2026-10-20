@@ -44,6 +44,17 @@ public sealed class TowerFlight
     public bool Overhead { get; set; }
     /// <summary>Handed over by Approach and not yet checked in: Tower's first call names itself.</summary>
     public bool AwaitingCheckIn { get; set; }
+    /// <summary>A helicopter: hovering below 100 ft is not departing.</summary>
+    public bool Helicopter { get; init; }
+    /// <summary>A helicopter departing from where it stands; <see cref="Runway"/> is the nearest runway in use.</summary>
+    public bool FromPresentPosition { get; init; }
+    /// <summary>Which way a departure from present position goes (degrees true).</summary>
+    public double Bearing { get; init; }
+    /// <summary>A helicopter landing at this parking spot, not on the runway.</summary>
+    public ParkingSpot? Spot { get; init; }
+    /// <summary>Takes off from or lands on <see cref="Runway"/> (helicopters at a spot or leaving from where they stand do not).</summary>
+    public bool UsesRunway => Spot is null && !FromPresentPosition;
+    public string SpotDrawingKey => $"heli-{Key}";
     /// <summary>The last "hold" / "continue" reason given, so it is not repeated every second.</summary>
     internal string? LastReason { get; set; }
     internal DateTime LastWarning { get; set; } = DateTime.MinValue;
@@ -100,6 +111,7 @@ public sealed class TowerControl(IDcsCommands dcs, AirfieldCatalog airfields, Gr
     public static readonly TimeSpan WarningInterval = TimeSpan.FromSeconds(20);
 
     private const double Feet = 0.3048;
+    private static readonly double[] SpotColor = [0, 0.9, 0.2, 1];
 
     private readonly Dictionary<int, TowerFlight> _flights = [];
     private readonly Dictionary<int, (DateTime At, GroundAirfield Airfield)> _handoffs = [];
@@ -146,7 +158,7 @@ public sealed class TowerControl(IDcsCommands dcs, AirfieldCatalog airfields, Gr
         var party = flights.PartyFor(unit, units);
         string callsign = party.Callsign;
         var lead = units.GetValueOrDefault(party.LeadUnit) ?? unit;
-        if (lead.InAir)
+        if (!Helicopters.OnField(lead))
         {
             await SayAsync(party, null, Phraseology.AlreadyAirborne(callsign), ct);
             return;
@@ -162,10 +174,17 @@ public sealed class TowerControl(IDcsCommands dcs, AirfieldCatalog airfields, Gr
         }
         else
         {
-            airfield = at ?? await airfields.NearestAsync(position, ct: ct);
+            airfield = at ?? await airfields.AtAsync(position, ct);
             if (airfield is null)
             {
                 await SayAsync(party, null, Phraseology.NoTower(callsign), ct);
+                return;
+            }
+            // A helicopter departs from where it stands, unless it asked Ground for the runway (31 of Al Dhafra's spots are
+            // within 400 m of a runway, so nearness says nothing).
+            if (lead.IsHelicopter)
+            {
+                await DepartFromPresentPositionAsync(party, lead, airfield, intent, units, ct);
                 return;
             }
             // Not cleared by Ground: the nearest runway, in the direction of the wind.
@@ -183,8 +202,82 @@ public sealed class TowerControl(IDcsCommands dcs, AirfieldCatalog airfields, Gr
         }
 
         await ground.ReleaseAsync(party.Key, ct);
-        var flight = Track(party, lead, airfield, runway, end, TowerPhase.WaitingForDeparture, intent);
+        var flight = Track(party, lead, airfield, runway, end, TowerPhase.WaitingForDeparture, intent, lead.IsHelicopter);
         await EvaluateAsync(flight, units, ct, requested: true);
+    }
+
+    /// <summary>
+    /// A helicopter departing from where it stands (FAA JO 7110.65 §3-11-2): cleared at once, with a turn for its
+    /// direction, unless its way out crosses a runway in use or another helicopter is cleared to take off or land within
+    /// 200 ft; then it holds position until it may go.
+    /// </summary>
+    private async Task DepartFromPresentPositionAsync(Party party, UnitState lead, GroundAirfield airfield, DepartureIntent intent,
+        IReadOnlyDictionary<string, UnitState> units, CancellationToken ct)
+    {
+        var position = new Vec2(lead.X, lead.Z);
+        var weather = await dcs.GetAirbaseWeatherAsync(airfield.Airbase.Name, ct);
+        var (runway, end) = airfield.Layout.ActiveEnds(weather?.WindFrom ?? 0, weather?.WindSpeed ?? 0).MinBy(e => e.Runway.DistanceFrom(position));
+        if (runway is null) return;
+        await ground.ReleaseAsync(party.Key, ct);
+        var direction = intent == DepartureIntent.ClosedTraffic ? DepartureIntent.OwnNavigation : intent;
+        var flight = new TowerFlight
+        {
+            Party = party,
+            UnitType = lead.Type,
+            Airfield = airfield,
+            Runway = runway,
+            End = end,
+            Phase = TowerPhase.WaitingForDeparture,
+            Since = _now(),
+            Intent = direction,
+            Helicopter = true,
+            FromPresentPosition = true,
+            Bearing = Helicopters.Bearing(direction) ?? lead.Hdg,
+        };
+        _flights[party.Key] = flight;
+        await EvaluateAsync(flight, units, ct, requested: true);
+    }
+
+    /// <summary>
+    /// A helicopter arriving: a free spot for it (helicopter-only first, then open parking; nearest first), marked on the
+    /// F10 map, and cleared straight in (FAA JO 7110.65 §3-11-6). False when no spot is free: it lands on the runway.
+    /// </summary>
+    private async Task<bool> LandAtSpotAsync(Party party, UnitState lead, GroundAirfield airfield, IReadOnlyDictionary<string, UnitState> units, CancellationToken ct)
+    {
+        var position = new Vec2(lead.X, lead.Z);
+        var standing = units.Values.Where(u => !party.Units.Contains(u.Name) && Helicopters.OnField(u)).Select(u => new Vec2(u.X, u.Z)).ToList();
+        var assigned = _flights.Values.Where(o => o.Spot is not null && o.Key != party.Key).Select(o => o.Spot!.Position).ToList();
+        var spot = airfield.Layout.Parking
+            .Where(p => Helicopters.SpotPreference(p) is not null
+                        && !standing.Any(q => q.DistanceTo(p.Position) < AtcMenu.ParkedDistance)
+                        && !assigned.Any(q => q.DistanceTo(p.Position) < Helicopters.Separation))
+            .OrderBy(p => Helicopters.SpotPreference(p)).ThenBy(p => p.Position.DistanceTo(position))
+            .FirstOrDefault();
+        if (spot is null) return false;
+        var weather = await dcs.GetAirbaseWeatherAsync(airfield.Airbase.Name, ct);
+        var (runway, end) = airfield.Layout.ActiveEnds(weather?.WindFrom ?? 0, weather?.WindSpeed ?? 0).MinBy(e => e.Runway.DistanceFrom(spot.Position));
+        if (runway is null) return false;
+        // Hovering over the field with an air-taxi clearance: Tower takes over.
+        await ground.ReleaseAsync(party.Key, ct);
+        var flight = new TowerFlight
+        {
+            Party = party,
+            UnitType = lead.Type,
+            Airfield = airfield,
+            Runway = runway,
+            End = end,
+            Phase = TowerPhase.ClearedToLand,
+            Since = _now(),
+            Helicopter = true,
+            Spot = spot,
+        };
+        _flights[party.Key] = flight;
+        // A square around the spot, with its name.
+        var c = spot.Position;
+        Vec2[] square = [c + new Vec2(-15, -15), c + new Vec2(-15, 15), c + new Vec2(15, 15), c + new Vec2(15, -15), c + new Vec2(-15, -15)];
+        await dcs.DrawRouteAsync(flight.SpotDrawingKey, lead.Coal, square.Select(p => (p.X, p.Z)), SpotColor, "LANDING SPOT", ct);
+        await SayAsync(flight, Phraseology.LandAtSpot(party.Callsign, airfield.Facility, airfield.Layout.AreaNear(spot.Position), weather), ct);
+        return true;
     }
 
     /// <summary>"Request landing": airborne within <see cref="InboundRange"/> of an airfield.</summary>
@@ -213,6 +306,8 @@ public sealed class TowerControl(IDcsCommands dcs, AirfieldCatalog airfields, Gr
             await SayAsync(party, null, Phraseology.NoTowerWithin(callsign, InboundRange / NauticalMile), ct);
             return;
         }
+        // A helicopter lands at a spot of its own, if one is free.
+        if (lead.IsHelicopter && await LandAtSpotAsync(party, lead, airfield, units, ct)) return;
 
         // The landing runway: of the ends in use, the one whose extended centerline the aircraft is closest to.
         var weather = await dcs.GetAirbaseWeatherAsync(airfield.Airbase.Name, ct);
@@ -220,7 +315,7 @@ public sealed class TowerControl(IDcsCommands dcs, AirfieldCatalog airfields, Gr
             .MinBy(e => e.Runway.FromCenterline(position));
         if (runway is null) return;
 
-        var flight = Track(party, lead, airfield, runway, end, TowerPhase.Inbound);
+        var flight = Track(party, lead, airfield, runway, end, TowerPhase.Inbound, helicopter: lead.IsHelicopter);
         if (DistanceOnFinal(runway, end, lead) is not null)
         {
             // Already on final (e.g. from Approach): continue; the landing clearance follows as soon as the runway allows.
@@ -348,14 +443,20 @@ public sealed class TowerControl(IDcsCommands dcs, AirfieldCatalog airfields, Gr
             await EvaluateAsync(flight, units, ct, requested: false);
     }
 
-    public Task OnEventAsync(DcsEventMessage e, CancellationToken ct = default)
+    public async Task OnEventAsync(DcsEventMessage e, CancellationToken ct = default)
     {
         if (e.Event is "crash" or "dead" or "unit_lost" or "player_leave_unit" or "pilot_dead" or "ejection")
         {
             var flight = _flights.Values.FirstOrDefault(f => f.UnitName == e.Unit);
-            if (flight is not null) _flights.Remove(flight.Key);
+            if (flight is not null) await RemoveAsync(flight, ct);
         }
-        return Task.CompletedTask;
+    }
+
+    /// <summary>Tower is done with a flight (and its landing spot's drawing).</summary>
+    private async Task RemoveAsync(TowerFlight f, CancellationToken ct)
+    {
+        _flights.Remove(f.Key);
+        if (f.Spot is not null) await dcs.ClearDrawingAsync(f.SpotDrawingKey, ct);
     }
 
     public void Reset()
@@ -364,7 +465,8 @@ public sealed class TowerControl(IDcsCommands dcs, AirfieldCatalog airfields, Gr
         _handoffs.Clear();
     }
 
-    private TowerFlight Track(Party party, UnitState lead, GroundAirfield airfield, Runway runway, RunwayEnd end, TowerPhase phase, DepartureIntent intent = DepartureIntent.OwnNavigation)
+    private TowerFlight Track(Party party, UnitState lead, GroundAirfield airfield, Runway runway, RunwayEnd end, TowerPhase phase,
+        DepartureIntent intent = DepartureIntent.OwnNavigation, bool helicopter = false)
     {
         var flight = new TowerFlight
         {
@@ -376,16 +478,20 @@ public sealed class TowerControl(IDcsCommands dcs, AirfieldCatalog airfields, Gr
             Phase = phase,
             Since = _now(),
             Intent = intent,
+            Helicopter = helicopter,
         };
         _flights[party.Key] = flight;
         return flight;
     }
 
+    /// <summary>Off the ground for a departure: a helicopter hovering below 100 ft is not.</summary>
+    private static bool Airborne(TowerFlight f, UnitState unit) => f.Helicopter ? unit.InAir && unit.Agl > Helicopters.AirTaxiHeight : unit.InAir;
+
     private async Task EvaluateAsync(TowerFlight f, IReadOnlyDictionary<string, UnitState> units, CancellationToken ct, bool requested)
     {
         if (!units.TryGetValue(f.UnitName, out var unit))
         {
-            _flights.Remove(f.Key);
+            await RemoveAsync(f, ct);
             return;
         }
         var position = new Vec2(unit.X, unit.Z);
@@ -394,9 +500,14 @@ public sealed class TowerControl(IDcsCommands dcs, AirfieldCatalog airfields, Gr
         {
             case TowerPhase.WaitingForDeparture or TowerPhase.LineUpAndWait:
             {
-                if (unit.InAir)
+                if (Airborne(f, unit))
                 {
                     Enter(f, TowerPhase.Departed);
+                    break;
+                }
+                if (f.FromPresentPosition)
+                {
+                    await HelicopterDepartureAsync(f, unit, units, ct, requested);
                     break;
                 }
                 var (reason, departingAhead) = DepartureBlocker(f, units);
@@ -478,6 +589,11 @@ public sealed class TowerControl(IDcsCommands dcs, AirfieldCatalog airfields, Gr
                 }
                 break;
             }
+            case TowerPhase.ClearedToLand when f.Spot is not null:
+                // Down (on its spot or where it chose), or gone: done.
+                if (!unit.InAir || new Vec2(f.Airfield.Airbase.X, f.Airfield.Airbase.Z).DistanceTo(position) > InboundRange) await RemoveAsync(f, ct);
+                break;
+
             case TowerPhase.ClearedToLand:
             {
                 if (!unit.InAir && f.Runway.IsOnRunway(position))
@@ -513,6 +629,78 @@ public sealed class TowerControl(IDcsCommands dcs, AirfieldCatalog airfields, Gr
                 if (!f.Runway.IsOnRunway(position, 15)) _flights.Remove(f.Key);
                 break;
         }
+    }
+
+    /// <summary>A helicopter waiting to depart from where it stands: cleared as soon as nothing is in its way, held otherwise.</summary>
+    private async Task HelicopterDepartureAsync(TowerFlight f, UnitState unit, IReadOnlyDictionary<string, UnitState> units, CancellationToken ct, bool requested)
+    {
+        string? reason = HelicopterDepartureBlocker(f, unit, units);
+        if (reason is null)
+        {
+            var weather = await dcs.GetAirbaseWeatherAsync(f.Airfield.Airbase.Name, ct);
+            double? bearing = Helicopters.Bearing(f.Intent);
+            string? direction = bearing is null ? null : f.Intent.ToString().ToLowerInvariant();
+            string? turn = bearing is double b ? Phraseology.TurnTo(unit.Hdg, b) : null;
+            Enter(f, TowerPhase.ClearedForTakeoff);
+            await SayAsync(f, Phraseology.HelicopterDeparture(f.Callsign, f.Airfield.Facility, turn, direction, weather), ct);
+        }
+        else if (requested || f.LastReason != reason)
+        {
+            f.LastReason = reason;
+            await SayAsync(f, Phraseology.HoldPosition(f.Callsign, f.Airfield.Facility, reason), ct);
+        }
+    }
+
+    /// <summary>
+    /// Why a helicopter may not depart from where it stands yet (null: it may): another helicopter cleared to take off or
+    /// land within 200 ft, or a runway in use that its way out crosses (within <see cref="Helicopters.DeparturePath"/>).
+    /// </summary>
+    private string? HelicopterDepartureBlocker(TowerFlight f, UnitState unit, IReadOnlyDictionary<string, UnitState> units)
+    {
+        var position = new Vec2(unit.X, unit.Z);
+        foreach (var o in _flights.Values.Where(o => o != f && o.Airfield.Airbase.Id == f.Airfield.Airbase.Id))
+        {
+            Vec2? point = o.Phase == TowerPhase.ClearedToLand ? o.Spot?.Position
+                : o.Phase == TowerPhase.ClearedForTakeoff && o.FromPresentPosition && units.TryGetValue(o.UnitName, out var u) && !Airborne(o, u) ? new Vec2(u.X, u.Z)
+                : null;
+            if (point is Vec2 p && p.DistanceTo(position) < Helicopters.Separation) return Phraseology.HelicopterTraffic;
+        }
+        var to = position + Vec2.FromHeading(f.Bearing) * Helicopters.DeparturePath;
+        foreach (var runway in f.Airfield.Layout.Runways.Where(r => Crosses(r, position, to)))
+        {
+            if (RunwayInUse(runway, f, units) is { } reason) return reason;
+        }
+        return null;
+    }
+
+    /// <summary>Why a runway may not be crossed now (null: free): traffic on final for it, a landing or takeoff cleared on it, an aircraft on it.</summary>
+    private string? RunwayInUse(Runway runway, TowerFlight f, IReadOnlyDictionary<string, UnitState> units)
+    {
+        bool others(UnitState u) => !f.Party.Units.Contains(u.Name);
+        if (units.Values.Any(u => others(u) && u.InAir && u.Agl < 1000 &&
+                                  new[] { runway.EndA, runway.EndB }.Any(e => DistanceOnFinal(runway, e, u) is double d && d <= DepartureBlockingFinal)))
+            return Phraseology.TrafficOnFinal;
+        if (_flights.Values.Any(o => o != f && o.UsesRunway && o.Runway == runway && o.Phase == TowerPhase.ClearedToLand)) return Phraseology.LandingTraffic;
+        if (_flights.Values.Any(o => o != f && o.UsesRunway && o.Runway == runway && o.Phase is TowerPhase.ClearedForTakeoff or TowerPhase.LineUpAndWait))
+            return Phraseology.TrafficDeparting;
+        if (units.Values.Any(u => others(u) && !u.InAir && runway.IsOnRunway(new Vec2(u.X, u.Z)))) return Phraseology.RunwayOccupied;
+        return null;
+    }
+
+    /// <summary>Whether the way from <paramref name="a"/> to <paramref name="b"/> crosses the runway, or its first mile of approach at either end.</summary>
+    private static bool Crosses(Runway runway, Vec2 a, Vec2 b)
+    {
+        var left = runway.Axis.Left;
+        double sa = (a - runway.EndA.Threshold).Dot(left), sb = (b - runway.EndA.Threshold).Dot(left);
+        if (Math.Abs(sa) < 50) return InSpan(runway, a);
+        if (Math.Sign(sa) == Math.Sign(sb)) return false;
+        return InSpan(runway, a + (b - a) * (sa / (sa - sb)));
+    }
+
+    private static bool InSpan(Runway runway, Vec2 p)
+    {
+        double along = (p - runway.EndA.Threshold).Dot(runway.Axis);
+        return along > -NauticalMile && along < runway.Length + NauticalMile;
     }
 
     /// <summary>
@@ -657,7 +845,7 @@ public sealed class TowerControl(IDcsCommands dcs, AirfieldCatalog airfields, Gr
     private (string? Reason, bool DepartingAhead) DepartureBlocker(TowerFlight f, IReadOnlyDictionary<string, UnitState> units)
     {
         if (LandingTrafficWithin(f, units, DepartureBlockingFinal)) return (Phraseology.TrafficOnFinal, false);
-        if (_flights.Values.Any(o => o != f && o.Runway == f.Runway && o.Phase == TowerPhase.ClearedToLand)) return (Phraseology.LandingTraffic, false);
+        if (_flights.Values.Any(o => o != f && o.UsesRunway && o.Runway == f.Runway && o.Phase == TowerPhase.ClearedToLand)) return (Phraseology.LandingTraffic, false);
 
         bool departingAhead = false;
         foreach (var other in units.Values)
@@ -670,7 +858,7 @@ public sealed class TowerControl(IDcsCommands dcs, AirfieldCatalog airfields, Gr
         if (departingAhead) return (Phraseology.TrafficDeparting, true);
 
         // An earlier departure cleared for this runway but not yet on it goes first.
-        if (_flights.Values.Any(o => o != f && o.Runway == f.Runway && o.Phase is TowerPhase.ClearedForTakeoff or TowerPhase.LineUpAndWait
+        if (_flights.Values.Any(o => o != f && o.UsesRunway && o.Runway == f.Runway && o.Phase is TowerPhase.ClearedForTakeoff or TowerPhase.LineUpAndWait
                                      && units.TryGetValue(o.UnitName, out var u) && !u.InAir))
             return (Phraseology.NumberTwoForDeparture, false);
         return (null, false);
@@ -680,12 +868,12 @@ public sealed class TowerControl(IDcsCommands dcs, AirfieldCatalog airfields, Gr
     private string? LandingBlocker(TowerFlight f, IReadOnlyDictionary<string, UnitState> units)
     {
         if (RunwayOccupied(f, units) is { } occupied) return occupied;
-        if (_flights.Values.Any(o => o != f && o.Runway == f.Runway && o.Phase is TowerPhase.LineUpAndWait or TowerPhase.ClearedForTakeoff
+        if (_flights.Values.Any(o => o != f && o.UsesRunway && o.Runway == f.Runway && o.Phase is TowerPhase.LineUpAndWait or TowerPhase.ClearedForTakeoff
                                      && units.TryGetValue(o.UnitName, out var u) && !u.InAir))
             return Phraseology.TrafficDeparting;
         // Another aircraft cleared to land on this runway and still airborne goes first.
         double? mine = units.TryGetValue(f.UnitName, out var me) ? DistanceOnFinal(f.Runway, f.End, me) : null;
-        foreach (var o in _flights.Values.Where(o => o != f && o.Runway == f.Runway && o.Phase == TowerPhase.ClearedToLand))
+        foreach (var o in _flights.Values.Where(o => o != f && o.UsesRunway && o.Runway == f.Runway && o.Phase == TowerPhase.ClearedToLand))
         {
             if (units.TryGetValue(o.UnitName, out var u) && u.InAir && (mine is null || DistanceOnFinal(f.Runway, o.End, u) is not double theirs || theirs < mine))
                 return Phraseology.NumberTwoFollowTraffic;

@@ -197,7 +197,7 @@ public sealed class AiTraffic(IDcsCommands dcs, AirfieldCatalog airfields, Groun
         if (going >= MaxTaxiing) return $"{going} AI taxiing";
 
         // Players on the runway, or about to use it: always.
-        foreach (var f in tower.Flights.Values.Where(f => f.Airfield.Airbase.Id == id))
+        foreach (var f in tower.Flights.Values.Where(f => f.Airfield.Airbase.Id == id && f.UsesRunway))
         {
             string? doing = f.Phase switch
             {
@@ -225,7 +225,7 @@ public sealed class AiTraffic(IDcsCommands dcs, AirfieldCatalog airfields, Groun
         {
             if (ground.Clearances.Values.FirstOrDefault(c => c.Airfield.Airbase.Id == id && c.Departure is not null) is { } taxi)
                 return $"{taxi.Callsign} {(taxi.Phase == TaxiPhase.HoldingShort ? "holding short" : "taxiing out")}";
-            if (tower.Flights.Values.FirstOrDefault(f => f.Airfield.Airbase.Id == id && f.Phase == TowerPhase.WaitingForDeparture) is { } ready)
+            if (tower.Flights.Values.FirstOrDefault(f => f.Airfield.Airbase.Id == id && f.UsesRunway && f.Phase == TowerPhase.WaitingForDeparture) is { } ready)
                 return $"{ready.Callsign} ready for departure";
         }
         return null;
@@ -253,7 +253,7 @@ public sealed class AiTraffic(IDcsCommands dcs, AirfieldCatalog airfields, Groun
         d.TakeoffCalled = true;
         // Not while a player is on that runway or landing on it: the AI goes anyway, but ATC does not clear it.
         bool playerOnIt = units.Values.Any(u => u.IsPlayer && !u.InAir && runway.IsOnRunway(new Vec2(u.X, u.Z)))
-            || tower.Flights.Values.Any(f => f.Runway == runway && f.Phase is TowerPhase.ClearedToLand or TowerPhase.Landed);
+            || tower.Flights.Values.Any(f => f.UsesRunway && f.Runway == runway && f.Phase is TowerPhase.ClearedToLand or TowerPhase.Landed);
         if (playerOnIt) return;
         var w = await dcs.GetAirbaseWeatherAsync(d.Airfield.Airbase.Name, ct);
         if (EndFor(d.Airfield, w, position, runway) is { } takeoff) Say(d, "Tower", Phraseology.ClearedForTakeoff(d.Callsign, takeoff, w));

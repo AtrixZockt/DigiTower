@@ -33,18 +33,34 @@ public sealed class Airfield
     /// <summary>Problems found while applying <see cref="Labels"/> (waypoints off the network, conflicts).</summary>
     public IReadOnlyList<string> LabelWarnings { get; init; } = [];
 
+    /// <summary>A position this close to the airfield's taxiways, parking or runways counts as at the airfield (metres).</summary>
+    public const double Margin = 500;
+
+    /// <summary>The area the airfield covers: its taxi network, parking spots and runway thresholds (min and max corner).</summary>
+    public (Vec2 Min, Vec2 Max) Bounds { get; init; }
+
+    /// <summary>Whether a position is at the airfield: within <see cref="Margin"/> of the area it covers.</summary>
+    public bool Covers(Vec2 p) =>
+        p.X >= Bounds.Min.X - Margin && p.X <= Bounds.Max.X + Margin && p.Z >= Bounds.Min.Z - Margin && p.Z <= Bounds.Max.Z + Margin;
+
     /// <param name="dcsRunwayNames">Runway names reported by DCS getRunways(), used as hints for numbering.</param>
     public static Airfield Build(Rn5Network net, IEnumerable<string>? dcsRunwayNames = null, IEnumerable<ParkingSpot>? parking = null, AirfieldLabels? labels = null)
     {
         var graph = TaxiGraph.Build(net);
         var warnings = new List<string>();
+        var runways = RunwayFinder.Find(net, graph, dcsRunwayNames);
+        var spots = parking?.ToList() ?? [];
+        var points = net.Edges.SelectMany(e => e.Points).Concat(spots.Select(s => s.Position))
+            .Concat(runways.SelectMany(r => new[] { r.EndA.Threshold, r.EndB.Threshold })).ToList();
         return new Airfield
         {
             Name = net.Name,
             Network = net,
             Graph = graph,
-            Runways = RunwayFinder.Find(net, graph, dcsRunwayNames),
-            Parking = parking?.ToList() ?? [],
+            Runways = runways,
+            Parking = spots,
+            Bounds = points.Count == 0 ? default
+                : (new Vec2(points.Min(p => p.X), points.Min(p => p.Z)), new Vec2(points.Max(p => p.X), points.Max(p => p.Z))),
             Labels = labels,
             TaxiwayNames = labels is null ? new Dictionary<int, string>() : TaxiwayNamer.Assign(net, graph, labels.Taxiways, warnings),
             LabelWarnings = warnings,
@@ -154,6 +170,7 @@ public sealed class Airfield
     {
         16 => false,
         40 => helicopter,
+        68 => !helicopter,
         _ => true,
     };
 

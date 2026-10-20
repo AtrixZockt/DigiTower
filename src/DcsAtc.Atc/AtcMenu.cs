@@ -120,11 +120,13 @@ public sealed class AtcMenu(AirfieldCatalog airfields, GroundControl ground, Tow
     private async Task<List<GroundAirfield>> AirfieldsAsync(int group, Situation s, CancellationToken ct)
     {
         var found = new List<GroundAirfield>();
-        if (!s.Lead.InAir)
+        // On the ground, or a helicopter hovering or air-taxiing low over an airfield: that airfield.
+        var here = Helicopters.OnField(s.Lead) ? await airfields.AtAsync(s.Position, ct) : null;
+        if (here is not null)
         {
-            if (await airfields.NearestAsync(s.Position, ct: ct) is { } here) found.Add(here);
+            found.Add(here);
         }
-        else
+        else if (s.Lead.InAir)
         {
             // Airfields whose layout is still loading are listed from the next update on, so the menu never waits for one.
             // A loading airfield takes its place in the five, so only the five nearest ever start loading.
@@ -164,6 +166,10 @@ public sealed class AtcMenu(AirfieldCatalog airfields, GroundControl ground, Tow
         var position = s.Position;
         double miles = Distance(airfield.Airbase, position) / Nm;
         bool inAir = s.Lead.InAir;
+        bool helicopter = s.Lead.IsHelicopter;
+        // A helicopter hovering or air-taxiing low over this airfield: its ground calls, and it may ask to land.
+        bool hovering = inAir && helicopter && Helicopters.OnField(s.Lead) && airfield.Layout.Covers(position);
+        bool onField = !inAir || hovering;
 
         // Ground: at this airfield, on the ground.
         bool parked = airfield.Layout.Parking.Any(p => p.Position.DistanceTo(position) < ParkedDistance);
@@ -172,10 +178,10 @@ public sealed class AtcMenu(AirfieldCatalog airfields, GroundControl ground, Tow
             yield return ("Cancel taxi", "ground.cancel", null);
             yield return ("Say again (Ground)", "ground.repeat", null);
         }
-        else if (!inAir && s.Taxi is null && (s.Tower is null || (here(s.Tower.Airfield) && s.Tower.Phase == TowerPhase.Landed)))
+        else if (onField && s.Taxi is null && (s.Tower is null || (here(s.Tower.Airfield) && s.Tower.Phase == TowerPhase.Landed)))
         {
             // Start up (optional) while parked, until approved; then Ground can say it again.
-            if (s.Tower is null && parked && s.Startup is null) yield return ("Request startup", "ground.startup", null);
+            if (s.Tower is null && parked && !inAir && s.Startup is null) yield return ("Request startup", "ground.startup", null);
             if (s.Tower is null) yield return ("Request taxi", "ground.taxi", null);
             if (!parked) yield return ("Request taxi to parking", "ground.parking", null);
             if (here(s.Startup?.Airfield)) yield return ("Say again (Ground)", "ground.repeat", null);
@@ -197,22 +203,31 @@ public sealed class AtcMenu(AirfieldCatalog airfields, GroundControl ground, Tow
                 if (t.LastText != "") yield return ("Say again (Tower)", "tower.repeat", null);
             }
         }
-        else if (!inAir)
+        else if (onField)
         {
+            // A helicopter is at the runway only when Ground sent it there; otherwise it departs from where it stands.
             bool holding = here(s.Taxi?.Airfield) ? s.Taxi!.Phase == TaxiPhase.HoldingShort
-                : s.Taxi is null && airfield.Layout.Runways.Any(r => r.DistanceFrom(position) <= TowerControl.HoldingPointRange);
+                : s.Taxi is null && !helicopter && airfield.Layout.Runways.Any(r => r.DistanceFrom(position) <= TowerControl.HoldingPointRange);
             if (holding && s.Tower is null)
                 foreach (var d in Departures) yield return (d.Label, $"tower.ready.{d.Id}", "Ready for departure");
+            else if (helicopter && s.Taxi is null && s.Tower is null)
+            {
+                // A helicopter departs from where it stands (or air-taxis to the runway first: Request taxi).
+                foreach (var d in Departures.Where(d => d.Intent != DepartureIntent.ClosedTraffic))
+                    yield return (d.Label, $"tower.ready.{d.Id}", "Request departure");
+            }
+            if (hovering && s.Tower is null && s.Taxi is null) yield return ("Request landing", "tower.landing", null);
         }
         else if (s.Approach is not { IsArrival: true } && s.CheckInWith is null && Inbound(airfield, s.Lead))
         {
             // Arriving without Approach (or diverting here from another airfield); not while flying away from it.
             if (miles * Nm <= TowerControl.InboundRange) yield return ("Request landing", "tower.landing", null);
-            if (miles * Nm <= TowerControl.InitialRange) yield return ("Report initial", "tower.initial", null);
+            if (miles * Nm <= TowerControl.InitialRange && !helicopter) yield return ("Report initial", "tower.initial", null);
         }
 
         // Approach: in the air.
         var client = here(s.Approach?.Airfield) ? s.Approach : null;
+        inAir = !onField;
         if (inAir && client is { IsArrival: true })
         {
             if (client.Phase == ApproachPhase.Vectoring && client.Type != ApproachType.Overhead && !client.FieldInSight && miles <= FieldInSightRange)

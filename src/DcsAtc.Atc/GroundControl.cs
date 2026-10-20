@@ -25,7 +25,10 @@ public sealed class TaxiClearance
     /// <summary>Set for taxi clearances to parking (the lead's spot).</summary>
     public ParkingSpot? Spot { get; init; }
     public TaxiPhase Phase { get; set; } = TaxiPhase.Taxiing;
+    /// <summary>A helicopter: air-taxis, may hover, is held to the height instead of the speed.</summary>
+    public bool Helicopter { get; init; }
     internal int OffRouteSamples { get; set; }
+    internal DateTime LastHeightWarning { get; set; } = DateTime.MinValue;
     internal DateTime LastOffRouteWarning { get; set; } = DateTime.MinValue;
     internal Dictionary<string, DateTime> LastSpeedWarning { get; } = [];
 
@@ -40,7 +43,7 @@ public sealed class TaxiClearance
 /// Start up approved, before taxi (optional; how the flight departs is asked for at the holding point). Kept until the
 /// flight takes off, so Ground can say it again and the menu no longer offers it.
 /// </summary>
-public sealed record StartupApproval(Party Party, int Coalition, GroundAirfield Airfield, string Text)
+public sealed record StartupApproval(Party Party, int Coalition, GroundAirfield Airfield, string Text, bool Helicopter = false)
 {
     public int Key => Party.Key;
     /// <summary>The flight lead (or the aircraft itself).</summary>
@@ -93,7 +96,7 @@ public sealed class GroundControl(IDcsCommands dcs, AirfieldCatalog airfields, F
         var (party, lead, airfield) = who;
         var weather = await dcs.GetAirbaseWeatherAsync(airfield.Airbase.Name, ct);
         string text = Phraseology.StartupApproved(party.Callsign, airfield.Facility, weather, lead.Type);
-        _startups[party.Key] = new StartupApproval(party, lead.Coal, airfield, text);
+        _startups[party.Key] = new StartupApproval(party, lead.Coal, airfield, text, lead.IsHelicopter);
         await SayAsync(party, airfield, text, 20, ct);
         log?.Invoke($"{party.Callsign}: {text}");
     }
@@ -118,7 +121,7 @@ public sealed class GroundControl(IDcsCommands dcs, AirfieldCatalog airfields, F
         }
 
         var via = airfield.Layout.Via(departure.Route);
-        string text = Phraseology.TaxiClearance(party.Callsign, airfield.Facility, departure.End, via, weather, lead.Type);
+        string text = Phraseology.TaxiClearance(party.Callsign, airfield.Facility, departure.End, via, weather, lead.Type, airTaxi: lead.IsHelicopter);
         await StartAsync(new TaxiClearance
         {
             Party = party,
@@ -127,6 +130,7 @@ public sealed class GroundControl(IDcsCommands dcs, AirfieldCatalog airfields, F
             Route = departure.Route,
             Text = text,
             Departure = departure,
+            Helicopter = lead.IsHelicopter,
         }, DepartureColor, $"HOLD SHORT {departure.End.Name}", ct);
     }
 
@@ -147,7 +151,7 @@ public sealed class GroundControl(IDcsCommands dcs, AirfieldCatalog airfields, F
 
         string area = airfield.Layout.AreaNear(spot.Position) ?? "parking";
         var via = airfield.Layout.Via(route);
-        string text = Phraseology.TaxiToParking(party.Callsign, airfield.Facility, area, via);
+        string text = Phraseology.TaxiToParking(party.Callsign, airfield.Facility, area, via, airTaxi: lead.IsHelicopter);
         await StartAsync(new TaxiClearance
         {
             Party = party,
@@ -156,6 +160,7 @@ public sealed class GroundControl(IDcsCommands dcs, AirfieldCatalog airfields, F
             Route = route,
             Text = text,
             Spot = spot,
+            Helicopter = lead.IsHelicopter,
         }, ParkingColor, area.ToUpperInvariant(), ct);
     }
 
@@ -192,12 +197,12 @@ public sealed class GroundControl(IDcsCommands dcs, AirfieldCatalog airfields, F
     /// <summary>Checks every taxiing flight against its clearance.</summary>
     public async Task OnUnitsAsync(IReadOnlyDictionary<string, UnitState> units, CancellationToken ct = default)
     {
-        // A startup approval lasts until the flight is airborne (or gone).
-        foreach (var s in _startups.Values.Where(s => !units.TryGetValue(s.UnitName, out var lead) || lead.InAir).ToList()) _startups.Remove(s.Key);
+        // A startup approval lasts until the flight is airborne (or gone); a helicopter's until it leaves the field.
+        foreach (var s in _startups.Values.Where(s => !units.TryGetValue(s.UnitName, out var lead) || !Helicopters.OnField(lead)).ToList()) _startups.Remove(s.Key);
 
         foreach (var c in _clearances.Values.ToList())
         {
-            if (!units.TryGetValue(c.UnitName, out var unit) || unit.InAir)
+            if (!units.TryGetValue(c.UnitName, out var unit) || !Helicopters.OnField(unit))
             {
                 await ReleaseAsync(c.Key, ct);
                 continue;
@@ -213,7 +218,7 @@ public sealed class GroundControl(IDcsCommands dcs, AirfieldCatalog airfields, F
             }
 
             var now = _now();
-            if (Polyline.Project(route, position).Distance > OffRouteDistance)
+            if (Polyline.Project(route, position).Distance > (c.Helicopter ? Helicopters.OffRouteDistance : OffRouteDistance))
             {
                 c.OffRouteSamples++;
                 if (c.OffRouteSamples >= 3 && now - c.LastOffRouteWarning >= WarningInterval)
@@ -225,6 +230,17 @@ public sealed class GroundControl(IDcsCommands dcs, AirfieldCatalog airfields, F
             else
             {
                 c.OffRouteSamples = 0;
+            }
+
+            // Helicopters air-taxi at the speed they like, but low.
+            if (c.Helicopter)
+            {
+                if (unit.Agl > Helicopters.AirTaxiWarning && now - c.LastHeightWarning >= WarningInterval)
+                {
+                    c.LastHeightWarning = now;
+                    await SayAsync(c.Party, c.Airfield, Phraseology.RemainLow(c.Callsign, c.Airfield.Facility), 10, ct);
+                }
+                continue;
             }
 
             // Speed is every member's own business.
@@ -243,8 +259,10 @@ public sealed class GroundControl(IDcsCommands dcs, AirfieldCatalog airfields, F
     public async Task OnEventAsync(DcsEventMessage e, CancellationToken ct = default)
     {
         if (e.Event is not ("takeoff" or "runway_takeoff" or "crash" or "dead" or "unit_lost" or "player_leave_unit")) return;
-        foreach (var s in _startups.Values.Where(s => s.UnitName == e.Unit).ToList()) _startups.Remove(s.Key);
-        var c = _clearances.Values.FirstOrDefault(x => x.UnitName == e.Unit);
+        // A helicopter lifting into a hover is not departing: its clearance ends by height (OnUnitsAsync).
+        bool takeoff = e.Event is "takeoff" or "runway_takeoff";
+        foreach (var s in _startups.Values.Where(s => s.UnitName == e.Unit && !(takeoff && s.Helicopter)).ToList()) _startups.Remove(s.Key);
+        var c = _clearances.Values.FirstOrDefault(x => x.UnitName == e.Unit && !(takeoff && x.Helicopter));
         if (c is not null) await ReleaseAsync(c.Key, ct);
     }
 
@@ -297,14 +315,13 @@ public sealed class GroundControl(IDcsCommands dcs, AirfieldCatalog airfields, F
         if (unit.GroupId is null) return null;
         var party = flights.PartyFor(unit, units);
         var lead = units.GetValueOrDefault(party.LeadUnit) ?? unit;
-        if (lead.InAir)
+        if (!Helicopters.OnField(lead))
         {
             await SayAsync(party, null, Phraseology.GroundWhileAirborne(party.Callsign), 10, ct);
             return null;
         }
         var position = new Vec2(lead.X, lead.Z);
-        var airfield = at is null ? await airfields.NearestAsync(position, ct: ct)
-            : new Vec2(at.Airbase.X, at.Airbase.Z).DistanceTo(position) <= 4000 ? at : null;
+        var airfield = at is null ? await airfields.AtAsync(position, ct) : at.Layout.Covers(position) ? at : null;
         if (airfield is null)
         {
             await SayAsync(party, null, Phraseology.NoGroundControl(party.Callsign), 10, ct);

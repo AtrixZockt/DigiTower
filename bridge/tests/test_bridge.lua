@@ -311,14 +311,12 @@ test('hook: a server can turn AI handling off', function()
 end)
 
 test('hook: a broken settings file is reported and the defaults are used', function()
-  -- Without its settings the hook listens on the default port; skipped while something else (DCS) uses it.
-  local probe = socket.bind('127.0.0.1', 42700)
-  if not probe then print('      (skipped: port 42700 is in use)') return end
-  probe:close()
+  -- The fake moves the hook's listener to the test port (it would take the default 42700).
+  local port = 42796
   local W = fake.new({})
   W:setupScenario({ static = true })
-  local cb = fake.loadHook(W, root, nil, socket.gettime(), "DcsAtcConfig.lua:7: '}' expected near 'port'")
-  local client = assert(socket.connect('127.0.0.1', 42700))
+  local cb = fake.loadHook(W, root, port, socket.gettime(), "DcsAtcConfig.lua:7: '}' expected near 'port'")
+  local client = assert(socket.connect('127.0.0.1', port))
   client:settimeout(0)
   local hello
   local untilTime = socket.gettime() + 0.3
