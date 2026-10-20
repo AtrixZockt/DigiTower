@@ -1,168 +1,93 @@
-﻿using DcsAtc.App;
-using DcsAtc.Atc;
-using DcsAtc.Bridge;
-using DcsAtc.Recognition;
-using DcsAtc.Voice;
+﻿using DcsAtc.Host;
 
-// DigiTower: ATC for DCS World.
+// DigiTower console: ATC for DCS World without a window (DigiTowerConsole.exe). The control panel is DigiTower.exe; both
+// read the same settings file, the options below override it for this run.
 //
-//   dotnet run --project src/DcsAtc.App -- [--host 127.0.0.1] [--port 42700]
-//       [--dcs "D:\DCS\DCS World"]   DCS install (for the taxi networks); default: DIGITOWER_DCS_DIR (or the older DCSATC_DCS_DIR) or common locations
-//       [--data <dir>]               folder containing airfields/<theatre>/*.labels.json; default: the repository's data folder
-//       [--dump "Al Dhafra AFB"]...  write DCS airbase data to data/dcs/<name>.json
+//   dotnet run --project src/DcsAtc.App -- [options]
+//       [--settings <file>]          settings file (default %APPDATA%\DigiTower\settings.json)
+//       [--host 127.0.0.1] [--port 42700]   the DCS bridge
+//       [--dcs "D:\DCS\DCS World"]   DCS install (for the taxi networks); default: DIGITOWER_DCS_DIR (or the older
+//                                    DCSATC_DCS_DIR) or common locations
+//       [--data <dir>]               folder containing airfields\<theatre>\*.labels.json and voice\; default: next to
+//                                    the program or above it (the repository's data folder)
+//       [--dump "Al Dhafra AFB"]...  write DCS airbase data to data\dcs\<name>.json
 //       [--silence "<airbase>"]...   silence the stock ATC at more airbases
 //       [--keep-stock-atc]           do not silence the stock ATC where we provide ground control
 //       [--srs 127.0.0.1:5002]       SRS server the controllers speak on
-//       [--voice <id>]               ATC voice from data/voice/voices.json (default: its "default", else a Windows voice)
+//       [--voice <id>]               ATC voice from data\voice\voices.json (default: its "default", else a Windows voice)
 //       [--no-voice]                 text messages only
 //       [--no-ai]                    leave AI departures to DCS (never held)
 //       [--no-drawings]              draw nothing on the F10 map (taxi routes, landing spots: DCS shows them to the whole side)
 //       [--transcribe [<id>]]        voice requests: what pilots say to the controllers on SRS is recognized and answered like
-//                                    the F10 menu, written to the console and recorded (out/heard); recognizer from
-//                                    data/voice/recognition.json
-//       [--recordings out/heard]     where --transcribe keeps what it heard (one folder per day)
+//                                    the F10 menu, written to the console and recorded (out\heard); recognizer from
+//                                    data\voice\recognition.json
+//       [--recordings out\heard]     where --transcribe keeps what it heard (one folder per day)
+//       [--debug]                    also debug lines (clips prepared, status every 10 seconds)
 
-string host = "127.0.0.1";
-int port = 42700;
-string? dcsDir = Environment.GetEnvironmentVariable("DIGITOWER_DCS_DIR") ?? Environment.GetEnvironmentVariable("DCSATC_DCS_DIR");
-string? dataDir = null;
-bool keepStockAtc = false;
-string srs = "127.0.0.1:5002";
-string? voiceId = null;
-bool noVoice = false;
-bool manageAi = true;
-bool mapDrawings = true;
-string? transcribe = null;
-string recordings = Path.Combine("out", "heard");
+string? settingsFile = null;
+for (int i = 0; i + 1 < args.Length; i++)
+    if (args[i] == "--settings") settingsFile = args[i + 1];
+
+DigiTowerSettings settings;
+try
+{
+    settings = DigiTowerSettings.Load(settingsFile);
+}
+catch (InvalidDataException ex)
+{
+    Console.Error.WriteLine($"settings: {ex.Message}");
+    return 1;
+}
 var dump = new List<string>();
-var silence = new List<string>();
 
 for (int i = 0; i < args.Length; i++)
 {
     string Next() => i + 1 < args.Length ? args[++i] : throw new ArgumentException($"{args[i]} needs a value");
     switch (args[i])
     {
-        case "--host": host = Next(); break;
-        case "--port": port = int.Parse(Next()); break;
-        case "--dcs": dcsDir = Next(); break;
-        case "--data": dataDir = Next(); break;
+        case "--settings": Next(); break;
+        case "--host": settings.BridgeHost = Next(); break;
+        case "--port": settings.BridgePort = int.Parse(Next()); break;
+        case "--dcs": settings.DcsDirectory = Next(); break;
+        case "--data": settings.DataDirectory = Next(); break;
         case "--dump": dump.Add(Next()); break;
-        case "--silence": silence.Add(Next()); break;
-        case "--keep-stock-atc": keepStockAtc = true; break;
-        case "--srs": srs = Next(); break;
-        case "--voice": voiceId = Next(); break;
-        case "--no-voice": noVoice = true; break;
-        case "--no-ai": manageAi = false; break;
-        case "--no-drawings": mapDrawings = false; break;
-        case "--transcribe": transcribe = i + 1 < args.Length && !args[i + 1].StartsWith("--") ? args[++i] : ""; break;
-        case "--recordings": recordings = Next(); break;
+        case "--silence": settings.SilenceAirbases.Add(Next()); break;
+        case "--keep-stock-atc": settings.KeepStockAtc = true; break;
+        case "--srs": settings.Srs = Next(); break;
+        case "--voice": settings.VoiceId = Next(); break;
+        case "--no-voice": settings.Voice = false; break;
+        case "--no-ai": settings.ManageAi = false; break;
+        case "--no-drawings": settings.MapDrawings = false; break;
+        case "--transcribe":
+            settings.VoiceRequests = true;
+            if (i + 1 < args.Length && !args[i + 1].StartsWith("--")) settings.Recognizer = args[++i];
+            break;
+        case "--recordings": settings.RecordingsDirectory = Next(); break;
+        case "--debug": settings.Log.Debug = true; break;
         default:
             Console.Error.WriteLine($"unknown argument: {args[i]}");
             return 1;
     }
 }
 
-dcsDir ??= new[] { @"D:\DCS\DCS World", @"C:\Program Files\Eagle Dynamics\DCS World", @"C:\Program Files\Eagle Dynamics\DCS World OpenBeta" }
-    .FirstOrDefault(d => Directory.Exists(Path.Combine(d, "Mods", "terrains")));
-dataDir ??= FindDataDirectory();
-Console.WriteLine($"DCS install: {dcsDir ?? "not found (use --dcs)"}");
-Console.WriteLine($"airfield data: {dataDir ?? "not found (use --data)"}");
+var log = new AtcLog();
+log.Written += e =>
+{
+    if (!settings.Log.Shows(e)) return;
+    string level = e.Level switch { LogLevel.Warning => "warning: ", LogLevel.Error => "error: ", _ => "" };
+    Console.WriteLine($"{e.Time:HH:mm:ss}  {level}{e.Text}");
+};
 
-using var cts = new CancellationTokenSource();
+await using var host = new AtcHost(log);
+using var stopped = new SemaphoreSlim(0);
 Console.CancelKeyPress += (_, e) =>
 {
     e.Cancel = true;
-    cts.Cancel();
+    stopped.Release();
 };
-
-await using var radio = noVoice ? null : OpenRadio(dataDir, voiceId, srs, listen: transcribe is not null);
-var recognition = transcribe is not null && dataDir is not null && File.Exists(Path.Combine(dataDir, "voice", RecognizerCatalog.File))
-    ? RecognizerCatalog.Load(Path.Combine(dataDir, "voice")) : null;
-using var transcriber = radio is not null && transcribe is not null ? OpenTranscriber(recognition, transcribe, radio, recordings) : null;
-if (transcribe is not null && radio is null) Console.WriteLine("transcribe: needs the voice on SRS (not with --no-voice)");
-await using var client = new BridgeClient(new BridgeOptions { Host = host, Port = port, MapDrawings = mapDrawings });
-var app = new AtcApp(client, new AppOptions
-{
-    DcsDirectory = dcsDir,
-    DataDirectory = dataDir,
-    DumpAirbases = dump,
-    SilenceAirbases = silence,
-    KeepStockAtc = keepStockAtc,
-    Radio = radio,
-    VoiceAliases = recognition?.Aliases,
-    ManageAi = manageAi,
-});
-if (transcriber is not null)
-    transcriber.Recognized += (facility, t, text) => _ = app.OnVoiceAsync(facility, t.Frequency.Hz / 1e6, t.Sender?.Name, t.Sender?.UnitId, text, cts.Token);
-
-Console.WriteLine($"DigiTower: waiting for the DCS bridge on {host}:{port} (Ctrl+C to quit)");
-var connection = client.RunAsync(cts.Token);
-try
-{
-    await app.RunAsync(cts.Token);
-}
-catch (OperationCanceledException)
-{
-}
-await connection;
+await host.StartAsync(settings, new StartOptions { DumpAirbases = dump });
+if (!host.Running) return 1;
+Console.WriteLine("DigiTower: running (Ctrl+C to quit)");
+await stopped.WaitAsync();
+await host.StopAsync();
 return 0;
-
-// The controllers' voice on SRS: the chosen voice if its model is there, else a Windows voice.
-static SrsRadio? OpenRadio(string? dataDir, string? voiceId, string srs, bool listen)
-{
-    if (dataDir is null || !File.Exists(Path.Combine(dataDir, "voice", "voices.json")))
-    {
-        Console.WriteLine("voice: no data/voice/voices.json, text messages only");
-        return null;
-    }
-    var catalog = VoiceCatalog.Load(Path.Combine(dataDir, "voice"));
-    var wanted = catalog.Find(voiceId ?? catalog.Default);
-    if (wanted is null) Console.WriteLine($"voice: unknown voice {voiceId}");
-    var info = wanted is not null && catalog.IsAvailable(wanted) ? wanted : catalog.Voices.FirstOrDefault(v => v.Engine == "sapi" && catalog.IsAvailable(v));
-    if (info is null)
-    {
-        Console.WriteLine("voice: no voice available, text messages only");
-        return null;
-    }
-    if (wanted is not null && info != wanted)
-        Console.WriteLine($"voice: {wanted.Id} is not downloaded (dotnet run --project tools/DcsAtc.VoiceTool -- fetch), using {info.Id}");
-    var parts = srs.Split(':');
-    var options = new SrsRadioOptions { Host = parts[0], Port = parts.Length > 1 ? int.Parse(parts[1]) : 5002, Listen = listen };
-    Console.WriteLine($"voice: {info.Label} on SRS {options.Host}:{options.Port}");
-    var voice = catalog.Open(info, line => Console.WriteLine($"{DateTime.Now:HH:mm:ss}  {line}"));
-    return new SrsRadio(options, voice, line => Console.WriteLine($"{DateTime.Now:HH:mm:ss}  {line}"));
-}
-
-// Speech recognition on what the stations hear (spike S5): the recognizer loads in the background.
-static Transcriber? OpenTranscriber(RecognizerCatalog? catalog, string id, SrsRadio radio, string recordings)
-{
-    if (catalog is null)
-    {
-        Console.WriteLine($"transcribe: no data/voice/{RecognizerCatalog.File}");
-        return null;
-    }
-    var info = catalog.Find(id.Length == 0 ? catalog.Default : id);
-    if (info is null || !catalog.IsAvailable(info))
-    {
-        Console.WriteLine(info is null ? $"transcribe: unknown recognizer {id}" : $"transcribe: {info.Id} is not downloaded (dotnet run --project tools/DcsAtc.VoiceTool -- fetch --recognizer {info.Id})");
-        return null;
-    }
-    Console.WriteLine($"transcribe: {info.Label}, loading");
-    var transcriber = new Transcriber(() => catalog.Create(info), info.Id, recordings, line => Console.WriteLine($"{DateTime.Now:HH:mm:ss}  {line}"));
-    radio.Heard += transcriber.OnHeard;
-    return transcriber;
-}
-
-// The repository's data folder: look upwards from the working directory and from the app itself.
-static string? FindDataDirectory()
-{
-    foreach (var start in new[] { Directory.GetCurrentDirectory(), AppContext.BaseDirectory })
-    {
-        for (var dir = new DirectoryInfo(start); dir is not null; dir = dir.Parent)
-        {
-            string candidate = Path.Combine(dir.FullName, "data");
-            if (Directory.Exists(Path.Combine(candidate, "airfields"))) return candidate;
-        }
-    }
-    return null;
-}

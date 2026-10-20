@@ -5,7 +5,7 @@ using DcsAtc.Recognition;
 using DcsAtc.Srs;
 using DcsAtc.Voice;
 
-namespace DcsAtc.App;
+namespace DcsAtc.Host;
 
 /// <summary>
 /// Voice requests, first step (spike S5, <c>--transcribe</c>): what pilots say to a station is turned into text and
@@ -42,6 +42,11 @@ public sealed class Transcriber : IDisposable
     /// <summary>A transmission turned into text: the station that heard it, the transmission, the text.</summary>
     public event Action<string, SrsTransmission, string>? Recognized;
 
+    /// <summary>The recognizer: still loading (null), ready (true) or failed to load (false).</summary>
+    public bool? Ready { get; private set; }
+
+    public string RecognizerId => _recognizerId;
+
     public void OnHeard(string station, SrsTransmission t)
     {
         if (t.Duration < MinDuration || _queue.IsAddingCompleted) return;
@@ -77,10 +82,12 @@ public sealed class Transcriber : IDisposable
             var loaded = clock.Elapsed;
             // The first recognition sets the engine up (on the GPU it compiles shaders: seconds); done now, not on a pilot's call.
             recognizer.Recognize(new float[SrsProtocol.SampleRate]);
+            Ready = true;
             _log($"transcribe: {_recognizerId} ready on {recognizer.Runtime} in {loaded.TotalSeconds:F1} s (+{(clock.Elapsed - loaded).TotalSeconds:F1} s warm-up); recordings go to {Path.GetFullPath(_directory)}");
         }
         catch (Exception ex) when (ex is IOException or InvalidOperationException or NotSupportedException or DllNotFoundException or InvalidDataException)
         {
+            Ready = false;
             _log($"transcribe: {_recognizerId} could not be loaded: {ex.Message}");
             return;
         }

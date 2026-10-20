@@ -77,7 +77,10 @@ Kokoro, Piper and Windows engines are free; the table only says what the voices'
 
 ### Changing the voice
 
-- **For your machine:** create `data/voice/voices.local.json` (not in git, so updates never overwrite it):
+- **In the control panel:** *Settings → Controller voice* (*Test* plays a sample on your speakers); a voice that is
+  not downloaded yet is downloaded on the *Install* page. It is saved in the settings file, which the console uses too.
+- **For your machine, without the panel:** create `data/voice/voices.local.json` (not in git, so updates never
+  overwrite it); the settings file's voice, if set, comes first:
   ```json
   { "default": "piper-alan" }
   ```
@@ -187,8 +190,8 @@ From the SRS source (`ciribob/DCS-SimpleRadioStandalone`, tag 2.4.1.0, `Common/M
 
 ## Voice requests
 
-With `--transcribe`, pilots talk to the controllers on their frequencies with their normal push-to-talk, and the
-F10 menu keeps working alongside:
+With voice requests on (the control panel's *Settings → Voice requests*, or the console's `--transcribe`), pilots
+talk to the controllers on their frequencies with their normal push-to-talk, and the F10 menu keeps working alongside:
 
 ```powershell
 dotnet run --project src/DcsAtc.App -- --transcribe        # or --transcribe <recognizer id>; --recordings <dir>

@@ -59,7 +59,7 @@ public sealed class TowerFlight
     internal IReadOnlyCollection<string> Departing { get; set; } = [];
     internal DateTime ClearedAt { get; set; }
     /// <summary>The last "hold" / "continue" reason given, so it is not repeated every second.</summary>
-    internal string? LastReason { get; set; }
+    public string? LastReason { get; internal set; }
     internal DateTime LastWarning { get; set; } = DateTime.MinValue;
 
     public int Key => Party.Key;

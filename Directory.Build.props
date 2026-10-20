@@ -1,0 +1,10 @@
+<Project>
+  <PropertyGroup>
+    <!-- A development build. Releases set the version: tools\Publish-Release.ps1 -Version 0.1.0 -->
+    <Version>0.0.0-dev</Version>
+    <Authors>Julian | DiGii</Authors>
+    <Copyright>DigiTower (formerly DCS-ATC)</Copyright>
+    <!-- English only: no translated framework messages in the release. -->
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+  </PropertyGroup>
+</Project>

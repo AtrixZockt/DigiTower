@@ -73,7 +73,7 @@ public sealed class ApproachFlight
 /// the edge of its area; and calls traffic to everyone it works. Hands arrivals to Tower on final.
 /// </summary>
 public sealed class ApproachControl(IDcsCommands dcs, AirfieldCatalog airfields, TowerControl tower, FlightRegistry flights,
-    Action<string>? log = null, Func<DateTime>? clock = null, IAtcRadio? radio = null)
+    Action<string>? log = null, Func<DateTime>? clock = null, IAtcRadio? radio = null, ApproachProcedures? defaults = null)
 {
     private const double Nm = 1852, Ft = 0.3048;
     private static readonly TimeSpan VectorInterval = TimeSpan.FromSeconds(30), WarningInterval = TimeSpan.FromSeconds(30);
@@ -88,7 +88,23 @@ public sealed class ApproachControl(IDcsCommands dcs, AirfieldCatalog airfields,
     /// <summary>Arrivals sent to Tower (party key → when, and whether for the overhead).</summary>
     public IReadOnlyDictionary<int, (DateTime At, bool Overhead)> HandedToTower => _handedToTower;
 
-    public static ApproachProcedures ProceduresOf(GroundAirfield airfield) => airfield.Layout.Labels?.Approach ?? ApproachProcedures.Default;
+    /// <summary>
+    /// The procedures where an airfield's labels file has none. Its request range and service radius (the settings'
+    /// Approach distances) apply at every airfield.
+    /// </summary>
+    public ApproachProcedures Defaults { get; } = defaults ?? ApproachProcedures.Default;
+
+    private readonly Dictionary<GroundAirfield, ApproachProcedures> _procedures = [];
+
+    /// <summary>An airfield's procedures: its labels file's, else <see cref="Defaults"/>; the distances from <see cref="Defaults"/>.</summary>
+    public ApproachProcedures ProceduresFor(GroundAirfield airfield)
+    {
+        if (_procedures.TryGetValue(airfield, out var p)) return p;
+        p = airfield.Layout.Labels?.Approach is { } own
+            ? own with { RequestRange = Defaults.RequestRange, ServiceRadius = Defaults.ServiceRadius }
+            : Defaults;
+        return _procedures[airfield] = p;
+    }
 
     /// <summary>Whether Approach works this airfield (it has frequencies).</summary>
     public static bool Serves(AirfieldStations stations) => stations.Serves("Approach");
@@ -126,14 +142,14 @@ public sealed class ApproachControl(IDcsCommands dcs, AirfieldCatalog airfields,
             return;
         }
         var position = new Vec2(lead.X, lead.Z);
-        var airfield = at is null ? await NearestAsync(position, ApproachProcedures.Default.RequestRange, ct)
-            : DistanceToField(at, position) <= ProceduresOf(at).RequestRange ? at : null;
+        var airfield = at is null ? await NearestAsync(position, Defaults.RequestRange, ct)
+            : DistanceToField(at, position) <= ProceduresFor(at).RequestRange ? at : null;
         if (airfield is null)
         {
-            await TextAsync(party, Phraseology.NoApproach(party.Callsign, ApproachProcedures.Default.RequestRange), ct);
+            await TextAsync(party, Phraseology.NoApproach(party.Callsign, Defaults.RequestRange), ct);
             return;
         }
-        var p = ProceduresOf(airfield);
+        var p = ProceduresFor(airfield);
         var weather = await dcs.GetAirbaseWeatherAsync(airfield.Airbase.Name, ct);
         var (runway, end) = airfield.Layout.ActiveEnds(weather?.WindFrom ?? 0, weather?.WindSpeed ?? 0).MinBy(e => e.Runway.FromCenterline(position));
         if (runway is null) return;
@@ -192,11 +208,11 @@ public sealed class ApproachControl(IDcsCommands dcs, AirfieldCatalog airfields,
         }
         var position = new Vec2(lead.X, lead.Z);
         var airfield = at ?? (tower.Handoffs.TryGetValue(party.Key, out var handoff) ? handoff.Airfield : null)
-                       ?? await NearestAsync(position, ApproachProcedures.Default.ServiceRadius, ct);
+                       ?? await NearestAsync(position, Defaults.ServiceRadius, ct);
         tower.HandoffTaken(party.Key);
         if (airfield is null || !lead.InAir)
         {
-            await TextAsync(party, Phraseology.NoApproach(party.Callsign, ApproachProcedures.Default.ServiceRadius), ct);
+            await TextAsync(party, Phraseology.NoApproach(party.Callsign, Defaults.ServiceRadius), ct);
             return;
         }
         var runway = airfield.Layout.Runways.MinBy(r => r.DistanceFrom(position))!;
@@ -278,7 +294,7 @@ public sealed class ApproachControl(IDcsCommands dcs, AirfieldCatalog airfields,
     /// </summary>
     private void Plan(ApproachFlight f, UnitState unit, IReadOnlyDictionary<string, UnitState> units, double feet)
     {
-        var p = ProceduresOf(f.Airfield);
+        var p = ProceduresFor(f.Airfield);
         var position = new Vec2(unit.X, unit.Z);
         double a = Along(f.End, position), s = Lateral(f.End, position);
         double beyondIntercept = -a - p.FinalDistance * Nm;
@@ -308,7 +324,7 @@ public sealed class ApproachControl(IDcsCommands dcs, AirfieldCatalog airfields,
     /// <summary>One update of an arrival on vectors: the next leg when its point is reached, re-vectors, compliance. True if it spoke.</summary>
     private async Task<bool> VectorAsync(ApproachFlight f, UnitState unit, IReadOnlyDictionary<string, UnitState> units, CancellationToken ct)
     {
-        var p = ProceduresOf(f.Airfield);
+        var p = ProceduresFor(f.Airfield);
         var position = new Vec2(unit.X, unit.Z);
         double a = Along(f.End, position), s = Lateral(f.End, position);
         double feet = unit.Y / Ft;
@@ -441,9 +457,9 @@ public sealed class ApproachControl(IDcsCommands dcs, AirfieldCatalog airfields,
     /// Onto final from the side the aircraft is on, aimed to join it at least 2 NM before the intercept point (20° to 45°;
     /// from the base leg that is about 30°), or straight down final when already on it.
     /// </summary>
-    private static int InterceptHeading(ApproachFlight f, Vec2 position)
+    private int InterceptHeading(ApproachFlight f, Vec2 position)
     {
-        var p = ProceduresOf(f.Airfield);
+        var p = ProceduresFor(f.Airfield);
         double a = Along(f.End, position), s = Lateral(f.End, position);
         if (Math.Abs(s) < 0.3 * Nm) return Phraseology.Heading(f.End.TrueHeading);
         double room = Math.Max(Nm, -a - (p.FinalDistance - 2) * Nm);
@@ -458,7 +474,7 @@ public sealed class ApproachControl(IDcsCommands dcs, AirfieldCatalog airfields,
     /// </summary>
     private bool SpacingOk(ApproachFlight f, IReadOnlyDictionary<string, UnitState> units, double toGo)
     {
-        double spacing = ProceduresOf(f.Airfield).Spacing + CompressionMargin;
+        double spacing = ProceduresFor(f.Airfield).Spacing + CompressionMargin;
         return Leaders(f, units).All(d => d <= toGo - spacing || d >= toGo + spacing);
     }
 
@@ -489,7 +505,7 @@ public sealed class ApproachControl(IDcsCommands dcs, AirfieldCatalog airfields,
     {
         foreach (var group in _flights.Values.Where(f => f.Phase == ApproachPhase.Holding).GroupBy(f => f.Airfield).ToList())
         {
-            var p = ProceduresOf(group.Key);
+            var p = ProceduresFor(group.Key);
             if (_flights.Values.Count(o => o.Airfield == group.Key && o.Phase == ApproachPhase.Vectoring) >= p.MaxVectored) continue;
             var next = group.OrderBy(f => f.HoldAltitude).First();
             if (!units.TryGetValue(next.UnitName, out var unit)) continue;
@@ -506,7 +522,7 @@ public sealed class ApproachControl(IDcsCommands dcs, AirfieldCatalog airfields,
 
     private async Task<bool> OverheadAsync(ApproachFlight f, UnitState unit, CancellationToken ct)
     {
-        var p = ProceduresOf(f.Airfield);
+        var p = ProceduresFor(f.Airfield);
         var position = new Vec2(unit.X, unit.Z);
         double toField = DistanceToField(f.Airfield, position);
         var initial = f.End.Threshold - Vec2.FromHeading(f.End.TrueHeading) * (p.InitialDistance * Nm);
@@ -528,7 +544,7 @@ public sealed class ApproachControl(IDcsCommands dcs, AirfieldCatalog airfields,
 
     private async Task<bool> RadarServiceAsync(ApproachFlight f, UnitState unit, IReadOnlyDictionary<string, UnitState> units, CancellationToken ct)
     {
-        var p = ProceduresOf(f.Airfield);
+        var p = ProceduresFor(f.Airfield);
         var position = new Vec2(unit.X, unit.Z);
         if (DistanceToField(f.Airfield, position) > p.ServiceRadius)
         {
@@ -594,7 +610,7 @@ public sealed class ApproachControl(IDcsCommands dcs, AirfieldCatalog airfields,
     /// <summary>"Traffic, 2 o'clock, 5 miles, opposite direction, 2000 feet above": once per pair every two minutes, when closing.</summary>
     private async Task TrafficAsync(ApproachFlight f, UnitState unit, IReadOnlyDictionary<string, UnitState> units, CancellationToken ct)
     {
-        var p = ProceduresOf(f.Airfield);
+        var p = ProceduresFor(f.Airfield);
         var now = _now();
         var position = new Vec2(unit.X, unit.Z);
         bool onFinal = OnAnyFinal(f.Airfield, unit);

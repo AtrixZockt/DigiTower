@@ -1,0 +1,263 @@
+<UserControl x:Class="DcsAtc.Gui.Views.SettingsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <UserControl.Resources>
+        <Style x:Key="Fieldset" TargetType="Border" BasedOn="{StaticResource Card}">
+            <Setter Property="Padding" Value="18,16" />
+            <Setter Property="Margin" Value="0,0,0,16" />
+        </Style>
+        <Style x:Key="Field" TargetType="StackPanel">
+            <Setter Property="Margin" Value="0,12,0,0" />
+        </Style>
+        <Style x:Key="FieldCaption" TargetType="TextBlock" BasedOn="{StaticResource Caption}">
+            <Setter Property="Margin" Value="0,0,0,5" />
+        </Style>
+        <Style x:Key="Option" TargetType="CheckBox" BasedOn="{StaticResource {x:Type CheckBox}}">
+            <Setter Property="Margin" Value="0,12,0,0" />
+        </Style>
+    </UserControl.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" Focusable="False">
+        <StackPanel Margin="28,24,28,28">
+            <Grid Margin="0,0,0,14">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource PageTitle}" Text="Settings" />
+                    <TextBlock Style="{StaticResource Hint}" Margin="0,4,0,0">
+                        <Run Text="{Binding FilePath, Mode=OneWay}" /><Run Text=" · used by the control panel and by DigiTowerConsole" />
+                    </TextBlock>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top">
+                    <Button Content="REVERT" Command="{Binding RevertCommand}" IsEnabled="{Binding Dirty}" Margin="0,0,8,0" />
+                    <Button Style="{StaticResource PrimaryButton}" Content="SAVE" Command="{Binding SaveCommand}" IsEnabled="{Binding Dirty}" Padding="22,0" />
+                </StackPanel>
+            </Grid>
+
+            <!-- When the settings apply; a restart when the ATC runs with older ones. -->
+            <Border Background="{StaticResource Panel}" BorderBrush="{StaticResource Edge}" BorderThickness="1" Padding="14,10" Margin="0,0,0,16">
+                <Grid>
+                    <TextBlock VerticalAlignment="Center" TextWrapping="Wrap" Foreground="{StaticResource TextMid}" Margin="0,0,180,0"
+                               Text="The ATC uses the settings from its next start. The log settings (Log page) and the bridge settings (Install page) are separate." />
+                    <Button Style="{StaticResource PrimaryButton}" Content="RESTART ATC" Command="{Binding RestartCommand}" HorizontalAlignment="Right"
+                            Visibility="{Binding NeedsRestart, Converter={StaticResource VisibleWhen}}" ToolTip="The ATC runs with the settings it started with" />
+                </Grid>
+            </Border>
+            <Border Background="{StaticResource ErrorWell}" BorderBrush="{StaticResource ErrorEdge}" BorderThickness="1" Padding="14,10" Margin="0,0,0,16"
+                    Visibility="{Binding LoadError, Converter={StaticResource VisibleWhen}}">
+                <TextBlock Text="{Binding LoadError}" Foreground="{StaticResource ErrorText}" TextWrapping="Wrap" />
+            </Border>
+            <Border Background="{StaticResource ErrorWell}" BorderBrush="{StaticResource ErrorEdge}" BorderThickness="1" Padding="14,10" Margin="0,0,0,16"
+                    Visibility="{Binding Error, Converter={StaticResource VisibleWhen}}">
+                <TextBlock Text="{Binding Error}" Foreground="{StaticResource ErrorText}" TextWrapping="Wrap" />
+            </Border>
+            <Border Background="{StaticResource OkWell}" BorderBrush="{StaticResource OkEdge}" BorderThickness="1" Padding="14,10" Margin="0,0,0,16"
+                    Visibility="{Binding Saved, Converter={StaticResource VisibleWhen}}">
+                <TextBlock Text="{Binding Saved}" Foreground="{StaticResource OkText}" TextWrapping="Wrap" />
+            </Border>
+
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="16" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel>
+                    <Border Style="{StaticResource Fieldset}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource SectionTitle}" Text="START" />
+                            <CheckBox Style="{StaticResource Option}" Content="Start the ATC when the control panel opens" IsChecked="{Binding StartAtcOnOpen}" />
+                            <CheckBox Style="{StaticResource Option}" IsChecked="{Binding MinimizeToTray}">
+                                <StackPanel>
+                                    <TextBlock Text="Keep running in the notification area when the window is closed" TextWrapping="Wrap" />
+                                    <TextBlock Style="{StaticResource Hint}" Text="Quit from the icon's menu." />
+                                </StackPanel>
+                            </CheckBox>
+                            <CheckBox Style="{StaticResource Option}" IsChecked="{Binding CheckForUpdates}">
+                                <StackPanel>
+                                    <TextBlock Text="Look for updates" />
+                                    <TextBlock Style="{StaticResource Hint}" Text="On GitHub, when DigiTower is installed. It asks before it updates." />
+                                </StackPanel>
+                            </CheckBox>
+                            <TextBlock Style="{StaticResource Hint}" Margin="0,14,0,0"
+                                       Text="Without a window (a scheduled task, a service): DigiTowerConsole.exe, beside DigiTower.exe, with these settings." />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource Fieldset}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource SectionTitle}" Text="DCS" />
+                            <StackPanel Style="{StaticResource Field}">
+                                <TextBlock Style="{StaticResource FieldCaption}" Text="DCS INSTALL FOLDER" />
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox Text="{Binding DcsDirectory, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="DCS install folder" />
+                                    <Button Grid.Column="1" Content="Browse" Command="{Binding BrowseDcsCommand}" Margin="8,0,0,0" />
+                                </Grid>
+                                <TextBlock Style="{StaticResource Hint}" Margin="0,5,0,0" Text="{Binding DcsDirectoryHint}" />
+                                <TextBlock Style="{StaticResource Hint}" Text="The taxiways and beacons are read from here." />
+                            </StackPanel>
+                            <Grid Margin="0,12,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="12" />
+                                    <ColumnDefinition Width="110" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource FieldCaption}" Text="BRIDGE ADDRESS" />
+                                    <TextBox Text="{Binding BridgeHost, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Bridge address" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Style="{StaticResource FieldCaption}" Text="PORT" />
+                                    <TextBox Text="{Binding BridgePort, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Bridge port" />
+                                </StackPanel>
+                            </Grid>
+                            <TextBlock Style="{StaticResource Hint}" Margin="0,5,0,0" Text="Where the bridge in DCS listens (Install page): the same PC, port 42700 unless changed there." />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource Fieldset}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource SectionTitle}" Text="RADIO" />
+                            <StackPanel Style="{StaticResource Field}">
+                                <TextBlock Style="{StaticResource FieldCaption}" Text="SRS SERVER" />
+                                <TextBox Text="{Binding Srs, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="SRS server" />
+                                <TextBlock Style="{StaticResource Hint}" Margin="0,5,0,0" Text="You start the SRS server; DigiTower joins it as the controllers." />
+                            </StackPanel>
+                            <StackPanel Style="{StaticResource Field}">
+                                <TextBlock Style="{StaticResource FieldCaption}" Text="CONTROLLER VOICE" />
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <ComboBox ItemsSource="{Binding Voices}" SelectedItem="{Binding Voice}" AutomationProperties.Name="Controller voice" MaxDropDownHeight="420" />
+                                    <Button Grid.Column="1" Content="Test" Command="{Binding TestVoiceCommand}" Margin="8,0,0,0" ToolTip="Says a sample on this PC's speakers" />
+                                </Grid>
+                                <TextBlock Style="{StaticResource Hint}" Margin="0,5,0,0" Text="{Binding VoiceTestState}" Visibility="{Binding VoiceTestState, Converter={StaticResource VisibleWhen}}" />
+                                <TextBlock Style="{StaticResource Hint}" Margin="0,5,0,0" Text="Voices that are not downloaded: Install page." />
+                            </StackPanel>
+                            <CheckBox Style="{StaticResource Option}" Content="Text messages only (no voice on SRS)" IsChecked="{Binding TextOnly}" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource Fieldset}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource SectionTitle}" Text="CHART DATA" />
+                            <StackPanel Style="{StaticResource Field}">
+                                <TextBlock Style="{StaticResource FieldCaption}" Text="DATA FOLDER" />
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox Text="{Binding DataDirectory, UpdateSourceTrigger=PropertyChanged, Delay=400}" AutomationProperties.Name="Data folder" />
+                                    <Button Grid.Column="1" Content="Browse" Command="{Binding BrowseDataCommand}" Margin="8,0,0,0" />
+                                </Grid>
+                                <TextBlock Style="{StaticResource Hint}" Margin="0,5,0,0" Text="{Binding DataDirectoryHint}" />
+                                <TextBlock Style="{StaticResource Hint}" Text="{Binding DataSummary}" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <StackPanel Grid.Column="2">
+                    <Border Style="{StaticResource Fieldset}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource SectionTitle}" Text="VOICE REQUESTS" />
+                            <CheckBox Style="{StaticResource Option}" Content="Pilots can talk to the controllers on SRS" IsChecked="{Binding VoiceRequests}" />
+                            <StackPanel Style="{StaticResource Field}" IsEnabled="{Binding VoiceRequests}">
+                                <TextBlock Style="{StaticResource FieldCaption}" Text="RECOGNIZER" />
+                                <ComboBox ItemsSource="{Binding Recognizers}" SelectedItem="{Binding Recognizer}" AutomationProperties.Name="Recognizer" MaxDropDownHeight="420" />
+                                <TextBlock Style="{StaticResource Hint}" Margin="0,5,0,0" Text="GPU (Vulkan) is quickest where the graphics card has room; CPU works everywhere." />
+                            </StackPanel>
+                            <StackPanel Style="{StaticResource Field}" IsEnabled="{Binding VoiceRequests}">
+                                <TextBlock Style="{StaticResource FieldCaption}" Text="KEEP WHAT WAS HEARD IN" />
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox Text="{Binding RecordingsDirectory, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Recordings folder" />
+                                    <Button Grid.Column="1" Content="Browse" Command="{Binding BrowseRecordingsCommand}" Margin="8,0,0,0" />
+                                </Grid>
+                                <TextBlock Style="{StaticResource Hint}" Margin="0,5,0,0" Text="{Binding RecordingsHint}" />
+                            </StackPanel>
+                            <CheckBox Style="{StaticResource Option}" IsChecked="{Binding CheckReadbacks}">
+                                <StackPanel>
+                                    <TextBlock Text="Check readbacks" />
+                                    <TextBlock Style="{StaticResource Hint}" Text="Clear mistakes are corrected: &quot;negative, I say again, runway 31 right&quot;." />
+                                </StackPanel>
+                            </CheckBox>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource Fieldset}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource SectionTitle}" Text="TRAFFIC" />
+                            <CheckBox Style="{StaticResource Option}" IsChecked="{Binding ManageAi}">
+                                <StackPanel>
+                                    <TextBlock Text="Handle AI departures" />
+                                    <TextBlock Style="{StaticResource Hint}" Text="Hold AI at parking while players taxi, take off or land. A server can turn this off in its bridge settings (Install page)." />
+                                </StackPanel>
+                            </CheckBox>
+                            <CheckBox Style="{StaticResource Option}" IsChecked="{Binding MapDrawings}">
+                                <StackPanel>
+                                    <TextBlock Text="Draw on the F10 map" />
+                                    <TextBlock Style="{StaticResource Hint}" Text="Taxi routes, hold lines, spots and pads. DCS shows them to the whole side." />
+                                </StackPanel>
+                            </CheckBox>
+                            <CheckBox Style="{StaticResource Option}" IsChecked="{Binding KeepStockAtc}">
+                                <StackPanel>
+                                    <TextBlock Text="Keep the stock DCS ATC" />
+                                    <TextBlock Style="{StaticResource Hint}" Text="Off: it is silenced where DigiTower works." />
+                                </StackPanel>
+                            </CheckBox>
+                            <StackPanel Style="{StaticResource Field}">
+                                <TextBlock Style="{StaticResource FieldCaption}" Text="ALSO SILENCE THE STOCK ATC AT" />
+                                <TextBox Text="{Binding SilenceAirbases, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" MinHeight="60" Padding="8,6"
+                                         VerticalContentAlignment="Top" TextWrapping="Wrap" AutomationProperties.Name="Also silence the stock ATC at" />
+                                <TextBlock Style="{StaticResource Hint}" Margin="0,5,0,0" Text="One airbase per line, as DCS names it (Al Minhad AFB)." />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource Fieldset}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource SectionTitle}" Text="APPROACH" />
+                            <StackPanel Style="{StaticResource Field}">
+                                <TextBlock Style="{StaticResource FieldCaption}" Text="APPROACH REQUEST RANGE" />
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="70" />
+                                    </Grid.ColumnDefinitions>
+                                    <Slider Minimum="20" Maximum="150" SmallChange="5" LargeChange="10" TickFrequency="5" IsSnapToTickEnabled="True"
+                                            Value="{Binding ApproachRequestRange}" AutomationProperties.Name="Approach request range" />
+                                    <TextBlock Grid.Column="1" Style="{StaticResource Mono}" Text="{Binding ApproachRequestRange, StringFormat={}{0:0} NM}" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                                </Grid>
+                                <TextBlock Style="{StaticResource Hint}" Margin="0,5,0,0" Text="Arrivals can ask Approach for an approach this close to an airfield." />
+                            </StackPanel>
+                            <StackPanel Style="{StaticResource Field}">
+                                <TextBlock Style="{StaticResource FieldCaption}" Text="RADAR SERVICE RADIUS" />
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="70" />
+                                    </Grid.ColumnDefinitions>
+                                    <Slider Minimum="10" Maximum="100" SmallChange="5" LargeChange="10" TickFrequency="5" IsSnapToTickEnabled="True"
+                                            Value="{Binding ApproachServiceRadius}" AutomationProperties.Name="Radar service radius" />
+                                    <TextBlock Grid.Column="1" Style="{StaticResource Mono}" Text="{Binding ApproachServiceRadius, StringFormat={}{0:0} NM}" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                                </Grid>
+                                <TextBlock Style="{StaticResource Hint}" Margin="0,5,0,0" Text="Departures keep radar service up to this distance, then &quot;radar service terminated&quot;." />
+                            </StackPanel>
+                            <TextBlock Style="{StaticResource Hint}" Margin="0,12,0,0" Text="Both apply at every airfield." />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Grid>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

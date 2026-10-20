@@ -4,7 +4,7 @@ using DcsAtc.Atc;
 using DcsAtc.Bridge;
 using DcsAtc.Recognition;
 
-namespace DcsAtc.App;
+namespace DcsAtc.Host;
 
 public sealed record AppOptions
 {
@@ -22,13 +22,19 @@ public sealed record AppOptions
     public bool ManageAi { get; init; } = true;
     /// <summary>Mishearings to correct before a voice request is read ("one way" → "runway").</summary>
     public IReadOnlyDictionary<string, string>? VoiceAliases { get; init; }
+    /// <summary>Correct wrong readbacks ("negative, I say again, runway 31R").</summary>
+    public bool CheckReadbacks { get; init; } = true;
+    /// <summary>Approach's procedures where an airfield's labels file has none.</summary>
+    public ApproachProcedures? ApproachDefaults { get; init; }
+    /// <summary>Where everything is logged; null: nowhere.</summary>
+    public AtcLog? Log { get; init; }
 }
 
 /// <summary>
 /// The ATC app: follows the mission through the bridge, gives every player group an "ATC" F10 menu and
 /// runs ground control and tower, in text and (with a radio) on SRS.
 /// </summary>
-public sealed class AtcApp
+public sealed partial class AtcApp
 {
     private readonly BridgeClient _client;
     private readonly AppOptions _options;
@@ -42,6 +48,7 @@ public sealed class AtcApp
     private readonly FarpControl _farps;
     private readonly CallLog? _calls;
     private readonly IAtcRadio? _radio;
+    private readonly AtcLog _log;
 
     /// <summary>A readback is checked against the instructions of the last minute.</summary>
     public static readonly TimeSpan ReadbackWindow = TimeSpan.FromMinutes(1);
@@ -60,6 +67,20 @@ public sealed class AtcApp
     // Airfields whose phrases are prepared (airbase id).
     private readonly HashSet<int> _prepared = [];
 
+    /// <summary>Connected to the DCS bridge.</summary>
+    public bool Connected { get; private set; }
+    /// <summary>The running mission and its theatre; null between missions.</summary>
+    public string? Mission { get; private set; }
+    public string? Theatre { get; private set; }
+    /// <summary>The server's map drawing setting (null: an older bridge does not say).</summary>
+    public bool? ServerMapDrawings { get; private set; }
+
+    /// <summary>
+    /// Raised on the app's own loop after every message handled and every voice request: the moment to take a
+    /// <see cref="Snapshot"/> (nothing changes while a handler runs).
+    /// </summary>
+    public event Action? Changed;
+
     /// <summary>An airfield goes on the air (voice requests heard, ATIS broadcast, phrases prepared) when a player comes this close (NM).</summary>
     public const double OnAirRange = 60;
     private const double Nm = 1852;
@@ -68,17 +89,18 @@ public sealed class AtcApp
     {
         _client = client;
         _options = options;
+        _log = options.Log ?? new AtcLog();
         // Every transmission goes through the call log, so readbacks can be checked against it.
         _calls = options.Radio is null ? null : new CallLog(options.Radio);
         _radio = _calls;
-        _airfields = new AirfieldCatalog(client, options.DcsDirectory, options.DataDirectory, Log);
-        _flights = new FlightRegistry(client, Log);
-        _ground = new GroundControl(client, _airfields, _flights, Log, radio: _radio);
-        _tower = new TowerControl(client, _airfields, _ground, _flights, Log, radio: _radio);
-        _approach = new ApproachControl(client, _airfields, _tower, _flights, Log, radio: _radio);
-        _atis = new AtisService(client, _airfields, _radio, Log, onAir: a => _onAir.Any(k => k.Id == a.Id));
-        _ai = new AiTraffic(client, _airfields, _ground, _tower, _approach, Log, radio: _radio);
-        _farps = new FarpControl(client, _flights, Log, _radio);
+        _airfields = new AirfieldCatalog(client, options.DcsDirectory, options.DataDirectory, _log.For(LogCategory.App));
+        _flights = new FlightRegistry(client, _log.For(LogCategory.App));
+        _ground = new GroundControl(client, _airfields, _flights, _log.For(LogCategory.Ground), radio: _radio);
+        _tower = new TowerControl(client, _airfields, _ground, _flights, _log.For(LogCategory.Tower), radio: _radio);
+        _approach = new ApproachControl(client, _airfields, _tower, _flights, _log.For(LogCategory.Approach), radio: _radio, defaults: options.ApproachDefaults);
+        _atis = new AtisService(client, _airfields, _radio, _log.For(LogCategory.Atis), onAir: a => _onAir.Any(k => k.Id == a.Id));
+        _ai = new AiTraffic(client, _airfields, _ground, _tower, _approach, _log.For(LogCategory.Ai), radio: _radio);
+        _farps = new FarpControl(client, _flights, _log.For(LogCategory.Farp), _radio);
         _menu = new AtcMenu(_airfields, _ground, _tower, _approach, _flights, _farps);
         _reader = new PilotCallReader(options.VoiceAliases);
     }
@@ -94,10 +116,11 @@ public sealed class AtcApp
             }
             catch (Exception ex) when (ex is BridgeCommandException or InvalidOperationException or IOException or TimeoutException or InvalidDataException)
             {
-                Log($"error: {ex.Message}");
+                Log(LogCategory.App, $"error: {ex.Message}", LogLevel.Error);
             }
             finally
             {
+                RaiseChanged();
                 _gate.Release();
             }
         }
@@ -117,10 +140,11 @@ public sealed class AtcApp
         try
         {
             await VoiceAsync(facility, mhz, sender, unitId, text, ct);
+            RaiseChanged();
         }
         catch (Exception ex) when (ex is BridgeCommandException or InvalidOperationException or IOException or TimeoutException or InvalidDataException)
         {
-            Log($"voice: {ex.Message}");
+            Log(LogCategory.VoiceIn, $"voice: {ex.Message}", LogLevel.Error);
         }
         finally
         {
@@ -134,7 +158,7 @@ public sealed class AtcApp
             ?? _units.Values.FirstOrDefault(u => u.IsPlayer && u.Player == sender);
         if (unit?.GroupId is null)
         {
-            Log($"voice: {sender ?? "?"} is not in an aircraft, not answered");
+            Log(LogCategory.VoiceIn, $"voice: {sender ?? "?"} is not in an aircraft, not answered");
             return;
         }
         // Stations sharing a frequency (a few DCS airfields; every Retribution FARP): the one nearest the pilot answers.
@@ -164,10 +188,10 @@ public sealed class AtcApp
             }
             if (!reading.AimedAtAtc)
             {
-                Log($"voice: {party.Callsign} to {station}: not a call to ATC, no answer");
+                Log(LogCategory.VoiceIn, $"voice: {party.Callsign} to {station}: not a call to ATC, no answer");
                 return;
             }
-            Log($"voice: {party.Callsign} to {station}: not understood");
+            Log(LogCategory.VoiceIn, $"voice: {party.Callsign} to {station}: not understood");
             await ReplyAsync(party, airfield, role, unit.Coal, Phraseology.SayAgainPlease(party.Callsign, station), ct);
             return;
         }
@@ -181,7 +205,7 @@ public sealed class AtcApp
             PilotIntent.RequestApproach or PilotIntent.FieldInSight or PilotIntent.CancelApproach => "Approach",
             _ => role,
         };
-        Log($"voice: {party.Callsign} to {station}: {call.Intent}{(call.Option is { } o ? $" ({o})" : "")}, match {call.Match:P0}");
+        Log(LogCategory.VoiceIn, $"voice: {party.Callsign} to {station}: {call.Intent}{(call.Option is { } o ? $" ({o})" : "")}, match {call.Match:P0}");
         // Asked on another position's own frequency: sent to the one that handles it. On a shared frequency that one answers.
         var (answering, sendTo) = stations.Route(mhz, role, owner);
         if (sendTo is double other)
@@ -240,15 +264,20 @@ public sealed class AtcApp
     /// </summary>
     private async Task ReadbackAsync(Party party, string facility, IReadOnlyList<string> words, CancellationToken ct)
     {
-        if (_calls?.Correction(party.Callsign, facility, words, ReadbackWindow) is not { } correction)
+        if (!_options.CheckReadbacks)
         {
-            Log($"voice: {party.Callsign} to {facility}: readback, no answer");
+            Log(LogCategory.VoiceIn, $"voice: {party.Callsign} to {facility}: readback (not checked)");
             return;
         }
-        Log($"voice: {party.Callsign} to {facility}: readback differs");
+        if (_calls?.Correction(party.Callsign, facility, words, ReadbackWindow) is not { } correction)
+        {
+            Log(LogCategory.VoiceIn, $"voice: {party.Callsign} to {facility}: readback, no answer");
+            return;
+        }
+        Log(LogCategory.VoiceIn, $"voice: {party.Callsign} to {facility}: readback differs");
         foreach (var group in party.Groups) await _client.ShowTextAsync(group, correction.Text, 15, ct: ct);
         _radio!.Transmit(correction);
-        Log($"{party.Callsign}: {correction.Text}");
+        Log(LogCategory.VoiceIn, $"{party.Callsign}: {correction.Text}");
     }
 
     /// <summary>Of the airfields and FARP sites working this frequency, the one nearest the unit.</summary>
@@ -274,14 +303,14 @@ public sealed class AtcApp
             }
             if (!reading.AimedAtAtc)
             {
-                Log($"voice: {party.Callsign} to {site.Name}: not a call to ATC, no answer");
+                Log(LogCategory.VoiceIn, $"voice: {party.Callsign} to {site.Name}: not a call to ATC, no answer");
                 return;
             }
-            Log($"voice: {party.Callsign} to {site.Name}: not understood");
+            Log(LogCategory.VoiceIn, $"voice: {party.Callsign} to {site.Name}: not understood");
             await FarpReplyAsync(party, site, unit.Coal, Phraseology.SayAgainPlease(party.Callsign, site.Name), ct);
             return;
         }
-        Log($"voice: {party.Callsign} to {site.Name}: {call.Intent}{(call.Option is { } o ? $" ({o})" : "")}, match {call.Match:P0}");
+        Log(LogCategory.VoiceIn, $"voice: {party.Callsign} to {site.Name}: {call.Intent}{(call.Option is { } o ? $" ({o})" : "")}, match {call.Match:P0}");
         switch (call.Intent)
         {
             case PilotIntent.RequestStartup:
@@ -310,7 +339,7 @@ public sealed class AtcApp
     {
         foreach (var group in party.Groups) await _client.ShowTextAsync(group, text, 10, ct: ct);
         if (_radio is { } radio && site.Call(coalition, text) is { } call) radio.Transmit(call);
-        Log($"{party.Callsign}: {text}");
+        Log(LogCategory.Farp, $"{party.Callsign}: {text}");
     }
 
     private async Task FarpMenuAsync(UnitState unit, int groupId, string action, FarpSite site, CancellationToken ct)
@@ -355,7 +384,7 @@ public sealed class AtcApp
     {
         foreach (var group in party.Groups) await _client.ShowTextAsync(group, text, 10, ct: ct);
         if (_radio is { } radio && airfield.Call(role, coalition, text) is { } call) radio.Transmit(call);
-        Log($"{party.Callsign}: {text}");
+        Log(RoleCategory(role), $"{party.Callsign}: {text}");
     }
 
     private async Task HandleAsync(BridgeMessage message, CancellationToken ct)
@@ -363,26 +392,35 @@ public sealed class AtcApp
         switch (message)
         {
             case ConnectionChangedMessage { Connected: true }:
-                Log("connected to DCS");
+                Connected = true;
+                Log(LogCategory.Bridge, "connected to DCS");
                 break;
             case ConnectionChangedMessage c:
-                Log($"disconnected from DCS ({c.Reason})");
+                Connected = false;
+                Mission = null;
+                Theatre = null;
+                Log(LogCategory.Bridge, $"disconnected from DCS ({c.Reason})", LogLevel.Warning);
                 ResetMission();
                 break;
             case HelloMessage h:
-                Log($"bridge protocol {h.Protocol}, mission '{h.Mission}', running: {h.MissionRunning}, multiplayer: {h.Multiplayer}");
-                if (h.Error is not null) Log($"bridge error: {h.Error}");
+                Log(LogCategory.Bridge, $"bridge protocol {h.Protocol}, mission '{h.Mission}', running: {h.MissionRunning}, multiplayer: {h.Multiplayer}");
+                if (h.Error is not null) Log(LogCategory.Bridge, $"bridge error: {h.Error}", LogLevel.Error);
                 _serverAllowsAi = h.ManageAi != false;
-                if (_options.ManageAi && !_serverAllowsAi) Log("AI traffic off: turned off on this server (manageAi = false in Scripts\\DigiTower\\DigiTowerConfig.lua)");
-                if (h.MapDrawings == false) Log("F10 map drawings off on this server (mapDrawings = false in Scripts\\DigiTower\\DigiTowerConfig.lua)");
+                ServerMapDrawings = h.MapDrawings;
+                Mission = h.MissionRunning ? h.Mission : null;
+                if (_options.ManageAi && !_serverAllowsAi) Log(LogCategory.Ai, "AI traffic off: turned off on this server (manageAi = false in Scripts\\DigiTower\\DigiTowerConfig.lua)", LogLevel.Warning);
+                if (h.MapDrawings == false) Log(LogCategory.Bridge, "F10 map drawings off on this server (mapDrawings = false in Scripts\\DigiTower\\DigiTowerConfig.lua)", LogLevel.Warning);
                 if (h.MissionRunning) await OnMissionRunningAsync(h.Info, ct);
                 break;
             case MissionStartedMessage m:
-                Log($"mission started: '{m.Mission}'");
+                Mission = m.Mission;
+                Log(LogCategory.Bridge, $"mission started: '{m.Mission}'");
                 await OnMissionRunningAsync(m.Info, ct);
                 break;
             case MissionStoppedMessage:
-                Log("mission stopped");
+                Mission = null;
+                Theatre = null;
+                Log(LogCategory.Bridge, "mission stopped");
                 ResetMission();
                 break;
             case UnitsMessage u:
@@ -390,7 +428,7 @@ public sealed class AtcApp
                 break;
             case DcsEventMessage e:
                 if (e.Player is not null || e.Event is "takeoff" or "land")
-                    Log($"event {e.Event,-16} {e.Unit} ({e.UnitType}){(e.Player is null ? "" : $" player {e.Player}")}{(e.Place is null ? "" : $" at {e.Place}")}");
+                    Log(LogCategory.Bridge, $"event {e.Event,-16} {e.Unit} ({e.UnitType}){(e.Player is null ? "" : $" player {e.Player}")}{(e.Place is null ? "" : $" at {e.Place}")}");
                 await _ground.OnEventAsync(e, ct);
                 await _tower.OnEventAsync(e, ct);
                 await _approach.OnEventAsync(e, ct);
@@ -401,7 +439,7 @@ public sealed class AtcApp
                 await OnMenuAsync(m, ct);
                 break;
             case BridgeErrorMessage e:
-                Log($"bridge error: {e.Error}");
+                Log(LogCategory.Bridge, $"bridge error: {e.Error}", LogLevel.Error);
                 break;
         }
     }
@@ -409,7 +447,8 @@ public sealed class AtcApp
     private async Task OnMissionRunningAsync(MissionInfo? info, CancellationToken ct)
     {
         ResetMission();
-        Log($"theatre {info?.Theatre ?? "?"}, mission date {info?.Date?.Year}-{info?.Date?.Month:00}-{info?.Date?.Day:00}");
+        Theatre = info?.Theatre;
+        Log(LogCategory.Bridge, $"theatre {info?.Theatre ?? "?"}, mission date {info?.Date?.Year}-{info?.Date?.Month:00}-{info?.Date?.Day:00}");
         var airbases = await _client.GetAirbasesAsync(ct);
         IReadOnlyList<AirbaseRadios> radios = [];
         try
@@ -418,11 +457,11 @@ public sealed class AtcApp
         }
         catch (BridgeCommandException ex)
         {
-            Log($"ATC frequencies from DCS not available ({ex.Message}): voice only where chart data has frequencies. Update the bridge with bridge/install.ps1.");
+            Log(LogCategory.Bridge, $"ATC frequencies from DCS not available ({ex.Message}): voice only where chart data has frequencies. Update the bridge.", LogLevel.Warning);
         }
         _airfields.SetMission(info?.Theatre, airbases, radios);
         int withRadio = airbases.Count(a => _airfields.StationsFor(a).All.Count > 0);
-        Log($"{airbases.Count} airbases in this mission, {withRadio} with ATC frequencies");
+        Log(LogCategory.Bridge, $"{airbases.Count} airbases in this mission, {withRadio} with ATC frequencies");
         IReadOnlyList<FarpInfo> farps = [];
         try
         {
@@ -430,10 +469,10 @@ public sealed class AtcApp
         }
         catch (BridgeCommandException ex)
         {
-            Log($"FARPs not available ({ex.Message}): update the bridge with bridge/install.ps1.");
+            Log(LogCategory.Bridge, $"FARPs not available ({ex.Message}): update the bridge.", LogLevel.Warning);
         }
         _farps.SetSites(FarpSite.Build(farps));
-        foreach (var site in _farps.Sites) Log($"FARP site {site.Name}: {site.Pads.Count} pads, {FarpFrequency(site)}");
+        foreach (var site in _farps.Sites) Log(LogCategory.Farp, $"FARP site {site.Name}: {site.Pads.Count} pads, {FarpFrequency(site)}");
 
         foreach (var name in _options.DumpAirbases)
         {
@@ -442,7 +481,7 @@ public sealed class AtcApp
             Directory.CreateDirectory(_options.DumpDirectory);
             string path = Path.Combine(_options.DumpDirectory, $"{name}.json");
             await File.WriteAllTextAsync(path, JsonSerializer.Serialize(dump, new JsonSerializerOptions { WriteIndented = true }), ct);
-            Log($"{name}: {dump.Runways.Count} runways, {dump.Parking.Count} parking spots -> {path}");
+            Log(LogCategory.App, $"{name}: {dump.Runways.Count} runways, {dump.Parking.Count} parking spots -> {path}");
         }
 
         // The stock ATC is silenced where we talk on its frequencies, and at airfields with chart data.
@@ -456,7 +495,7 @@ public sealed class AtcApp
                 foreach (var site in _farps.Sites.Where(s => s.Frequencies.All.Count > 0)) silence.UnionWith(site.Farps);
         }
         foreach (var name in silence)
-            Log($"{name}: stock ATC silenced: {await _client.SetRadioSilentAsync(name, true, ct)}");
+            Log(LogCategory.Bridge, $"{name}: stock ATC silenced: {await _client.SetRadioSilentAsync(name, true, ct)}");
         await _atis.UpdateAsync(ct);
     }
 
@@ -468,7 +507,7 @@ public sealed class AtcApp
         foreach (var u in PlayerGroups())
         {
             if (_menus.ContainsKey(u.GroupId!.Value)) continue;
-            Log($"ATC menu for {u.Player} ({u.Group})");
+            Log(LogCategory.Bridge, $"ATC menu for {u.Player} ({u.Group})");
             _radio?.Prepare(Phraseology.CallsignSamples(Phraseology.Callsign(u)), soon: true);
         }
         await OnAirAsync(ct);
@@ -486,20 +525,20 @@ public sealed class AtcApp
         {
             _lastStatus = DateTime.UtcNow;
             foreach (var p in snapshot.Units.Where(u => u.IsPlayer))
-                Log($"    {p.Player,-14} {p.Type,-12} {Phraseology.Callsign(p),-12} hdg {p.Hdg:000}  gs {p.GroundSpeed * 1.94384,4:F0} kt  {p.Agl * 3.28084,6:F0} ft AGL  {(p.InAir ? "air" : "ground")}" +
+                Log(LogCategory.App, $"    {p.Player,-14} {p.Type,-12} {Phraseology.Callsign(p),-12} hdg {p.Hdg:000}  gs {p.GroundSpeed * 1.94384,4:F0} kt  {p.Agl * 3.28084,6:F0} ft AGL  {(p.InAir ? "air" : "ground")}" +
                     (_ground.Clearances.Values.FirstOrDefault(c => c.UnitName == p.Name) is { } c ? $"  [Ground: {c.Phase} to {c.Departure?.End.Name ?? "parking"}]" : "") +
                     (_tower.Flights.Values.FirstOrDefault(f => f.UnitName == p.Name) is { } t ? $"  [Tower: {t.Phase} {(t.Spot is { } spot ? $"spot {spot.Index}" : t.FromPresentPosition ? "from present position" : $"runway {t.End.Name}")}]" : "") +
                     (_approach.Flights.Values.FirstOrDefault(f => f.UnitName == p.Name) is { } a
                         ? $"  [Approach: {a.Phase}{(a.IsArrival ? $" {a.Type} {a.End.Name} {a.Leg} hdg {a.Heading:000} alt {a.Altitude:0}" : "")}]" : "") +
                     (_farps.Flights.Values.FirstOrDefault(f => f.UnitName == p.Name) is { } fa
-                        ? $"  [{fa.Site.Name}: {fa.Phase}{(fa.Pad is { } pad ? $" pad {pad.Number}" : "")}]" : ""));
+                        ? $"  [{fa.Site.Name}: {fa.Phase}{(fa.Pad is { } pad ? $" pad {pad.Number}" : "")}]" : ""), LogLevel.Debug);
         }
     }
 
     private async Task OnMenuAsync(MenuSelectedMessage m, CancellationToken ct)
     {
         var unit = _units.Values.FirstOrDefault(u => u.GroupId == m.GroupId && u.IsPlayer) ?? _units.Values.FirstOrDefault(u => u.GroupId == m.GroupId);
-        Log($"menu '{m.Id}' from group {m.GroupId} ({unit?.Player ?? "?"})");
+        Log(LogCategory.Bridge, $"menu '{m.Id}' from group {m.GroupId} ({unit?.Player ?? "?"})");
         if (unit is null) return;
         // Airfield calls carry the airfield ("ab4:ground.taxi"): the controllers work that one, not the nearest.
         var (airbaseId, action) = AtcMenu.ParseId(m.Id);
@@ -555,7 +594,7 @@ public sealed class AtcApp
         {
             await _client.MarkGroupAsync(PinKey(groupId), groupId, unit.X, unit.Z, $"Only {who} should see this", ct);
             await _client.ShowTextAsync(groupId, $"Private pin placed at your position, for {who} only (group {groupId}). Ask the others whether they see it on their F10 map.", 20, ct: ct);
-            Log($"private pin for {who} (group {groupId}) placed");
+            Log(LogCategory.Bridge, $"private pin for {who} (group {groupId}) placed");
         }
         catch (BridgeCommandException ex)
         {
@@ -634,7 +673,7 @@ public sealed class AtcApp
                 if (Math.Sqrt(Math.Pow(airbase.X - unit.X, 2) + Math.Pow(airbase.Z - unit.Z, 2)) > OnAirRange * Nm) continue;
                 _onAir.Add((airbase.Id, unit.Coal));
                 atis |= stations.Atis.Count > 0;
-                Log($"{airbase.Name} on the air for {(unit.Coal == 1 ? "red" : "blue")}: {stations.Describe()}");
+                Log(LogCategory.Srs, $"{airbase.Name} on the air for {(unit.Coal == 1 ? "red" : "blue")}: {stations.Describe()}");
                 radio.Listen(Phraseology.Facility(airbase.Name), stations, unit.Coal);
                 if (_prepared.Add(airbase.Id) && await _airfields.GetAsync(airbase, ct) is { } airfield) await PrepareAsync(airfield, radio, ct);
             }
@@ -643,7 +682,7 @@ public sealed class AtcApp
                 if (site.Frequencies.All.Count == 0 || _onAir.Contains((site.Id, unit.Coal))) continue;
                 if (site.Center.DistanceTo(new Vec2(unit.X, unit.Z)) > OnAirRange * Nm) continue;
                 _onAir.Add((site.Id, unit.Coal));
-                Log($"{site.Name} (FARP) on the air for {(unit.Coal == 1 ? "red" : "blue")}: {FarpFrequency(site)}");
+                Log(LogCategory.Srs, $"{site.Name} (FARP) on the air for {(unit.Coal == 1 ? "red" : "blue")}: {FarpFrequency(site)}");
                 radio.Listen(site.Name, site.Frequencies, unit.Coal);
                 if (_prepared.Add(site.Id)) radio.Prepare(Phraseology.FarpSamples(site, await _client.GetAirbaseWeatherAsync(site.Farps[0], ct)));
             }
@@ -659,7 +698,7 @@ public sealed class AtcApp
             layout.Labels?.Taxiways.Select(t => t.Name).Distinct() ?? [], layout.Labels?.Areas.Select(a => a.Name) ?? [],
             airfield.Frequencies, weather, layout.Labels?.Departure));
         if (ApproachControl.Serves(airfield.Frequencies))
-            radio.Prepare(Phraseology.ApproachSamples(airfield.Facility, layout.Runways, airfield.Radio, airfield.Frequencies, weather, ApproachControl.ProceduresOf(airfield)));
+            radio.Prepare(Phraseology.ApproachSamples(airfield.Facility, layout.Runways, airfield.Radio, airfield.Frequencies, weather, _approach.ProceduresFor(airfield)));
         if (airfield.Frequencies.Atis.Count > 0)
             radio.Prepare(Phraseology.AtisSamples(airfield.Facility, layout.Runways, weather));
     }
@@ -709,7 +748,31 @@ public sealed class AtcApp
         _prepared.Clear();
     }
 
-    private bool ManagingAi => _options.ManageAi && _serverAllowsAi;
+    /// <summary>AI departures are handled: wanted here and allowed by the server.</summary>
+    public bool ManagingAi => _options.ManageAi && _serverAllowsAi;
 
-    private static void Log(string text) => Console.WriteLine($"{DateTime.Now:HH:mm:ss}  {text}");
+    private void RaiseChanged()
+    {
+        try
+        {
+            Changed?.Invoke();
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or ArgumentException or NullReferenceException)
+        {
+            // A listener's bug must not stop the ATC.
+            Log(LogCategory.App, $"status update failed: {ex.Message}", LogLevel.Warning);
+        }
+    }
+
+    private void Log(LogCategory category, string text, LogLevel level = LogLevel.Info) => _log.Write(category, text, level);
+
+    /// <summary>The log category of a position's transmissions.</summary>
+    private static LogCategory RoleCategory(string role) => role switch
+    {
+        "Ground" => LogCategory.Ground,
+        "Tower" => LogCategory.Tower,
+        "Approach" => LogCategory.Approach,
+        "ATIS" => LogCategory.Atis,
+        _ => LogCategory.App,
+    };
 }

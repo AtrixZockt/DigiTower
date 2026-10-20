@@ -70,10 +70,15 @@ public sealed class RecognizerCatalog
     /// <summary>CPU threads per recognizer.</summary>
     public int Threads { get; init; } = 4;
 
-    public string ModelsDirectory => Path.Combine(Directory, "models");
+    /// <summary>Where the models are downloaded to: <c>models</c> beside recognition.json unless the app says otherwise.</summary>
+    public string ModelsDirectory { get => _models ?? Path.Combine(Directory, "models"); init => _models = value; }
+    private readonly string? _models;
 
-    /// <summary>Loads <c>recognition.json</c> from <paramref name="voiceDirectory"/> (normally <c>data/voice</c>), with <c>recognition.local.json</c> on top.</summary>
-    public static RecognizerCatalog Load(string voiceDirectory)
+    /// <summary>
+    /// Loads <c>recognition.json</c> from <paramref name="voiceDirectory"/> (normally <c>data/voice</c>), with
+    /// <c>recognition.local.json</c> on top; the models are beside it unless <paramref name="modelsDirectory"/> says otherwise.
+    /// </summary>
+    public static RecognizerCatalog Load(string voiceDirectory, string? modelsDirectory = null)
     {
         var file = JsonSerializer.Deserialize<CatalogFile>(System.IO.File.ReadAllText(Path.Combine(voiceDirectory, File)), Json)
             ?? throw new InvalidDataException($"empty {File}");
@@ -88,6 +93,7 @@ public sealed class RecognizerCatalog
             Vocabulary = file.Vocabulary ?? new SpeechVocabulary(),
             Aliases = file.Aliases ?? [],
             Threads = local?.Threads ?? file.Threads ?? 4,
+            ModelsDirectory = modelsDirectory ?? Path.Combine(voiceDirectory, "models"),
         };
     }
 

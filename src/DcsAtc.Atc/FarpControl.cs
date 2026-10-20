@@ -25,7 +25,7 @@ public sealed class FarpFlight
     /// <summary>The pad a landing was given (null: all pads were occupied).</summary>
     public FarpPad? Pad { get; init; }
     public string LastText { get; set; } = "";
-    internal string? LastReason { get; set; }
+    public string? LastReason { get; internal set; }
 
     public int Key => Party.Key;
     public string Callsign => Party.Callsign;

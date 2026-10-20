@@ -36,17 +36,21 @@ public sealed class VoiceCatalog
     /// <summary>CPU threads per neural TTS engine.</summary>
     public int Threads { get; init; } = 2;
 
-    public string ModelsDirectory => Path.Combine(Directory, "models");
-    public string CacheDirectory => Path.Combine(Directory, "cache");
+    /// <summary>Where the models are downloaded to: <c>models</c> beside voices.json unless the app says otherwise.</summary>
+    public string ModelsDirectory { get => _models ?? Path.Combine(Directory, "models"); init => _models = value; }
+    /// <summary>The voices' clip caches: <c>cache</c> beside voices.json unless the app says otherwise.</summary>
+    public string CacheDirectory { get => _cache ?? Path.Combine(Directory, "cache"); init => _cache = value; }
+    private readonly string? _models, _cache;
 
     /// <summary>The file with this machine's own choices (default voice, threads); not in git.</summary>
     public const string LocalFile = "voices.local.json";
 
     /// <summary>
     /// Loads <c>voices.json</c> from <paramref name="voiceDirectory"/> (normally <c>data/voice</c>), with this machine's
-    /// <c>voices.local.json</c> (if there is one) choosing the default voice and the threads.
+    /// <c>voices.local.json</c> (if there is one) choosing the default voice and the threads. The models and the clip
+    /// caches are beside it unless <paramref name="modelsDirectory"/> and <paramref name="cacheDirectory"/> say otherwise.
     /// </summary>
-    public static VoiceCatalog Load(string voiceDirectory)
+    public static VoiceCatalog Load(string voiceDirectory, string? modelsDirectory = null, string? cacheDirectory = null)
     {
         var file = JsonSerializer.Deserialize<CatalogFile>(File.ReadAllText(Path.Combine(voiceDirectory, "voices.json")), Json)
             ?? throw new InvalidDataException("empty voices.json");
@@ -59,6 +63,8 @@ public sealed class VoiceCatalog
             Voices = file.Voices,
             Models = file.Models,
             Threads = local?.Threads ?? file.Threads ?? 2,
+            ModelsDirectory = modelsDirectory ?? Path.Combine(voiceDirectory, "models"),
+            CacheDirectory = cacheDirectory ?? Path.Combine(voiceDirectory, "cache"),
         };
     }
 
