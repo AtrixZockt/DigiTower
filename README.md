@@ -64,7 +64,8 @@ DigiTower comes as two programs that share one settings file, `%APPDATA%\DigiTow
   go to the log file is set there and applies at once. *Settings*: the rest (DCS folder, SRS, voice, voice requests,
   AI, map drawings, the Approach distances); the ATC uses them from its next start. *Install*: the bridge in each DCS
   Saved Games folder with its settings, and the voice and recognition models to download. Closing the window while
-  the ATC runs keeps it running in the notification area (a setting); opening DigiTower again shows it.
+  the ATC runs keeps it running in the notification area (a setting); opening DigiTower again shows it. It can also
+  start with Windows, in the notification area when you sign in (Settings).
 - **`DigiTowerConsole.exe`**, the console: the same ATC without a window, for a server box, a scheduled task or a
   service. Its options override the settings file for that run:
   `--settings <file>`, `--host`/`--port` (the bridge), `--dcs <folder>`, `--data <folder>`, `--srs host:port`,
