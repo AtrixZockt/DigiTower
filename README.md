@@ -124,6 +124,17 @@ dotnet run --project src/DcsAtc.App                             # terminal 2
    (or `manageAi = false` in the settings file the installer wrote), then restart DCS. This needs the updated
    bridge: run `bridge\install.ps1` again and restart the DCS server.
 
+   **Traffic on the ground**: while you taxi, Ground watches everything else on the airfield's taxiways (players
+   and AI) about 40 seconds ahead. If your paths would meet, the one giving way is told so, with the other aircraft
+   by type and where it comes from: *"Hangman 1-2, Al Dhafra Ground, hold short of B, give way to the Hornet from
+   the left"*, or for opposite directions *"…, hold short of A, give way to the F-16 opposite direction on A"* (a
+   red HOLD line on the F10 map marks where), then *"continue taxi"* once it has passed. Catching up with an
+   aircraft ahead: *"follow the F-16 ahead"*. Who gives way: AI and players without a taxi clearance cannot be
+   told, so you give way to them; between two cleared flights the one taxiing out goes first, otherwise the rules
+   of the air (the one with the other on its right gives way); and whoever is already on the shared stretch or in
+   the junction keeps going. Roll on past your hold and you hear *"hold position"*. Members of a declared flight
+   are never traffic to each other; helicopters are left out.
+
    Every aircraft counts as traffic for Tower, AI included. Airfields without chart data get routes and
    map drawings without taxiway names; airfields DCS gives no ATC frequency (a few small ones) get text messages only. Callsigns come from the player name before "|"
    ("Hangman 1-1 | DiGii" → "Hangman 1-1"), otherwise the whole name; flights need the

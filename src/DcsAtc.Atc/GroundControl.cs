@@ -32,12 +32,27 @@ public sealed class TaxiClearance
     internal DateTime LastOffRouteWarning { get; set; } = DateTime.MinValue;
     internal Dictionary<string, DateTime> LastSpeedWarning { get; } = [];
 
+    /// <summary>Giving way to traffic: held (at a point of the route, or where it is) until the traffic has passed.</summary>
+    public TrafficHold? TrafficHold { get; internal set; }
+    internal (string Other, TrafficKind Kind, int Seen) PendingTraffic { get; set; }
+    internal Dictionary<string, DateTime> LastFollow { get; } = [];
+    internal DateTime LastHoldReminder { get; set; } = DateTime.MinValue;
+    /// <summary>Traffic this flight was last released from, and when: not held for it again right away.</summary>
+    internal (string Other, DateTime At) LastPassed { get; set; }
+
     public int Key => Party.Key;
     public string Callsign => Party.Callsign;
     /// <summary>The unit whose position drives the clearance: the aircraft itself, or the flight lead.</summary>
     public string UnitName => Party.LeadUnit;
     public string DrawingKey => $"taxi-{Key}";
+    public string HoldDrawingKey => $"hold-{Key}";
 }
+
+/// <summary>
+/// A flight giving way: <see cref="Unit"/> (the member that met the traffic) stops at <see cref="Along"/> metres along
+/// the route (where it was, for "hold position") until <see cref="OtherUnit"/> has passed.
+/// </summary>
+public sealed record TrafficHold(string Unit, string OtherUnit, TrafficKind Kind, double Along, DateTime Since, string Text);
 
 /// <summary>
 /// Start up approved, before taxi (optional; how the flight departs is asked for at the holding point). Kept until the
@@ -70,6 +85,25 @@ public sealed class GroundControl(IDcsCommands dcs, AirfieldCatalog airfields, F
     public static readonly TimeSpan WarningInterval = TimeSpan.FromSeconds(30);
     private static readonly double[] DepartureColor = [1, 0, 1, 1];
     private static readonly double[] ParkingColor = [0, 0.8, 1, 1];
+    private static readonly double[] HoldColor = [1, 0.15, 0.15, 1];
+
+    /// <summary>Ground tells a flight to give way when the conflict is at most this far ahead (seconds).</summary>
+    public const double TrafficWithin = 30;
+
+    /// <summary>A conflict is acted on once seen in this many unit updates in a row (predictions of turning aircraft wobble).</summary>
+    public const int TrafficConfirmations = 2;
+
+    /// <summary>Held at least this long before "continue taxi"; released after <see cref="MaxTrafficHold"/> whatever happens.</summary>
+    public static readonly TimeSpan MinTrafficHold = TimeSpan.FromSeconds(5), MaxTrafficHold = TimeSpan.FromMinutes(3);
+
+    /// <summary>"Follow the F-16 ahead" at most this often for the same pair.</summary>
+    public static readonly TimeSpan FollowInterval = TimeSpan.FromMinutes(2);
+
+    /// <summary>"Hold position" repeated at most this often to a flight rolling past its hold.</summary>
+    public static readonly TimeSpan HoldReminderInterval = TimeSpan.FromSeconds(15);
+
+    /// <summary>After "continue taxi", not held again for the same traffic within this time (predictions wobble).</summary>
+    public static readonly TimeSpan PassedQuiet = TimeSpan.FromSeconds(15);
 
     private readonly Dictionary<int, TaxiClearance> _clearances = [];
     private readonly Dictionary<int, StartupApproval> _startups = [];
@@ -168,24 +202,36 @@ public sealed class GroundControl(IDcsCommands dcs, AirfieldCatalog airfields, F
     {
         if (ClearanceFor(unit, units) is not { } c) return;
         _clearances.Remove(c.Key);
-        await dcs.ClearDrawingAsync(c.DrawingKey, ct);
+        await ClearDrawingsAsync(c, ct);
         await SayAsync(c.Party, c.Airfield, Phraseology.TaxiCancelled(c.Callsign, c.Airfield.Facility), 15, ct);
     }
 
     /// <summary>Ends a clearance without a message (e.g. when Tower takes over).</summary>
     public async Task ReleaseAsync(int key, CancellationToken ct = default)
     {
-        if (_clearances.Remove(key, out var c)) await dcs.ClearDrawingAsync(c.DrawingKey, ct);
+        if (_clearances.Remove(key, out var c)) await ClearDrawingsAsync(c, ct);
     }
 
-    /// <summary>Repeats the taxi clearance, or before taxi the startup approval.</summary>
+    /// <summary>The route on the map, and the hold line if the flight was giving way.</summary>
+    private async Task ClearDrawingsAsync(TaxiClearance c, CancellationToken ct)
+    {
+        await dcs.ClearDrawingAsync(c.DrawingKey, ct);
+        if (c.TrafficHold is not null)
+        {
+            c.TrafficHold = null;
+            await dcs.ClearDrawingAsync(c.HoldDrawingKey, ct);
+        }
+    }
+
+    /// <summary>Repeats the taxi clearance (while giving way to traffic, that instruction), or before taxi the startup approval.</summary>
     public async Task SayAgainAsync(UnitState unit, IReadOnlyDictionary<string, UnitState> units, CancellationToken ct = default)
     {
         if (unit.GroupId is not int g) return;
         if (ClearanceFor(unit, units) is { } c)
         {
-            await dcs.ShowTextAsync(g, c.Text, 30, ct: ct);
-            Transmit(c.Airfield, c.Coalition, c.Text);
+            string text = c.TrafficHold?.Text ?? c.Text;
+            await dcs.ShowTextAsync(g, text, 30, ct: ct);
+            Transmit(c.Airfield, c.Coalition, text);
         }
         else if (StartupFor(unit, units) is { } s)
         {
@@ -254,6 +300,148 @@ public sealed class GroundControl(IDcsCommands dcs, AirfieldCatalog airfields, F
                 Transmit(c.Airfield, member.Coal, slow);
             }
         }
+
+        await TrafficAsync(units, ct);
+    }
+
+    /// <summary>
+    /// Traffic on the ground (M7): every taxiing jet flight is checked against everything else moving or standing on
+    /// its airfield's taxiways. A flight that gives way is told to hold (short of the other's taxiway, before a shared
+    /// stretch, or where it is) and to continue once the traffic has passed; one catching up is told to follow.
+    /// </summary>
+    private async Task TrafficAsync(IReadOnlyDictionary<string, UnitState> units, CancellationToken ct)
+    {
+        var now = _now();
+        foreach (var atField in _clearances.Values.Where(c => !c.Helicopter).GroupBy(c => c.Airfield).ToList())
+        {
+            var taxiing = atField.Where(c => c.Phase == TaxiPhase.Taxiing).ToList();
+            if (taxiing.Count == 0) continue;
+            var movers = Movers(atField.Key, atField.ToList(), units);
+            foreach (var c in taxiing)
+            {
+                if (!_clearances.ContainsKey(c.Key)) continue;
+                var own = movers.Where(m => m.Clearance?.Key == c.Key).ToList();
+                // Not traffic: the flight itself, and AI wingmen in its players' DCS groups.
+                var others = movers.Where(m => m.Clearance?.Key != c.Key && !(m.Group is int g && c.Party.Groups.Contains(g))).ToList();
+                if (own.Count == 0) continue;
+                if (c.TrafficHold is { } hold) await KeepHoldAsync(c, hold, own, others, units, now, ct);
+                else await LookOutAsync(c, own, others, now, ct);
+            }
+        }
+    }
+
+    /// <summary>The aircraft on an airfield's taxiways: its cleared flights along their routes, everyone else straight ahead.</summary>
+    private static List<GroundMover> Movers(GroundAirfield airfield, IReadOnlyList<TaxiClearance> clearances, IReadOnlyDictionary<string, UnitState> units)
+    {
+        static Vec2 DirectionOf(UnitState u) => u.GroundSpeed > 0.5 ? new Vec2(u.Vx, u.Vz).Normalized : Vec2.FromHeading(u.Hdg);
+        static double Reach(double speed) => speed * GroundTraffic.Horizon + GroundTraffic.Separation + 50;
+
+        var movers = new List<GroundMover>();
+        var cleared = new HashSet<string>();
+        foreach (var c in clearances)
+        {
+            foreach (var name in c.Party.Units)
+            {
+                if (!units.TryGetValue(name, out var u) || u.InAir) continue;
+                cleared.Add(name);
+                var p = new Vec2(u.X, u.Z);
+                // Holding short at the runway: standing there; taxiing (held or not): along the route.
+                IReadOnlyList<Vec2> path = c.Phase == TaxiPhase.Taxiing ? GroundTraffic.RouteAhead(c.Route.Geometry, p, Reach(Math.Max(u.GroundSpeed, GroundTraffic.ResumeSpeed))) : [p];
+                movers.Add(new GroundMover(name, Phraseology.SpokenType(u.Type), p, DirectionOf(u), u.GroundSpeed, path, c, u.GroupId));
+            }
+        }
+        foreach (var u in units.Values)
+        {
+            if (u.InAir || u.Cat != "plane" || cleared.Contains(u.Name)) continue;
+            var p = new Vec2(u.X, u.Z);
+            if (!airfield.Layout.Covers(p)) continue;
+            var dir = DirectionOf(u);
+            IReadOnlyList<Vec2> path = u.GroundSpeed >= GroundTraffic.Moving ? GroundTraffic.NetworkAhead(airfield.Layout.Graph, p, dir, Reach(u.GroundSpeed)) : [p];
+            movers.Add(new GroundMover(u.Name, Phraseology.SpokenType(u.Type), p, dir, u.GroundSpeed, path, null, u.GroupId));
+        }
+        return movers;
+    }
+
+    /// <summary>The most urgent conflict where this flight gives way, acted on once confirmed.</summary>
+    private async Task LookOutAsync(TaxiClearance c, List<GroundMover> own, List<GroundMover> others, DateTime now, CancellationToken ct)
+    {
+        (TrafficConflict Conflict, GroundMover Yields, GroundMover Other)? worst = null;
+        foreach (var m in own)
+            foreach (var o in others.Where(o => !(o.UnitName == c.LastPassed.Other && now - c.LastPassed.At < PassedQuiet)))
+                if (GroundTraffic.FirstConflict(m, o) is { } conflict && conflict.Time <= TrafficWithin
+                    && GroundTraffic.WhoGivesWay(conflict) is { } w && w.Yields.Clearance?.Key == c.Key
+                    && (worst is null || conflict.Time < worst.Value.Conflict.Time))
+                    worst = (conflict, w.Yields, w.Other);
+        if (worst is not { } found)
+        {
+            c.PendingTraffic = default;
+            return;
+        }
+        var pending = c.PendingTraffic;
+        int seen = pending.Other == found.Other.UnitName && pending.Kind == found.Conflict.Kind ? pending.Seen + 1 : 1;
+        c.PendingTraffic = (found.Other.UnitName, found.Conflict.Kind, seen);
+        if (seen < TrafficConfirmations) return;
+
+        var plan = GroundTraffic.Plan(found.Conflict, found.Yields, found.Other, c.Airfield.Layout);
+        string facility = c.Airfield.Facility;
+        if (plan.Kind == TrafficKind.Behind)
+        {
+            if (now - c.LastFollow.GetValueOrDefault(plan.Other.UnitName, DateTime.MinValue) < FollowInterval) return;
+            c.LastFollow[plan.Other.UnitName] = now;
+            await SayTrafficAsync(c, Phraseology.FollowTraffic(c.Callsign, facility, plan.Other.Type), plan, ct);
+            return;
+        }
+
+        string where = plan.Kind == TrafficKind.HeadOn
+            ? "opposite direction" + (plan.OtherTaxiway is { } t ? $" on {t}" : "")
+            : (plan.Other.Position - plan.Yields.Position).Dot(plan.Yields.Direction.Left) > 0 ? "from the left" : "from the right";
+        string text = Phraseology.GiveWay(c.Callsign, facility, plan.HoldNow, plan.HoldShortOf, plan.Other.Type, where);
+        double along = Polyline.Project(c.Route.Geometry, plan.Yields.Position).Along + Math.Max(0, plan.HoldAlong);
+        c.TrafficHold = new TrafficHold(plan.Yields.UnitName, plan.Other.UnitName, plan.Kind, along, now, text);
+        c.PendingTraffic = default;
+        await SayTrafficAsync(c, text, plan, ct);
+        if (!plan.HoldNow)
+        {
+            var across = plan.Yields.DirectionAt(plan.HoldAlong / Math.Max(plan.Yields.Speed, 0.1)).Left * 15;
+            Vec2 from = plan.HoldPoint - across, to = plan.HoldPoint + across;
+            await dcs.DrawRouteAsync(c.HoldDrawingKey, c.Coalition, [(from.X, from.Z), (to.X, to.Z)], HoldColor,
+                plan.HoldShortOf is { } name ? $"HOLD SHORT {name}" : "HOLD", ct);
+        }
+    }
+
+    /// <summary>A held flight: "continue taxi" once nothing it gives way to is left ahead, "hold position" if it rolls on.</summary>
+    private async Task KeepHoldAsync(TaxiClearance c, TrafficHold hold, List<GroundMover> own, List<GroundMover> others, IReadOnlyDictionary<string, UnitState> units, DateTime now, CancellationToken ct)
+    {
+        string facility = c.Airfield.Facility;
+        bool blocked = own.Any(m =>
+        {
+            var resumed = m with { Speed = Math.Max(m.Speed, GroundTraffic.ResumeSpeed) };
+            return others.Any(o => GroundTraffic.FirstConflict(resumed, o) is { Kind: not TrafficKind.Behind } conflict && conflict.Time <= TrafficWithin
+                && GroundTraffic.WhoGivesWay(conflict) is { } w && w.Yields.Clearance?.Key == c.Key);
+        });
+        if ((!blocked && now - hold.Since >= MinTrafficHold) || now - hold.Since >= MaxTrafficHold)
+        {
+            c.TrafficHold = null;
+            c.LastPassed = (hold.OtherUnit, now);
+            await dcs.ClearDrawingAsync(c.HoldDrawingKey, ct);
+            await SayAsync(c.Party, c.Airfield, Phraseology.ContinueTaxi(c.Callsign, facility), 10, ct);
+            log?.Invoke($"{c.Callsign}: continue taxi (held {(now - hold.Since).TotalSeconds:F0} s for {hold.OtherUnit})");
+            return;
+        }
+
+        // Rolling on past the hold.
+        if (units.TryGetValue(hold.Unit, out var unit) && unit.GroundSpeed > 2 && now - c.LastHoldReminder >= HoldReminderInterval
+            && Polyline.Project(c.Route.Geometry, new Vec2(unit.X, unit.Z)).Along > hold.Along + 25)
+        {
+            c.LastHoldReminder = now;
+            await SayAsync(c.Party, c.Airfield, Phraseology.HoldPositionNow(c.Callsign, facility), 10, ct);
+        }
+    }
+
+    private async Task SayTrafficAsync(TaxiClearance c, string text, TrafficPlan plan, CancellationToken ct)
+    {
+        await SayAsync(c.Party, c.Airfield, text, 15, ct);
+        log?.Invoke($"{c.Callsign}: {text} ({plan.Kind}, {plan.Other.UnitName}, {plan.Time:F0} s)");
     }
 
     public async Task OnEventAsync(DcsEventMessage e, CancellationToken ct = default)
@@ -275,7 +463,7 @@ public sealed class GroundControl(IDcsCommands dcs, AirfieldCatalog airfields, F
 
     private async Task ArriveAsync(TaxiClearance c, CancellationToken ct)
     {
-        await dcs.ClearDrawingAsync(c.DrawingKey, ct);
+        await ClearDrawingsAsync(c, ct);
         if (c.Departure is { } d)
         {
             c.Phase = TaxiPhase.HoldingShort;

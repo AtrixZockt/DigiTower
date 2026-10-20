@@ -71,7 +71,12 @@ public static partial class SpokenText
                         units.Add(new SpeechUnit(DigitWords(token[2..]), WordGap));
                         continue;
                     }
-                    if (Reading(token, previous, next, viaList) is { } value)
+                    // A taxiway named after "hold short of" or "opposite direction on" (Ground's traffic instructions).
+                    string before = i > 1 ? tokens[i - 2] : "";
+                    bool taxiwayHere = viaList
+                        || (previous.Equals("of", StringComparison.OrdinalIgnoreCase) && before.Equals("short", StringComparison.OrdinalIgnoreCase))
+                        || (previous.Equals("on", StringComparison.OrdinalIgnoreCase) && before.Equals("direction", StringComparison.OrdinalIgnoreCase));
+                    if (Reading(token, previous, next, taxiwayHere) is { } value)
                     {
                         Flush(units, words);
                         units.Add(new SpeechUnit(value, WordGap));
@@ -92,6 +97,7 @@ public static partial class SpokenText
     }
 
     /// <summary>The spoken form of a number-like token, or null for an ordinary word.</summary>
+    /// <param name="viaList">Single letters here are taxiways ("via A, B", "hold short of B").</param>
     private static string? Reading(string token, string previous, string next, bool viaList)
     {
         // After "runway", or anywhere with a side letter ("runway in use 31L and 31R").

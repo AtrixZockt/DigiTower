@@ -386,6 +386,7 @@ public static partial class Phraseology
         yield return OffRoute(cs, facility);
         yield return ReduceTaxiSpeed(cs, facility);
         yield return ParkingReached(cs, facility);
+        foreach (var s in GroundTrafficSamples(cs, facility, via.Select(v => v.Name))) yield return s;
         yield return ContactAfterDeparture(cs, frequencies.ContactFor("Approach"));
         yield return ContactAfterDeparture(cs, frequencies.ContactFor("Approach"), resumeOwnNavigation: true);
         yield return LeavingPattern(cs, frequencies.ContactFor("Approach"));
