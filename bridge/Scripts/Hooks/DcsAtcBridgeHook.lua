@@ -23,6 +23,7 @@ local CONFIG = {
   unitInterval = 0.5,   -- seconds between unit snapshots
   maxOutBuffer = 8 * 1024 * 1024,
   manageAi = true,      -- false: the app may not hold or release AI on this server (AI departures are left to DCS)
+  mapDrawings = true,   -- false: nothing is drawn on the F10 map (DCS shows drawings to a whole side, not one player)
 }
 
 local scriptDir = lfs.writedir() .. 'Scripts/DcsAtc/'
@@ -47,6 +48,7 @@ do
   end
   if configError then logError(configError) end
   if CONFIG.manageAi == false then logInfo('AI handling turned off (manageAi = false in DcsAtcConfig.lua)') end
+  if CONFIG.mapDrawings == false then logInfo('F10 map drawings turned off (mapDrawings = false in DcsAtcConfig.lua)') end
 end
 
 package.path = package.path .. ';.\\LuaSocket\\?.lua'
@@ -162,6 +164,7 @@ local function hello()
     info = state.missionInfo,
     multiplayer = Sim.isMultiplayer(),
     manageAi = CONFIG.manageAi ~= false,
+    mapDrawings = CONFIG.mapDrawings ~= false,
     error = state.lastError or configError,
   })
 end
@@ -246,6 +249,10 @@ local function handleLine(line)
   end
   if cmd.cmd == 'hello' then
     hello()
+    return
+  end
+  if CONFIG.mapDrawings == false and cmd.cmd == 'draw_route' then
+    reply(cmd, true, nil, { marks = 0 })
     return
   end
   if CONFIG.manageAi == false and (cmd.cmd == 'group_hold' or cmd.cmd == 'group_release') then

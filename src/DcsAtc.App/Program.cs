@@ -16,6 +16,7 @@ using DcsAtc.Voice;
 //       [--voice <id>]               ATC voice from data/voice/voices.json (default: its "default", else a Windows voice)
 //       [--no-voice]                 text messages only
 //       [--no-ai]                    leave AI departures to DCS (never held)
+//       [--no-drawings]              draw nothing on the F10 map (taxi routes, landing spots: DCS shows them to the whole side)
 //       [--transcribe [<id>]]        voice requests: what pilots say to the controllers on SRS is recognized and answered like
 //                                    the F10 menu, written to the console and recorded (out/heard); recognizer from
 //                                    data/voice/recognition.json
@@ -30,6 +31,7 @@ string srs = "127.0.0.1:5002";
 string? voiceId = null;
 bool noVoice = false;
 bool manageAi = true;
+bool mapDrawings = true;
 string? transcribe = null;
 string recordings = Path.Combine("out", "heard");
 var dump = new List<string>();
@@ -51,6 +53,7 @@ for (int i = 0; i < args.Length; i++)
         case "--voice": voiceId = Next(); break;
         case "--no-voice": noVoice = true; break;
         case "--no-ai": manageAi = false; break;
+        case "--no-drawings": mapDrawings = false; break;
         case "--transcribe": transcribe = i + 1 < args.Length && !args[i + 1].StartsWith("--") ? args[++i] : ""; break;
         case "--recordings": recordings = Next(); break;
         default:
@@ -77,7 +80,7 @@ var recognition = transcribe is not null && dataDir is not null && File.Exists(P
     ? RecognizerCatalog.Load(Path.Combine(dataDir, "voice")) : null;
 using var transcriber = radio is not null && transcribe is not null ? OpenTranscriber(recognition, transcribe, radio, recordings) : null;
 if (transcribe is not null && radio is null) Console.WriteLine("transcribe: needs the voice on SRS (not with --no-voice)");
-await using var client = new BridgeClient(new BridgeOptions { Host = host, Port = port });
+await using var client = new BridgeClient(new BridgeOptions { Host = host, Port = port, MapDrawings = mapDrawings });
 var app = new AtcApp(client, new AppOptions
 {
     DcsDirectory = dcsDir,

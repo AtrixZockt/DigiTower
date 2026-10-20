@@ -58,7 +58,9 @@ dotnet run --project src/DcsAtc.App                             # terminal 2
    ```
    The first install also writes the bridge settings, every setting explained, to
    `Saved Games\DCS.dcs_serverrelease\Scripts\DcsAtc\DcsAtcConfig.lua`; installing again keeps your changes. A
-   server that does not want DCS-ATC to handle its AI adds `-NoAi` (`-Ai` turns it back on).
+   server that does not want DCS-ATC to handle its AI adds `-NoAi` (`-Ai` turns it back on); one that does not want
+   taxi routes and landing spots on the F10 map adds `-NoMapDrawings` (`-MapDrawings`; the app's `--no-drawings` does
+   the same for one app).
 2. Start the SRS server and the mission, then the app from the repository folder (it finds
    `D:\DCS\DCS World` and `data\`):
    ```powershell
@@ -100,6 +102,7 @@ dotnet run --project src/DcsAtc.App                             # terminal 2
    | Field in sight, Cancel approach, Say again (Approach) | As named. |
    | Request taxi to parking | Route to the free spot that is quickest to reach, named by its area: *"taxi to Apron 1 West via D2, A"*. |
    | Cancel taxi, Say again (Ground / Tower), ATIS, Frequencies | As named. *Debug → Where am I?* shows your position. |
+   | Debug → Private pin test / Remove private pin | Multiplayer test: a pin at your position meant only for your group (DCS `markToGroup`), *"Only Hangman 1-2 should see this"*. The map drawings (taxi routes, landing spots) are seen by **everyone on your side**: DCS can draw lines and text only for a whole side. If the others do not see this pin, private pins can mark each player's own route end and spot. |
    | **Helicopters** | *Request taxi* becomes **air-taxi** (*"air-taxi to holding point runway 31L via U9"*): hovering is fine (DCS calls a hover "in the air"; below 300 ft over the airfield it still counts as on the field), no speed limit, warned above 100 ft (*remain at or below 100 feet*) or far off the route. Unless Ground sent you to the runway, **Request departure → Own navigation / Departure north, east, south, west** clears you from where you stand, however close a runway is: *"Hangman 1-1, Al Dhafra Tower, from present position, make right turn for north departure, wind 310 degrees, 10 knots, cleared for takeoff"*; you *hold position* while your way out crosses a runway in use (traffic on final, a takeoff or landing cleared, an aircraft on it) or another helicopter takes off or lands within 200 ft. After *Request taxi* to the runway, *Ready for departure* at the holding point works as for jets. **Request landing** gives you a free helicopter spot (helicopter-only first, then open parking), marked on the F10 map: *"make straight-in to Apron 3, wind …, cleared to land"*; no runway, no taxi-in, and jets on the runway are not held for you (no free spot: a runway landing). Hovering low over the field you get both the ground calls and *Request landing*; no *Report initial*. |
    | Flight → Flight of 2 / 3 / 4, Single ship | Declares a flight: you and the players with your callsign prefix ("Hangman 1-1", "Hangman 1-2" → "Hangman 1 flight"), lowest number leads; members who spawn later join until the flight is complete. Ground and Tower then give one clearance to *"Hangman 1 flight"* (sent to every member, from the lead's position), and members are never traffic to each other. Any member may make the calls. *Single ship* leaves the flight. |
 

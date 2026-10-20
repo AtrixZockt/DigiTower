@@ -392,6 +392,17 @@ local function drawingClear(c)
   ATCB.drawings[c.key] = nil
 end
 
+--- A mark point with a label meant for one group only (trigger.action.markToGroup); removed with drawing_clear and
+-- its key. DCS can only draw lines and text for a whole side; whether others really do not see this is to be tested.
+local function markGroup(c)
+  assert(c.key, 'key required')
+  drawingClear(c)
+  local id = newMarkId()
+  trigger.action.markToGroup(id, tostring(c.text or ''), { x = tonumber(c.x) or 0, y = 0, z = tonumber(c.z) or 0 }, tonumber(c.groupId), true, '')
+  ATCB.drawings[c.key] = { id }
+  return { id = id }
+end
+
 --- Draws a polyline (points = {{x, z}, ...}) for a coalition (-1 = all), optionally with a text at its end.
 local function drawRoute(c)
   assert(c.key, 'key required')
@@ -510,6 +521,7 @@ local COMMANDS = {
   radio_silent = radioSilent,
   draw_route = drawRoute,
   drawing_clear = drawingClear,
+  mark_group = markGroup,
   group_hold = groupHold,
   group_release = groupRelease,
   -- Diagnostics: forward every DCS event, not only those the app uses.

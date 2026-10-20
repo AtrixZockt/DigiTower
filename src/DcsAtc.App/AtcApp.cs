@@ -250,6 +250,7 @@ public sealed class AtcApp
                 if (h.Error is not null) Log($"bridge error: {h.Error}");
                 _serverAllowsAi = h.ManageAi != false;
                 if (_options.ManageAi && !_serverAllowsAi) Log("AI traffic off: turned off on this server (manageAi = false in Scripts\\DcsAtc\\DcsAtcConfig.lua)");
+                if (h.MapDrawings == false) Log("F10 map drawings off on this server (mapDrawings = false in Scripts\\DcsAtc\\DcsAtcConfig.lua)");
                 if (h.MissionRunning) await OnMissionRunningAsync(h.Info, ct);
                 break;
             case MissionStartedMessage m:
@@ -379,12 +380,40 @@ public sealed class AtcApp
             case "debug.where":
                 await _client.ShowTextAsync(m.GroupId, DescribePosition(unit), 15, ct: ct);
                 break;
+            case "debug.pin":
+                await PrivatePinAsync(unit, m.GroupId, ct);
+                break;
+            case "debug.unpin":
+                await _client.ClearDrawingAsync(PinKey(m.GroupId), ct);
+                await _client.ShowTextAsync(m.GroupId, "Private pin removed.", 10, ct: ct);
+                break;
             default:
                 await DispatchAsync(unit, action, at, ct);
                 break;
         }
         // What the pilot can do next changed: show it now rather than on the next update. A flight's call changes its members' menus too.
         foreach (var u in PlayerGroups()) await UpdateMenuAsync(u, ct);
+    }
+
+    private static string PinKey(int groupId) => $"pin-{groupId}";
+
+    /// <summary>
+    /// Multiplayer test: a pin at the player's position meant only for their group (DCS markToGroup). The others say
+    /// whether they see it on their F10 map; DCS can draw lines and text only for a whole side.
+    /// </summary>
+    private async Task PrivatePinAsync(UnitState unit, int groupId, CancellationToken ct)
+    {
+        string who = Phraseology.Callsign(unit);
+        try
+        {
+            await _client.MarkGroupAsync(PinKey(groupId), groupId, unit.X, unit.Z, $"Only {who} should see this", ct);
+            await _client.ShowTextAsync(groupId, $"Private pin placed at your position, for {who} only (group {groupId}). Ask the others whether they see it on their F10 map.", 20, ct: ct);
+            Log($"private pin for {who} (group {groupId}) placed");
+        }
+        catch (BridgeCommandException ex)
+        {
+            await _client.ShowTextAsync(groupId, $"Private pin not placed: {ex.Message}. Update the bridge with bridge/install.ps1.", 15, ct: ct);
+        }
     }
 
     /// <summary>An airfield call to Ground, Tower or Approach, picked in the F10 menu or said on the radio.</summary>
