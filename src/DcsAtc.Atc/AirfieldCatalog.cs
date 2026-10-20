@@ -90,9 +90,21 @@ public sealed class AirfieldCatalog(IDcsCommands dcs, string? dcsDirectory, stri
     /// <summary>The airdromes whose controllers work this frequency (DCS gives a few airfields the same one).</summary>
     public IEnumerable<AirbaseSummary> AirbasesOn(double mhz) => _airbases.Where(a => StationsFor(a).Has(mhz));
 
-    /// <summary>The nearest airdrome within <paramref name="maxDistance"/> metres that has a taxi network.</summary>
-    public Task<GroundAirfield?> NearestAsync(Vec2 position, double maxDistance = 4000, CancellationToken ct = default) =>
-        NearestAsync(position, maxDistance, null, ct);
+    /// <summary>Airdromes whose reference point is this far away are not checked by <see cref="AtAsync"/> (metres; Al Dhafra's spots reach 6.1 km).</summary>
+    public const double AtSearch = 10000;
+
+    /// <summary>
+    /// The airdrome a position is at: of those with a taxi network whose area covers it (taxiways, parking, runways and
+    /// <see cref="Airfield.Margin"/>), the one with the nearest reference point.
+    /// </summary>
+    public async Task<GroundAirfield?> AtAsync(Vec2 position, CancellationToken ct = default)
+    {
+        foreach (var airbase in _airbases.Where(a => a.Category == 0 && Distance(a, position) <= AtSearch).OrderBy(a => Distance(a, position)))
+        {
+            if (await GetAsync(airbase, ct) is { } airfield && airfield.Layout.Covers(position)) return airfield;
+        }
+        return null;
+    }
 
     /// <summary>The nearest airdrome within <paramref name="maxDistance"/> metres that has a taxi network and passes <paramref name="filter"/>.</summary>
     public async Task<GroundAirfield?> NearestAsync(Vec2 position, double maxDistance, Func<AirbaseSummary, bool>? filter, CancellationToken ct = default)

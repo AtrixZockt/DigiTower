@@ -348,7 +348,7 @@ public sealed class AtcApp
             foreach (var p in snapshot.Units.Where(u => u.IsPlayer))
                 Log($"    {p.Player,-14} {p.Type,-12} {Phraseology.Callsign(p),-12} hdg {p.Hdg:000}  gs {p.GroundSpeed * 1.94384,4:F0} kt  {p.Agl * 3.28084,6:F0} ft AGL  {(p.InAir ? "air" : "ground")}" +
                     (_ground.Clearances.Values.FirstOrDefault(c => c.UnitName == p.Name) is { } c ? $"  [Ground: {c.Phase} to {c.Departure?.End.Name ?? "parking"}]" : "") +
-                    (_tower.Flights.Values.FirstOrDefault(f => f.UnitName == p.Name) is { } t ? $"  [Tower: {t.Phase} runway {t.End.Name}]" : "") +
+                    (_tower.Flights.Values.FirstOrDefault(f => f.UnitName == p.Name) is { } t ? $"  [Tower: {t.Phase} {(t.Spot is { } spot ? $"spot {spot.Index}" : t.FromPresentPosition ? "from present position" : $"runway {t.End.Name}")}]" : "") +
                     (_approach.Flights.Values.FirstOrDefault(f => f.UnitName == p.Name) is { } a
                         ? $"  [Approach: {a.Phase}{(a.IsArrival ? $" {a.Type} {a.End.Name} {a.Leg} hdg {a.Heading:000} alt {a.Altitude:0}" : "")}]" : ""));
         }

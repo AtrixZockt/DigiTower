@@ -85,21 +85,54 @@ public static partial class Phraseology
     /// <summary>
     /// "Viper 1-1, Al Dhafra Ground, taxi to holding point runway 13L via A, F. Wind 310 degrees, 10 knots, QNH 1013, altimeter 29.91."
     /// </summary>
-    public static string TaxiClearance(string callsign, string facility, RunwayEnd runway, IReadOnlyList<ViaItem> via, AirbaseWeather? weather, string unitType)
+    /// <param name="airTaxi">A helicopter: "air-taxi to holding point …".</param>
+    public static string TaxiClearance(string callsign, string facility, RunwayEnd runway, IReadOnlyList<ViaItem> via, AirbaseWeather? weather, string unitType,
+        bool airTaxi = false)
     {
-        string clearance = $"{callsign}, {facility} Ground, taxi to holding point runway {runway.Name}";
+        string clearance = $"{callsign}, {facility} Ground, {(airTaxi ? "air-taxi" : "taxi")} to holding point runway {runway.Name}";
         if (via.Count > 0) clearance += $" via {ViaText(via, runway)}";
         clearance += ".";
         if (weather is not null) clearance += $" {Capitalize(Wind(weather))}, {Altimeter(weather, unitType)}.";
         return clearance;
     }
 
-    /// <summary>"Viper 1-1, Al Dhafra Ground, taxi to Apron 1 East via B, A."</summary>
-    public static string TaxiToParking(string callsign, string facility, string area, IReadOnlyList<ViaItem> via)
+    /// <summary>"Viper 1-1, Al Dhafra Ground, taxi to Apron 1 East via B, A." (a helicopter: "air-taxi to …")</summary>
+    public static string TaxiToParking(string callsign, string facility, string area, IReadOnlyList<ViaItem> via, bool airTaxi = false)
     {
-        string text = $"{callsign}, {facility} Ground, taxi to {area}";
+        string text = $"{callsign}, {facility} Ground, {(airTaxi ? "air-taxi" : "taxi")} to {area}";
         if (via.Count > 0) text += $" via {string.Join(", ", via.Select(v => v.IsRunwayCrossing ? $"cross runway {v.CrossedRunway!.EndA.Name}" : v.Name))}";
         return text + ".";
+    }
+
+    // Helicopters (FAA JO 7110.65 §3-11; ICAO: "cleared for take-off from (location)", "air-taxi to (location)").
+
+    public const string HelicopterTraffic = "helicopter traffic";
+
+    /// <summary>
+    /// "Hangman 1-1, Al Dhafra Tower, from present position, make right turn for north departure, wind 310 degrees,
+    /// 10 knots, cleared for takeoff." (no turn when already heading that way; neither without a direction).
+    /// </summary>
+    public static string HelicopterDeparture(string callsign, string facility, string? turn, string? direction, AirbaseWeather? weather)
+    {
+        string route = direction is null ? "" : turn is null ? $"{direction} departure, " : $"make {turn} turn for {direction} departure, ";
+        return $"{callsign}, {facility} Tower, from present position, {route}{(weather is null ? "" : Wind(weather) + ", ")}cleared for takeoff.";
+    }
+
+    /// <summary>A helicopter departure that has to wait: "Hangman 1-1, Al Dhafra Tower, hold position, traffic on final."</summary>
+    public static string HoldPosition(string callsign, string facility, string reason) => $"{callsign}, {facility} Tower, hold position, {reason}.";
+
+    /// <summary>"Hangman 1-1, Al Dhafra Tower, make straight-in to Apron 3, wind 310 degrees, 10 knots, cleared to land."</summary>
+    public static string LandAtSpot(string callsign, string facility, string? area, AirbaseWeather? weather) =>
+        $"{callsign}, {facility} Tower, make straight-in to {area ?? "the spot marked on your map"}, {(weather is null ? "" : Wind(weather) + ", ")}cleared to land.";
+
+    /// <summary>Air-taxiing too high: "Hangman 1-1, Al Dhafra Ground, remain at or below 100 feet."</summary>
+    public static string RemainLow(string callsign, string facility) => $"{callsign}, {facility} Ground, remain at or below 100 feet.";
+
+    /// <summary>"left" or "right": the shorter turn from <paramref name="heading"/> to <paramref name="bearing"/>; null within 30°.</summary>
+    public static string? TurnTo(double heading, double bearing)
+    {
+        double off = ((bearing - heading) % 360 + 540) % 360 - 180;
+        return Math.Abs(off) <= 30 ? null : off > 0 ? "right" : "left";
     }
 
     /// <summary>A radio frequency as said: 270 → "270.0", 251.25 → "251.25".</summary>
@@ -279,6 +312,7 @@ public static partial class Phraseology
             foreach (var type in new[] { "", UsTypes.First() })
             {
                 yield return TaxiClearance(cs, facility, end, via, weather, type);
+                yield return TaxiClearance(cs, facility, end, via, weather, type, airTaxi: true);
                 yield return ReportFinal(cs, facility, end, weather, type);
             }
             yield return HoldShortContactTower(cs, facility, end, frequencies.Own("Tower"));
@@ -298,7 +332,16 @@ public static partial class Phraseology
         {
             yield return TaxiToParking(cs, facility, area, via);
             yield return TaxiToParking(cs, facility, area, []);
+            yield return TaxiToParking(cs, facility, area, via, airTaxi: true);
+            yield return LandAtSpot(cs, facility, area, weather);
         }
+        // Helicopters: departures from present position, holding, landing at a spot, air-taxi height.
+        foreach (string? direction in new[] { null, "north", "east", "south", "west" })
+            foreach (string? turn in new[] { null, "left", "right" })
+                yield return HelicopterDeparture(cs, facility, turn, direction, weather);
+        foreach (var reason in HoldReasons.Append(HelicopterTraffic)) yield return HoldPosition(cs, facility, reason);
+        yield return LandAtSpot(cs, facility, null, weather);
+        yield return RemainLow(cs, facility);
         foreach (var reason in ApproachReasons)
         {
             yield return ContinueApproach(cs, reason);

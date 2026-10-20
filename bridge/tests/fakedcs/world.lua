@@ -442,7 +442,14 @@ function M.loadHook(W, bridgeRoot, port, startTime, config)
   -- The terrain's airdromes and DCS's ATC radio data, as the probe on the real Persian Gulf map returned them.
   package.loaded['terrain'] = { GetTerrainConfig = function(what) if what == 'Airdromes' then return W.airdromes end end }
   package.loaded['DCS'] = { getATCradiosData = function(radioId) return W.atcRadios[radioId] end }
+  -- The hook listens on the test's port whatever its settings say: a hook without settings must never take the
+  -- default port (on Windows a second listener can share it with a running DCS and catch its ATC app).
+  local realSocket = require('socket')
+  local testSocket = setmetatable({
+    bind = function(host, p, ...) return realSocket.bind(host, port or p, ...) end,
+  }, { __index = realSocket })
   local hookEnv = setmetatable({
+    require = function(name) if name == 'socket' then return testSocket end return require(name) end,
     Sim = sim,
     net = W.net,
     log = { INFO = 'INFO', ERROR = 'ERROR', write = function(sub, level, msg) W.print(string.format('[%s %s] %s', sub, level, msg)) end },
