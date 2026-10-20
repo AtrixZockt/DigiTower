@@ -215,8 +215,13 @@ Then ATC reacts:
 - **A request for another controller** on a position's own frequency is sent there: "Hangman 1-2, Al Dhafra Ground,
   contact Approach on 257.0."
 - **Not understood** but aimed at ATC (a request word or the station's name): "Hangman 1-2, Al Dhafra Ground, say
-  again." **Readbacks** ("cleared for takeoff runway 31 right, Hangman 1-2") and **chatter** get no answer;
-  readbacks are not checked yet.
+  again." **Chatter** gets no answer.
+- **Readbacks** ("cleared for takeoff runway 31 right, Hangman 1-2") are checked against the newest instruction to
+  you from that airfield or FARP within a minute that has something to compare: runway, heading, altitude, frequency
+  and QNH (ICAO Doc 4444 §4.5.7.5). Only a **different** value is corrected, by the station that gave it:
+  "Hangman 1-2, negative, I say again, runway 31R." Missing or misheard parts are let go (Whisper drops "right" now
+  and then, and writes "one way" for "runway"); "31" for "31R" counts as right; a correct readback, or none at all,
+  gets no answer. Checked on the readbacks of the bake-off recordings (`tests/DcsAtc.Tests/ReadbackTests.cs`).
 
 How a call is read (`src/DcsAtc.Recognition/PilotCalls.cs`): the text is normalized, known mishearings are
 corrected (`"aliases"` in `recognition.json`: "one way" → "runway", "white" → "right", …: add your own), and it is
@@ -226,5 +231,4 @@ the miss: "final" heard as "kind of", no answer).
 
 ## Not yet
 
-- Readback checking (radio check is answered without state).
 - Line of sight from the tower (a position for the stations), slight voice differences per position.
