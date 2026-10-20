@@ -1,4 +1,4 @@
-# DCS ATC Overhaul — Feasibility Research
+# DigiTower (ATC for DCS World) — Feasibility Research
 
 *Researched 2026-10-18 · DCS 2.9.30.28738 (local install) · MOOSE `master-ng` @ `ba6091d` (2026-10-11)*
 

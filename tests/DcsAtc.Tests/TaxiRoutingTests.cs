@@ -104,7 +104,7 @@ public class TaxiRoutingTests
     [InlineData("31L", 3800)]
     public void Routes_at_al_dhafra_from_spot_106(string runwayEnd, double maxLength)
     {
-        Skip.If(TestPaths.Terrains is null, "DCS install not found (set DCSATC_DCS_DIR)");
+        Skip.If(TestPaths.Terrains is null, "DCS install not found (set DIGITOWER_DCS_DIR)");
         string rn5 = Path.Combine(TestPaths.Terrains!, "PersianGulf", "AirfieldsTaxiways", "Dhafra_AFB.rn5");
         string dump = Path.Combine(TestPaths.RepoRoot, "data", "dcs", "Al Dhafra AFB.json");
         Skip.IfNot(File.Exists(rn5) && File.Exists(dump), "Al Dhafra data not available");

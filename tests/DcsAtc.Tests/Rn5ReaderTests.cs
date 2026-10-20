@@ -47,7 +47,7 @@ public class Rn5ReaderTests
     [InlineData(@"MarianaIslands\AirfieldsTaxiways\Antonio_B._Won_Pat_Int_Airport.rn5", 268, 201, new[] { "06L", "06R" })]
     public void Parses_real_dcs_files(string relativePath, int edges, int nodes, string[] runways)
     {
-        Skip.If(TestPaths.Terrains is null, "DCS install not found (set DCSATC_DCS_DIR)");
+        Skip.If(TestPaths.Terrains is null, "DCS install not found (set DIGITOWER_DCS_DIR)");
         string path = Path.Combine(TestPaths.Terrains!, relativePath);
         Skip.IfNot(File.Exists(path), $"{relativePath} not installed");
 

@@ -26,7 +26,7 @@ static class RecognitionCommands
         {
             Host = o.Get("host", "127.0.0.1"),
             Port = int.Parse(o.Get("port", "5002")),
-            Name = "DCS-ATC recorder",
+            Name = "DigiTower recorder",
             Coalition = int.Parse(o.Get("coalition", "2")),
             Receive = frequencies,
         });
@@ -108,9 +108,9 @@ static class RecognitionCommands
         }
     }
 
-    // The ATC app's own stations ("Al Dhafra Ground") talk on these frequencies too.
+    // The app's own stations ("Al Dhafra Ground") and test clients ("DigiTower …", before the rename "DCS-ATC …") talk on these frequencies too.
     private static bool IsAtcStation(string name) =>
-        name.StartsWith("DCS-ATC", StringComparison.Ordinal) || new[] { " Ground", " Tower", " Approach", " ATIS" }.Any(s => name.EndsWith(s, StringComparison.Ordinal));
+        name.StartsWith("DigiTower", StringComparison.Ordinal) || name.StartsWith("DCS-ATC", StringComparison.Ordinal) || new[] { " Ground", " Tower", " Approach", " ATIS" }.Any(s => name.EndsWith(s, StringComparison.Ordinal));
 
     private static RecordedCall Save(CallCorpus corpus, TestCall call, float[] samples, string speaker, double frequencyMhz, int lost)
     {

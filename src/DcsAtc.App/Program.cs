@@ -4,10 +4,10 @@ using DcsAtc.Bridge;
 using DcsAtc.Recognition;
 using DcsAtc.Voice;
 
-// DCS-ATC app.
+// DigiTower: ATC for DCS World.
 //
 //   dotnet run --project src/DcsAtc.App -- [--host 127.0.0.1] [--port 42700]
-//       [--dcs "D:\DCS\DCS World"]   DCS install (for the taxi networks); default: DCSATC_DCS_DIR or common locations
+//       [--dcs "D:\DCS\DCS World"]   DCS install (for the taxi networks); default: DIGITOWER_DCS_DIR (or the older DCSATC_DCS_DIR) or common locations
 //       [--data <dir>]               folder containing airfields/<theatre>/*.labels.json; default: the repository's data folder
 //       [--dump "Al Dhafra AFB"]...  write DCS airbase data to data/dcs/<name>.json
 //       [--silence "<airbase>"]...   silence the stock ATC at more airbases
@@ -24,7 +24,7 @@ using DcsAtc.Voice;
 
 string host = "127.0.0.1";
 int port = 42700;
-string? dcsDir = Environment.GetEnvironmentVariable("DCSATC_DCS_DIR");
+string? dcsDir = Environment.GetEnvironmentVariable("DIGITOWER_DCS_DIR") ?? Environment.GetEnvironmentVariable("DCSATC_DCS_DIR");
 string? dataDir = null;
 bool keepStockAtc = false;
 string srs = "127.0.0.1:5002";
@@ -95,7 +95,7 @@ var app = new AtcApp(client, new AppOptions
 if (transcriber is not null)
     transcriber.Recognized += (facility, t, text) => _ = app.OnVoiceAsync(facility, t.Frequency.Hz / 1e6, t.Sender?.Name, t.Sender?.UnitId, text, cts.Token);
 
-Console.WriteLine($"DCS-ATC: waiting for the DCS bridge on {host}:{port} (Ctrl+C to quit)");
+Console.WriteLine($"DigiTower: waiting for the DCS bridge on {host}:{port} (Ctrl+C to quit)");
 var connection = client.RunAsync(cts.Token);
 try
 {

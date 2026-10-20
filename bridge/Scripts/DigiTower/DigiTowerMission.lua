@@ -1,6 +1,6 @@
--- DCS-ATC bridge, mission side.
+-- DigiTower bridge, mission side.
 --
--- Injected into the mission scripting environment by Hooks/DcsAtcBridgeHook.lua when a mission
+-- Injected into the mission scripting environment by Hooks/DigiTowerHook.lua when a mission
 -- starts. It has no sockets: the hook calls ATCB.poll() a few times per second to collect unit
 -- states and queued messages, and forwards commands from the ATC app to ATCB.command().
 -- Only the commands in COMMANDS can be executed; the app never sends Lua code.
@@ -608,7 +608,7 @@ function ATCB.start()
     timer.scheduleFunction(function()
       if next(ATCB.held) ~= nil and now() - ATCB.lastPoll > ATCB.holdWatchdog then
         local n = ATCB.releaseHeld()
-        env.info(string.format('DCS-ATC: no contact with the ATC app for %d s, %d held AI groups released', ATCB.holdWatchdog, n))
+        env.info(string.format('DigiTower: no contact with the ATC app for %d s, %d held AI groups released', ATCB.holdWatchdog, n))
       end
       return now() + 15
     end, nil, now() + 15)

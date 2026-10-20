@@ -8,7 +8,7 @@ namespace DcsAtc.Tests;
 /// <summary>
 /// Runs the real Lua hook and mission script inside bridge/tests/fake_dcs.lua (Lua 5.1 + LuaSocket)
 /// and talks to it with <see cref="BridgeClient"/>. Skipped when no Lua 5.1 is installed; set
-/// DCSATC_LUA to the lua.exe to use.
+/// DIGITOWER_LUA to the lua.exe to use.
 /// </summary>
 public class FakeDcsIntegrationTests
 {
@@ -16,7 +16,7 @@ public class FakeDcsIntegrationTests
     public async Task Client_talks_to_the_real_hook_in_a_fake_dcs()
     {
         string? lua = TestPaths.FindLua();
-        Skip.If(lua is null, "Lua 5.1 with LuaSocket not found (set DCSATC_LUA)");
+        Skip.If(lua is null, "Lua 5.1 with LuaSocket not found (set DIGITOWER_LUA)");
         int port = FreePort();
         string script = Path.Combine(TestPaths.RepoRoot, "bridge", "tests", "fake_dcs.lua");
         using var fake = Process.Start(new ProcessStartInfo(lua!, $"\"{script}\" --port {port} --duration 40 --click --quiet")

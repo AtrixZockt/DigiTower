@@ -450,7 +450,7 @@ function M.new(opts)
 end
 
 --- Loads the bridge hook into `W` with stubbed Sim/net/log/lfs and returns its callbacks.
---- Loads the real hook; `config` (optional) is what Scripts/DcsAtc/DcsAtcConfig.lua returns (the port is added), or a
+--- Loads the real hook; `config` (optional) is what Scripts/DigiTower/DigiTowerConfig.lua returns (the port is added), or a
 -- string: the file does not load, with that error.
 function M.loadHook(W, bridgeRoot, port, startTime, config)
   local callbacks
@@ -477,7 +477,7 @@ function M.loadHook(W, bridgeRoot, port, startTime, config)
     log = { INFO = 'INFO', ERROR = 'ERROR', write = function(sub, level, msg) W.print(string.format('[%s %s] %s', sub, level, msg)) end },
     lfs = { writedir = function() return bridgeRoot end },
     loadfile = function(path)
-      if path:match('DcsAtcConfig%.lua$') then
+      if path:match('DigiTowerConfig%.lua$') then
         if type(config) == 'string' then return nil, config end
         return function()
           local c = { port = port }
@@ -488,7 +488,7 @@ function M.loadHook(W, bridgeRoot, port, startTime, config)
       return loadfile(path)
     end,
   }, { __index = _G })
-  local chunk = assert(loadfile(bridgeRoot .. 'Scripts/Hooks/DcsAtcBridgeHook.lua'))
+  local chunk = assert(loadfile(bridgeRoot .. 'Scripts/Hooks/DigiTowerHook.lua'))
   setfenv(chunk, hookEnv)
   chunk()
   return callbacks

@@ -11,6 +11,8 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
+    <!-- The program is called DigiTower (DigiTower.exe); the projects keep their DcsAtc.* names. -->
+    <AssemblyName>DigiTower</AssemblyName>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
