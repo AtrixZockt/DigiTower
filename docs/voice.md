@@ -1,7 +1,7 @@
 # ATC voice on SRS
 
-The controllers speak on the real radio frequencies through SRS, in one voice, without AI while flying:
-transmissions are stitched from short clips that a local text-to-speech engine made once and that are kept
+The controllers, and AI pilots in a voice of their own, speak on the real radio frequencies through SRS, all made on
+your PC: transmissions are stitched from short clips that a local text-to-speech engine made once and that are kept
 on disk. The text messages stay as they are (they work as subtitles).
 
 ## How it works
@@ -28,10 +28,11 @@ Ground / Tower ──text──► SpokenText ──clips──► AtcVoice ─�
    is covered. The very first mission with a new voice needs about 100 clips for Al Dhafra (about 1.5 minutes
    in the background); a call made before that is done makes its missing clips first (about 0.6 s each).
 4. **SRS** (`src/DcsAtc.Srs`). Every airfield's controllers are one SRS client ("Al Dhafra ATC", per
-   coalition), since its positions share frequencies: it says their calls one after another, 0.7 s apart, each
-   on all frequencies of the position calling, and listens on all of the airfield's frequencies (voice
-   requests). A call that waited longer than 60 s (a backlog after SRS was away) is dropped. Audio goes out as
-   40 ms Opus frames at the pace they play.
+   coalition), since its positions share frequencies: it says their calls one after another, each on all
+   frequencies of the position calling, when it is their turn on the frequency ([Taking turns](#taking-turns-on-the-frequency)),
+   and listens on all of the airfield's frequencies (who is talking; with voice requests, what). A call that waited
+   longer than 60 s (a backlog after SRS was away) is dropped. Audio goes out as 40 ms Opus frames at the pace they
+   play.
 
 **Frequencies.** DCS gives every airfield a few ATC frequencies, the ones the briefing shows; the bridge reads
 them from the terrain (`airbase_radios`). Ground, Tower and Approach all work on the VHF (118-137 MHz) and UHF
@@ -46,14 +47,14 @@ frequencies (SRS tells every client the others' radios), and is silent otherwise
 
 ## Setup
 
-1. Download the model of the voice in use (Kokoro, about 330 MB; once):
+1. Download the model of the voice in use (Kokoro, about 330 MB; once) on the control panel's *Install* page, or:
    ```powershell
    dotnet run --project tools/DcsAtc.VoiceTool -- fetch
    ```
-   `fetch --voice <id>` gets another voice's model, `fetch --all` all of them (about 600 MB). Without a model the
-   app falls back to a Windows voice.
-2. Run the SRS server (2.4.x) as usual. The app connects to `127.0.0.1:5002`; use `--srs host:port`
-   otherwise, `--voice <id>` for another voice, `--no-voice` for text only.
+   `fetch --voice <id>` gets another voice's model, `fetch --all` all of them (about 600 MB). Without a model
+   DigiTower falls back to a Windows voice.
+2. Run the SRS server (2.4.x) as usual. DigiTower connects to `127.0.0.1:5002`; set another in Settings (the
+   console: `--srs host:port`), and the voice there too (`--voice <id>`, `--no-voice` for text only).
 3. In the aircraft, tune a radio to the Ground, Tower, Approach or ATIS frequency.
 
 ## Voices
@@ -99,9 +100,26 @@ Kokoro, Piper and Windows engines are free; the table only says what the voices'
 Each voice has its own clip cache, so the first mission with a new voice spends a minute or two making its clips in
 the background. Speed is per voice (`"speed"` in `voices.json`, default 1.2).
 
-Notes from the measurements: the int8 Kokoro model is about 2.5× **slower** than fp32 on this CPU (no
+Notes from the measurements: the int8 Kokoro model is about 2.5× **slower** than fp32 on a Ryzen 5 5600X (no
 AVX-512 VNNI), so fp32 is used; more than 2–4 threads hardly helps. The Piper "joe" voice crashes
-sherpa-onnx 1.13.8 and was dropped.
+sherpa-onnx 1.13.8 and is not offered.
+
+## AI pilots
+
+AI pilots talk when DigiTower handles AI traffic (its own setting and the server's `manageAi`) and the voice is on:
+their calls before the controller's answer and their readbacks after it, said as one turn on the frequency. Their
+voice is a setting of its own (*Settings → AI pilot voice*, or the console's `--ai-voice <id>`; `--no-ai-voice`
+silences them); by default it is the first downloaded of Kokoro Michael, Kokoro Adam, Kokoro George, Piper Ryan and
+the Windows voices that is not the controllers' voice. A cockpit sound is added to it (a headset microphone's band,
+300–3400 Hz, lightly driven, over a low hiss), so pilots and controllers are told apart at once; SRS adds its radio
+effect to both when they are received. *Test* beside the setting plays a pilot's call with that sound.
+
+## Taking turns on the frequency
+
+Every airfield's controllers are one SRS client with a radio on each of its frequencies, so they hear whoever talks
+there. Before saying anything they wait until the frequency has been quiet for half a second and no other airfield
+of DigiTower's is on it; after a call to a player they leave up to 4 seconds for the readback (less once the player
+has read back). A call that could not be said within a minute is dropped.
 
 ## Voice tool
 
@@ -118,14 +136,14 @@ sherpa-onnx 1.13.8 and was dropped.
 | `bakeoff [--recognizers a,b] [--rescore] [--misses]` | Every recognizer over the recorded calls: `out/s5/report.html`. |
 | `fetch --recognition` / `fetch --recognizer id` | Download the speech-recognition models (about 1.4 GB for all). |
 
-## Speech recognition (spike S5)
+## Speech recognition
 
-Pilots will talk to the controllers on the frequency with their normal push-to-talk. Who is talking comes from SRS
-(the sender's client name and unit), what they said from a speech recognizer that runs locally, on finished
-transmissions only. The recognizer only turns speech into text; what the call means will be decided by plain code
-(the next step). The F10 menu stays.
+For voice requests (below) pilots talk to the controllers on the frequency with their normal push-to-talk. Who is
+talking comes from SRS (the sender's client name and unit), what they said from a speech recognizer that runs
+locally, on finished transmissions only. The recognizer only turns speech into text; what the call means is decided
+by plain code (`PilotCalls.cs`). The F10 menu stays.
 
-**Candidates** (`data/voice/recognition.json`), all local and free:
+**Recognizers** (`data/voice/recognition.json`, chosen in Settings), all local and free:
 
 | Id | Engine | Notes |
 |---|---|---|
@@ -133,20 +151,21 @@ transmissions only. The recognizer only turns speech into text; what the call me
 | `whisper-base`, `whisper-small`, `whisper-turbo` (+ `-plain`) | OpenAI Whisper base.en / small.en / large-v3-turbo through whisper.cpp (Whisper.net), CPU | Always encodes 30 s of audio, however short the call. Without `-plain`, a prompt carries the vocabulary. |
 | `whisper-small-vulkan`, `whisper-turbo-vulkan` (default) | the same on the graphics card (Vulkan) | Faster, but shares the GPU with DCS: watch VR frame times. |
 
-On your 51 calls the best was **`whisper-turbo-vulkan`**: 33/51 understood exactly, 41/51 with near-misses accepted,
-0.54 s per call (results and what goes wrong: RESEARCH.md, S5). A Whisper fine-tuned on other people's ATC speech
-(ATCOSIM) did worse; `tools/Convert-WhisperModel.ps1` converts such models (and later your own) to whisper.cpp format.
+On 51 test calls recorded through SRS (a non-native English speaker, headset microphone) the best was
+**`whisper-turbo-vulkan`**: 33/51 understood exactly, 41/51 with near-misses accepted, 0.54 s per call. A Whisper
+fine-tuned on other ATC speech (ATCOSIM) did worse; `tools/Convert-WhisperModel.ps1` converts such fine-tunes to
+whisper.cpp format.
 
 The vocabulary (airfield names, callsign names, a few ATC terms) is in `recognition.json`. Calls are scored after
 normalising: numbers digit by digit ("31R", "thirty-one right" and "three one right" are the same), whole thousands
 as "three thousand", decimals without the point, taxiways phonetic (`src/DcsAtc.Recognition/Transcript.cs`).
 
-**The bake-off: your voice, through SRS**
+**Testing with your own voice, through SRS** (the bake-off)
 
 1. Download the models (once): `dotnet run --project tools/DcsAtc.VoiceTool -- fetch --recognition`
-2. Start the SRS server as usual. In the SRS client, connect in **External AWACS Mode** (EAM is on in your
-   `server.cfg`; the password is `EXTERNAL_AWACS_MODE_BLUE_PASSWORD`) with the microphone and push-to-talk you fly
-   with, and tune a radio to **250.0 AM** (270.0 or 257.0 work too). SRS adds its radio effects and cockpit noise on
+2. Start the SRS server as usual. In the SRS client, connect in **External AWACS Mode** (EAM must be on in the
+   server's `server.cfg`; the password is its `EXTERNAL_AWACS_MODE_BLUE_PASSWORD`) with the microphone and
+   push-to-talk you fly with, and tune a radio to **250.0 AM** (270.0 or 257.0 work too). SRS adds its radio effects and cockpit noise on
    the receiving side, so this is the same audio the controllers get from the cockpit.
 3. Record the 51 test calls of `data/voice/test-calls.txt`:
    ```powershell
@@ -197,9 +216,10 @@ talk to the controllers on their frequencies with their normal push-to-talk, and
 dotnet run --project src/DcsAtc.App -- --transcribe        # or --transcribe <recognizer id>; --recordings <dir>
 ```
 
-Ground, Tower and Approach go on the air as soon as a player spawns. Every transmission on their frequencies is
-recognized (`whisper-turbo-vulkan` by default: about 0.5 s on the graphics card, loaded and warmed up at start),
-written to the console and saved to `out/heard/<date>/` with `heard.jsonl` (friends' calls too, on your PC only).
+An airfield's Ground, Tower and Approach go on the air as players come within 60 NM. Every transmission on their
+frequencies is recognized (`whisper-turbo-vulkan` by default: about 0.5 s on the graphics card, loaded and warmed up
+at start), written to the log and saved with `heard.jsonl`, one folder per day (`%LOCALAPPDATA%\DigiTower\heard`
+installed, `out/heard` from the repository; friends' calls too, on your PC only).
 Then ATC reacts:
 
 - **Who** is talking comes from SRS (the player name and its aircraft), **to whom** from the frequency; the callsign
