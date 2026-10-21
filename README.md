@@ -339,4 +339,5 @@ The maps' time zones, and the way AI arrivals are held (a new route with an orbi
 
 ---
 
-I used AI to help design DigiTower and to help with the programming.
+I had help from AI while making DigiTower: Claude by Anthropic (in Claude Code) helped with the design and the
+programming, and with testing and troubleshooting. Most of the work I did myself.
