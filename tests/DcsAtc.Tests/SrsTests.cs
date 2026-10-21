@@ -4,7 +4,10 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Text.Json.Nodes;
+using DcsAtc.Atc;
+using DcsAtc.Host;
 using DcsAtc.Srs;
+using DcsAtc.Voice;
 
 namespace DcsAtc.Tests;
 
@@ -81,10 +84,10 @@ public class SrsTests
     }
 
     /// <summary>
-    /// Just enough of an SRS server: answers SYNC with one other client, answers UDP pings, and echoes voice
-    /// packets back to the sender (as SRS does on its test frequencies).
+    /// Just enough of an SRS server: answers SYNC with one other client, answers UDP pings, and sends every voice packet
+    /// to every client (back to the sender too, as SRS does on its test frequencies).
     /// </summary>
-    private sealed class FakeSrsServer : IAsyncDisposable
+    internal sealed class FakeSrsServer : IAsyncDisposable
     {
         private readonly UdpClient _udp;
         private readonly TcpListener _tcp;
@@ -116,6 +119,10 @@ public class SrsTests
         public int Port { get; }
         public ConcurrentQueue<JsonNode> Messages { get; } = new();
         public ConcurrentQueue<SrsVoicePacket> VoicePackets { get; } = new();
+        /// <summary>Every voice packet with when it arrived (ms since the server started).</summary>
+        public ConcurrentQueue<(SrsVoicePacket Packet, long At)> Arrivals { get; } = new();
+        private readonly Stopwatch _clock = Stopwatch.StartNew();
+        private readonly ConcurrentDictionary<IPEndPoint, bool> _endpoints = new();
 
         private async Task AcceptAsync()
         {
@@ -172,8 +179,14 @@ public class SrsTests
                 while (true)
                 {
                     var r = await _udp.ReceiveAsync(_stop.Token);
-                    if (r.Buffer.Length > 22 && SrsVoicePacket.Decode(r.Buffer) is { } packet) VoicePackets.Enqueue(packet);
-                    await _udp.SendAsync(r.Buffer, r.RemoteEndPoint, _stop.Token);
+                    _endpoints[r.RemoteEndPoint] = true;
+                    if (r.Buffer.Length > 22 && SrsVoicePacket.Decode(r.Buffer) is { } packet)
+                    {
+                        VoicePackets.Enqueue(packet);
+                        Arrivals.Enqueue((packet, _clock.ElapsedMilliseconds));
+                        foreach (var other in _endpoints.Keys) await _udp.SendAsync(r.Buffer, other, _stop.Token);
+                    }
+                    else await _udp.SendAsync(r.Buffer, r.RemoteEndPoint, _stop.Token);
                 }
             }
             catch (Exception ex) when (ex is OperationCanceledException or SocketException)
@@ -194,6 +207,121 @@ public class SrsTests
             {
             }
         }
+    }
+}
+
+/// <summary>The controllers' radio on a (fake) SRS server: nobody is stepped on, AI exchanges go in one turn.</summary>
+[Collection(TimingCollection.Name)]
+public class SrsRadioTests
+{
+    private static readonly AirfieldStations Dhafra = new() { Ground = 250, Tower = 270 };
+
+    /// <summary>"Says" every text as a tone, 60 ms per character.</summary>
+    private sealed class ToneEngine : ISpeechEngine
+    {
+        public AudioClip Synthesize(string text) =>
+            new(Enumerable.Range(0, 16 * 60 * text.Length).Select(i => (float)(0.3 * Math.Sin(i * 0.1))).ToArray(), 16000);
+
+        public void Dispose()
+        {
+        }
+    }
+
+    private static AtcVoice Voice(string id, string dir) =>
+        new(new VoiceInfo { Id = id, Engine = "test" }, new ToneEngine(), Path.Combine(dir, id));
+
+    // The transmissions as the server saw them: sender, first and last packet (ms); a pause of 300 ms ends one.
+    private static List<(string Sender, long From, long To)> Transmissions(SrsTests.FakeSrsServer server)
+    {
+        var list = new List<(string Sender, long From, long To)>();
+        foreach (var sender in server.Arrivals.GroupBy(a => a.Packet.SenderGuid))
+        {
+            (string Sender, long From, long To)? current = null;
+            foreach (var (_, at) in sender.OrderBy(a => a.At))
+            {
+                if (current is { } c && at - c.To <= 300) current = c with { To = at };
+                else
+                {
+                    if (current is { } done) list.Add(done);
+                    current = (sender.Key, at, at);
+                }
+            }
+            if (current is { } last) list.Add(last);
+        }
+        return [.. list.OrderBy(t => t.From)];
+    }
+
+    [Fact]
+    public async Task An_ai_exchange_is_one_turn_pilot_controller_pilot()
+    {
+        string dir = Path.Combine(Path.GetTempPath(), "digitower-tests", Guid.NewGuid().ToString("N"));
+        await using var server = new SrsTests.FakeSrsServer();
+        var radio = new SrsRadio(new SrsRadioOptions { Port = server.Port }, Voice("atc", dir), _ => { }, Voice("pilot", dir));
+        try
+        {
+            radio.Listen("Al Dhafra", Dhafra, 2);
+            await Task.Delay(1500);   // connected
+            var call = new RadioCall("Al Dhafra", "Tower", 2, "Colt 2-1, cleared to land.", Dhafra)
+            {
+                PilotCall = "Tower, Colt 2-1, final.", PilotReadback = "Cleared to land, Colt 2-1.", ToAi = true,
+            };
+            radio.Transmit(call);
+            radio.Transmit(new RadioCall("Al Dhafra", "Ground", 2, "Hangman 1-2, taxi.", Dhafra));
+            await WaitUntilAsync(() => Transmissions(server).Count >= 4, TimeSpan.FromSeconds(20));
+
+            var t = Transmissions(server);
+            // Pilot call, the controller's answer, the readback, then the next call (on its frequency, after the exchange).
+            Assert.Equal(4, t.Count);
+            Assert.InRange(t[1].From - t[0].To, 800, 1600);    // the controller answers after a second
+            Assert.InRange(t[2].From - t[1].To, 600, 1400);    // the pilot reads back at once
+            Assert.True(t[3].From > t[2].To, "the next call waits for the exchange");
+        }
+        finally
+        {
+            await radio.DisposeAsync();
+            Directory.Delete(dir, true);
+        }
+    }
+
+    [Fact]
+    public async Task A_station_waits_while_a_player_talks()
+    {
+        string dir = Path.Combine(Path.GetTempPath(), "digitower-tests", Guid.NewGuid().ToString("N"));
+        await using var server = new SrsTests.FakeSrsServer();
+        var radio = new SrsRadio(new SrsRadioOptions { Port = server.Port }, Voice("atc", dir), _ => { });
+        var player = new SrsClient(new SrsOptions { Port = server.Port, Name = "Hangman 1-2 | DiGii", Receive = [SrsFrequency.Mhz(250)] });
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        var run = player.RunAsync(cts.Token);
+        try
+        {
+            radio.Listen("Al Dhafra", Dhafra, 2);
+            Assert.True(await player.WaitReadyAsync(TimeSpan.FromSeconds(5)));
+            await Task.Delay(1000);
+            // The player talks for 2 s; ATC has something to say meanwhile.
+            var talking = player.TransmitAsync(new short[32000], [SrsFrequency.Mhz(250)], cts.Token);
+            await Task.Delay(300);
+            radio.Transmit(new RadioCall("Al Dhafra", "Ground", 2, "Hangman 1-1, hold position.", Dhafra));
+            await talking;
+            await WaitUntilAsync(() => Transmissions(server).Count >= 2, TimeSpan.FromSeconds(15));
+
+            var t = Transmissions(server);
+            Assert.Equal(player.Guid, t[0].Sender);
+            Assert.True(t[1].From >= t[0].To + 400, $"ATC started {t[1].From - t[0].To} ms after the player stopped");
+        }
+        finally
+        {
+            await cts.CancelAsync();
+            await run;
+            await radio.DisposeAsync();
+            Directory.Delete(dir, true);
+        }
+    }
+
+    private static async Task WaitUntilAsync(Func<bool> condition, TimeSpan timeout)
+    {
+        var clock = Stopwatch.StartNew();
+        while (!condition() && clock.Elapsed < timeout) await Task.Delay(100);
+        await Task.Delay(500);
     }
 }
 

@@ -238,7 +238,7 @@ public sealed class AtcHost : IAsyncDisposable
         lights.Add(!s.Voice ? new("VOICE", Light.Off, "Off · text messages only")
             : !running ? new("VOICE", Light.Off, "Stopped")
             : _radio is null ? new("VOICE", Light.Warning, "No voice found · text only")
-            : new("VOICE", Light.On, _voiceLabel ?? "On"));
+            : new("VOICE", Light.On, _aiVoiceLabel is { } ai ? $"{_voiceLabel} · AI: {ai}" : _voiceLabel ?? "On"));
 
         lights.Add(!s.VoiceRequests ? new("VOICE REQUESTS", Light.Off, "Off")
             : !running ? new("VOICE REQUESTS", Light.Off, "Stopped")
@@ -269,7 +269,7 @@ public sealed class AtcHost : IAsyncDisposable
         _lock.Dispose();
     }
 
-    private string? _voiceLabel;
+    private string? _voiceLabel, _aiVoiceLabel;
 
     // The controllers' voice on SRS: the chosen voice if its model is there, else a Windows voice.
     private SrsRadio? OpenRadio(string? data)
@@ -295,7 +295,28 @@ public sealed class AtcHost : IAsyncDisposable
         Write(LogCategory.VoiceOut, $"voice: {info.Label} on SRS {options.Host}:{options.Port}");
         _voiceLabel = info.Label;
         var voice = catalog.Open(info, _log.For(LogCategory.VoiceOut));
-        return new SrsRadio(options, voice, _log.For(LogCategory.Srs));
+        return new SrsRadio(options, voice, _log.For(LogCategory.Srs), OpenPilotVoice(catalog, info));
+    }
+
+    // AI pilots' voice: the one chosen if downloaded, else one that is not the controllers'; null when they do not talk.
+    private AtcVoice? OpenPilotVoice(VoiceCatalog catalog, VoiceInfo controllers)
+    {
+        _aiVoiceLabel = null;
+        if (!_settings.AiVoice || !_settings.ManageAi) return null;
+        var wanted = _settings.AiVoiceId is { } id ? catalog.Find(id) : null;
+        if (_settings.AiVoiceId is not null && wanted is null) Write(LogCategory.VoiceOut, $"AI pilot voice: unknown voice {_settings.AiVoiceId}", LogLevel.Warning);
+        var info = wanted is not null && catalog.IsAvailable(wanted) ? wanted
+            : DigiTowerSettings.AiVoiceChoices.Select(catalog.Find).OfType<VoiceInfo>().FirstOrDefault(v => v.Id != controllers.Id && catalog.IsAvailable(v));
+        if (info is null)
+        {
+            Write(LogCategory.VoiceOut, "AI pilot voice: none available apart from the controllers' one, AI pilots stay silent", LogLevel.Warning);
+            return null;
+        }
+        if (wanted is not null && info != wanted)
+            Write(LogCategory.VoiceOut, $"AI pilot voice: {wanted.Id} is not downloaded (Install page), using {info.Id}", LogLevel.Warning);
+        Write(LogCategory.VoiceOut, $"AI pilot voice: {info.Label} (when DigiTower handles AI traffic)");
+        _aiVoiceLabel = info.Label;
+        return catalog.Open(info, _log.For(LogCategory.VoiceOut));
     }
 
     // Speech recognition on what the stations hear: the recognizer loads in the background.

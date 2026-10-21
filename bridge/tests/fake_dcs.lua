@@ -6,6 +6,8 @@
 --                 two seconds after it appears.
 -- --static        the jet stays parked (no scripted taxi and takeoff).
 -- --ai            adds an AI departure: "Enfield 1-1", parked uncontrolled at spot 60, started by the mission after 8 s
+-- --arrival       adds two AI arrivals: "Colt 1-1" 12 NM southeast and "Colt 2-1" 14 NM north, their routes landing at
+--                 Al Dhafra; they fly in (or to the hold arrival_hold gives them) and land
 --                 (engines 2 s later, rolling 4 s after that, unless the app holds it).
 -- --server-no-ai  the server turns AI handling off (manageAi = false in DigiTowerConfig.lua).
 
@@ -15,7 +17,7 @@ package.path = root .. 'tests/?.lua;' .. package.path
 local socket = require('socket')
 local fake = require('fakedcs.world')
 
-local port, duration, click, clickFilter, quiet, static, ai, serverNoAi = 42700, 120, false, nil, false, false, false, false
+local port, duration, click, clickFilter, quiet, static, ai, serverNoAi, arrival = 42700, 120, false, nil, false, false, false, false, false
 local i = 1
 while arg[i] do
   if arg[i] == '--port' then port = tonumber(arg[i + 1]); i = i + 1
@@ -25,6 +27,7 @@ while arg[i] do
     if arg[i + 1] and arg[i + 1]:sub(1, 2) ~= '--' then clickFilter = arg[i + 1]; i = i + 1 end
   elseif arg[i] == '--static' then static = true
   elseif arg[i] == '--ai' then ai = true
+  elseif arg[i] == '--arrival' then arrival = true
   elseif arg[i] == '--server-no-ai' then serverNoAi = true
   elseif arg[i] == '--quiet' then quiet = true
   end
@@ -35,7 +38,7 @@ local start = socket.gettime()
 local W = fake.new({ print = function(s)
   if not quiet then io.write(string.format('%7.2f  %s\n', socket.gettime() - start, s)); io.flush() end
 end })
-W:setupScenario({ static = static, ai = ai })
+W:setupScenario({ static = static, ai = ai, arrival = arrival })
 local cb = fake.loadHook(W, root, port, start, serverNoAi and { manageAi = false } or nil)
 
 io.write(string.format('fake DCS on 127.0.0.1:%d for %d s (mission starts after 1 s)\n', port, duration))

@@ -241,6 +241,9 @@ local HOOK_COMMANDS = {
   airbase_radios = airbaseRadios,
 }
 
+-- What a server with manageAi = false refuses: holding and releasing AI, departures and arrivals.
+local AI_COMMANDS = { group_hold = true, group_release = true, arrival_hold = true, arrival_clear = true }
+
 local function handleLine(line)
   local ok, cmd = pcall(net.json2lua, line)
   if not ok or type(cmd) ~= 'table' or type(cmd.cmd) ~= 'string' then
@@ -255,7 +258,7 @@ local function handleLine(line)
     reply(cmd, true, nil, { marks = 0 })
     return
   end
-  if CONFIG.manageAi == false and (cmd.cmd == 'group_hold' or cmd.cmd == 'group_release') then
+  if CONFIG.manageAi == false and AI_COMMANDS[cmd.cmd] then
     reply(cmd, false, 'AI handling is turned off on this server (manageAi = false in DigiTowerConfig.lua)')
     return
   end

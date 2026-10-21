@@ -177,6 +177,45 @@ test('held AI groups are released when the app stops polling', function()
   eq(W:unit('Enfield 1-1').group.commands[1], 'Start', 'released after 60 s without polls')
 end)
 
+test('commands: where a group lands, and holding an arrival', function()
+  local W, ATCB = missionWorld()
+  W:addUnit({ name = 'Enfield 2-1', group = 'Enfield 2', typeName = 'F-16C_50', cat = 0, coal = 2, x = -150000, y = 4000, z = -170000,
+    hdg = 180, speed = 200, start = 'air', landAt = { id = 4, x = -209935, z = -174592 } })
+  W:addUnit({ name = 'Colt 1-1', group = 'Colt 1', typeName = 'F-16C_50', cat = 0, coal = 2, x = 0, y = 4000, z = 0, start = 'air' })
+  ATCB.command({ cmd = 'group_destination', req = 1, group = 'Enfield 2' })
+  ATCB.command({ cmd = 'group_destination', req = 2, group = 'Colt 1' })
+  ATCB.command({ cmd = 'group_destination', req = 3, group = 'Spawned by a script' })
+  ATCB.command({ cmd = 'arrival_hold', req = 4, group = 'Enfield 2', flag = 'DigiTowerHold1', airdromeId = 4,
+    hold = { x = -211188, z = -173477, x2 = -201928, z2 = -173477, alt = 2133.6, speed = 128.6 },
+    final = { x = -222398, z = -158628, alt = 914.4, speed = 87.5 }, land = { x = -216712, z = -165934, alt = 501 } })
+  ATCB.command({ cmd = 'arrival_hold', req = 5, group = 'Colt 1', flag = 'DigiTowerHold2', airdromeId = 4,
+    hold = { x = -209935, z = -137000, alt = 2438.4, speed = 128.6 },
+    final = { x = -222398, z = -158628, alt = 914.4, speed = 87.5 }, land = { x = -216712, z = -165934, alt = 501 } })
+  local replies = {}
+  for _, m in ipairs(poll(W, false).msgs) do if m.type == 'reply' then replies[m.req] = m end end
+  eq(replies[1].data.name, 'Al Dhafra AFB', 'lands at Al Dhafra'); eq(replies[1].data.id, 4, 'airdrome id')
+  eq(replies[2].data.inMission, true, 'in the mission file'); eq(replies[2].data.id, nil, 'a route without a landing')
+  eq(replies[3].data.inMission, false, 'not in the mission file')
+  eq(replies[4].ok, true, 'held'); eq(replies[5].ok, true, 'orbiting')
+
+  -- A new route: the race track until the flag, final, landing at Al Dhafra.
+  local route = W:unit('Enfield 2-1').group.task.params.route.points
+  eq(#route, 3, 'three waypoints'); eq(route[3].type, 'Land', 'lands'); eq(route[3].airdromeId, 4, 'at Al Dhafra')
+  eq(route[3].alt, 501, 'on the glide path')
+  local orbit = route[1].task.params.tasks[1]
+  eq(orbit.id, 'ControlledTask', 'controlled'); eq(orbit.params.task.params.pattern, 'Race-Track', 'race track')
+  eq(orbit.params.stopCondition.userFlag, 'DigiTowerHold1', 'until the flag'); eq(W.flags.DigiTowerHold1, 0, 'flag down')
+  -- Without a second point: a circle.
+  local circle = W:unit('Colt 1-1').group.task.params.route.points[1].task.params.tasks[1]
+  eq(circle.params.task.params.pattern, 'Circle', 'circle'); eq(circle.params.stopCondition.userFlag, 'DigiTowerHold2', 'until its flag')
+
+  ATCB.command({ cmd = 'arrival_clear', req = 6, group = 'Enfield 2', flag = 'DigiTowerHold1' })
+  eq(W.flags.DigiTowerHold1, 1, 'cleared'); eq(ATCB.holding['Enfield 2'], nil, 'no longer holding')
+  -- The app goes away: what still holds is let go.
+  for _ = 1, 90 do W:step(1) end
+  eq(W.flags.DigiTowerHold2, 1, 'released after 60 s without polls')
+end)
+
 local function hookEndToEnd(port, fixedReturns)
   local start = socket.gettime()
   local W = fake.new({ fixedReturns = fixedReturns })

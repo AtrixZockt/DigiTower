@@ -12,6 +12,15 @@ public sealed record RadioCall(string Facility, string Role, int Coalition, stri
     /// <summary>"Al Dhafra Ground"; a FARP site, which has one position, is just its name ("FOB Laos").</summary>
     public string Station => Role.Length == 0 ? Facility : $"{Facility} {Role}";
     public IReadOnlyList<double> Frequencies => Stations.For(Role);
+
+    /// <summary>An AI pilot's call before it, in the AI pilots' voice ("Al Dhafra Approach, Colt 2-1, …, inbound for landing").</summary>
+    public string? PilotCall { get; init; }
+
+    /// <summary>The AI pilot's readback after it ("Hold over the TACAN, 7000 feet, Colt 2-1.").</summary>
+    public string? PilotReadback { get; init; }
+
+    /// <summary>To an AI pilot: no room is left for a player's readback after it.</summary>
+    public bool ToAi { get; init; }
 }
 
 /// <summary>Where controllers' transmissions go to be spoken (SRS). Text messages are sent separately.</summary>
@@ -25,6 +34,11 @@ public interface IAtcRadio
     /// (<paramref name="soon"/>, ahead of the rest) a pilot's callsign as they spawn.
     /// </summary>
     void Prepare(IEnumerable<string> texts, bool soon = false);
+
+    /// <summary>The same for what AI pilots say, in their own voice (nothing without one).</summary>
+    void PreparePilot(IEnumerable<string> texts, bool soon = false)
+    {
+    }
 
     /// <summary>
     /// Keeps saying <paramref name="text"/> on these frequencies, again and again, while anyone is listening (an ATIS);

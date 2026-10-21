@@ -54,7 +54,8 @@
                                                         <TextBlock Text="Port" VerticalAlignment="Center" Margin="0,0,10,0" />
                                                         <TextBox Text="{Binding Port, UpdateSourceTrigger=PropertyChanged}" Width="80" AutomationProperties.Name="Bridge port" />
                                                     </StackPanel>
-                                                    <CheckBox Content="DigiTower handles AI departures" IsChecked="{Binding ManageAi}" Margin="0,10,0,0" />
+                                                    <CheckBox Content="DigiTower handles AI traffic" IsChecked="{Binding ManageAi}" Margin="0,10,0,0"
+                                                              ToolTip="AI departures wait at parking and AI arrivals hold in the air while players use the airfield; AI pilots talk" />
                                                     <CheckBox Content="F10 map drawings" IsChecked="{Binding MapDrawings}" Margin="0,8,0,0" />
                                                     <Button Content="SAVE BRIDGE SETTINGS" Command="{Binding ApplySettingsCommand}" Margin="0,10,0,0" HorizontalAlignment="Left"
                                                             Visibility="{Binding SettingsChanged, Converter={StaticResource VisibleWhen}}" />

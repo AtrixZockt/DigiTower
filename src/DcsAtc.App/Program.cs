@@ -16,6 +16,8 @@
 //       [--srs 127.0.0.1:5002]       SRS server the controllers speak on
 //       [--voice <id>]               ATC voice from data\voice\voices.json (default: its "default", else a Windows voice)
 //       [--no-voice]                 text messages only
+//       [--ai-voice <id>]            AI pilots' voice (default: one that is not the controllers')
+//       [--no-ai-voice]              AI pilots stay silent
 //       [--no-ai]                    leave AI departures to DCS (never held)
 //       [--no-drawings]              draw nothing on the F10 map (taxi routes, landing spots: DCS shows them to the whole side)
 //       [--transcribe [<id>]]        voice requests: what pilots say to the controllers on SRS is recognized and answered like
@@ -56,6 +58,8 @@ for (int i = 0; i < args.Length; i++)
         case "--srs": settings.Srs = Next(); break;
         case "--voice": settings.VoiceId = Next(); break;
         case "--no-voice": settings.Voice = false; break;
+        case "--ai-voice": settings.AiVoiceId = Next(); break;
+        case "--no-ai-voice": settings.AiVoice = false; break;
         case "--no-ai": settings.ManageAi = false; break;
         case "--no-drawings": settings.MapDrawings = false; break;
         case "--transcribe":

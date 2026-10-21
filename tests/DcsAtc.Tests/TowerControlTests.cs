@@ -616,6 +616,10 @@ internal sealed class FakeRadio : IAtcRadio
     public void Transmit(RadioCall call) => Calls.Add(call);
     public void Prepare(IEnumerable<string> texts, bool soon = false) => Prepared.AddRange(texts);
 
+    /// <summary>What was prepared in the AI pilots' voice.</summary>
+    public List<string> PreparedPilot { get; } = [];
+    public void PreparePilot(IEnumerable<string> texts, bool soon = false) => PreparedPilot.AddRange(texts);
+
     /// <summary>What each station broadcasts now (absent: nothing).</summary>
     public Dictionary<string, (IReadOnlyList<double> Frequencies, int Coalition, string Text)> Broadcasts { get; } = [];
 

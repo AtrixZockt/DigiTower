@@ -23,4 +23,15 @@ public interface IDcsCommands
     Task HoldGroupAsync(string group, CancellationToken ct = default);
     /// <summary>Releases a held AI group (DCS's Start command).</summary>
     Task ReleaseGroupAsync(string group, CancellationToken ct = default);
+    /// <summary>Where an AI group's mission-file route lands.</summary>
+    Task<GroupDestination> GetGroupDestinationAsync(string group, CancellationToken ct = default);
+    /// <summary>
+    /// Holds an arriving AI group: a new route to <paramref name="hold"/>, where it orbits until <paramref name="flag"/> is
+    /// cleared, then to <paramref name="final"/> and onto the airdrome (landing waypoint at <paramref name="land"/>, a
+    /// point on final at the glide-path altitude, m).
+    /// </summary>
+    Task HoldArrivalAsync(string group, string flag, int airdromeId, HoldingFix hold, (double X, double Z, double Alt, double Speed) final,
+        (double X, double Z, double Alt) land, CancellationToken ct = default);
+    /// <summary>Lets a holding arrival go (its flag set).</summary>
+    Task ClearArrivalAsync(string flag, CancellationToken ct = default);
 }

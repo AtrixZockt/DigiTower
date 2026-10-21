@@ -126,6 +126,25 @@ public sealed partial class AtcApp
                 a.Extended ? $"Extended · {miles}" : miles);
         }
 
+        // AI arrivals: with Approach until Tower clears them to land.
+        if (ManagingAi)
+        {
+            foreach (var a in _arrivals.Arrivals.Values)
+            {
+                var lead = _units.Values.Where(u => u.Group == a.Group).MinBy(u => u.Id);
+                string? miles = lead is null ? null : $"{new Vec2(lead.X - a.Airfield.Airbase.X, lead.Z - a.Airfield.Airbase.Z).Length / 1852:0} NM";
+                (int column, string clearance) = a.Phase switch
+                {
+                    AiArrivalPhase.Holding => (2, $"Holding at {a.HoldAltitude:0} ft"),
+                    _ when a.LandingCalled => (1, "Cleared to land"),
+                    AiArrivalPhase.Cleared => (2, "Left the hold, to final"),
+                    _ => (2, "Straight in"),
+                };
+                Add(a.Airfield.Airbase.Name, false, a.Airfield.Frequencies, a.Airfield.Airbase.Id, column, $"aiarr{a.Group}", StripKind.Arrival,
+                    a.Callsign, ShortType(a.UnitType), a.End?.Name, clearance, a.Phase == AiArrivalPhase.Holding ? a.HeldFor : miles, ai: true);
+            }
+        }
+
         // FARP sites: one controller each.
         foreach (var f in _farps.Flights.Values)
         {

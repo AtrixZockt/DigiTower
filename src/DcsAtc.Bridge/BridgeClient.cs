@@ -236,6 +236,37 @@ public sealed class BridgeClient : IAsyncDisposable, IDcsCommands
     public Task ReleaseGroupAsync(string group, CancellationToken ct = default) =>
         RequestAsync(new JsonObject { ["cmd"] = "group_release", ["group"] = group }, ct);
 
+    public async Task<GroupDestination> GetGroupDestinationAsync(string group, CancellationToken ct = default)
+    {
+        var data = await RequestAsync(new JsonObject { ["cmd"] = "group_destination", ["group"] = group }, ct);
+        return data?.Deserialize<GroupDestination>(Json) ?? new GroupDestination();
+    }
+
+    public Task HoldArrivalAsync(string group, string flag, int airdromeId, HoldingFix hold, (double X, double Z, double Alt, double Speed) final,
+        (double X, double Z, double Alt) land, CancellationToken ct = default)
+    {
+        static JsonNode N(double v) => JsonValue.Create(Math.Round(v, 1));
+        var fix = new JsonObject { ["x"] = N(hold.X), ["z"] = N(hold.Z), ["alt"] = N(hold.Alt), ["speed"] = N(hold.Speed) };
+        if (hold.X2 is double x2 && hold.Z2 is double z2)
+        {
+            fix["x2"] = N(x2);
+            fix["z2"] = N(z2);
+        }
+        return RequestAsync(new JsonObject
+        {
+            ["cmd"] = "arrival_hold",
+            ["group"] = group,
+            ["flag"] = flag,
+            ["airdromeId"] = airdromeId,
+            ["hold"] = fix,
+            ["final"] = new JsonObject { ["x"] = N(final.X), ["z"] = N(final.Z), ["alt"] = N(final.Alt), ["speed"] = N(final.Speed) },
+            ["land"] = new JsonObject { ["x"] = N(land.X), ["z"] = N(land.Z), ["alt"] = N(land.Alt) },
+        }, ct);
+    }
+
+    public Task ClearArrivalAsync(string flag, CancellationToken ct = default) =>
+        RequestAsync(new JsonObject { ["cmd"] = "arrival_clear", ["flag"] = flag }, ct);
+
     /// <summary>Silences (or restores) the stock DCS ATC of an airbase.</summary>
     public async Task<bool> SetRadioSilentAsync(string name, bool silent, CancellationToken ct = default)
     {

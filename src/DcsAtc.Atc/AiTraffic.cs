@@ -138,6 +138,7 @@ public sealed class AiTraffic(IDcsCommands dcs, AirfieldCatalog airfields, Groun
             var d = new AiDeparture { Group = start.Group, Airfield = airfield, Coalition = unit.Coal, Callsign = CallsignOf(start.Group, units) };
             _departures[d.Group] = d;
             radio?.Prepare(Phraseology.CallsignSamples(d.Callsign), soon: true);
+            radio?.PreparePilot(Phraseology.CallsignSamples(d.Callsign), soon: true);
             if (HoldReason(d, units, null) is not { } hold)
             {
                 Go(d);
@@ -245,7 +246,9 @@ public sealed class AiTraffic(IDcsCommands dcs, AirfieldCatalog airfields, Groun
         {
             d.TaxiCalled = true;
             var weather = await dcs.GetAirbaseWeatherAsync(d.Airfield.Airbase.Name, ct);
-            if (EndFor(d.Airfield, weather, position) is { } end) Say(d, "Ground", Phraseology.AiTaxi(d.Callsign, d.Airfield.Facility, end));
+            if (EndFor(d.Airfield, weather, position) is { } end)
+                Say(d, "Ground", Phraseology.AiTaxi(d.Callsign, d.Airfield.Facility, end),
+                    Phraseology.AiRequestTaxi(d.Airfield.Facility, d.Callsign), Phraseology.AiTaxiReadback(d.Callsign, end));
         }
         if (d.TakeoffCalled) return;
         var runway = d.Airfield.Layout.Runways.Where(r => r.DistanceFrom(position) < AtRunway).MinBy(r => r.DistanceFrom(position));
@@ -256,7 +259,9 @@ public sealed class AiTraffic(IDcsCommands dcs, AirfieldCatalog airfields, Groun
             || tower.Flights.Values.Any(f => f.UsesRunway && f.Runway == runway && f.Phase is TowerPhase.ClearedToLand or TowerPhase.Landed);
         if (playerOnIt) return;
         var w = await dcs.GetAirbaseWeatherAsync(d.Airfield.Airbase.Name, ct);
-        if (EndFor(d.Airfield, w, position, runway) is { } takeoff) Say(d, "Tower", Phraseology.ClearedForTakeoff(d.Callsign, takeoff, w));
+        if (EndFor(d.Airfield, w, position, runway) is { } takeoff)
+            Say(d, "Tower", Phraseology.ClearedForTakeoff(d.Callsign, takeoff, w),
+                Phraseology.AiReadyForDeparture(d.Airfield.Facility, d.Callsign, takeoff), Phraseology.AiTakeoffReadback(d.Callsign, takeoff));
     }
 
     /// <summary>The runway end in use (from the wind) of the parallel runway nearest <paramref name="position"/> (or of <paramref name="only"/>).</summary>
@@ -266,18 +271,25 @@ public sealed class AiTraffic(IDcsCommands dcs, AirfieldCatalog airfields, Groun
         return ends.Count == 0 ? null : ends.MinBy(e => e.Runway.DistanceFrom(position)).End;
     }
 
-    private void Say(AiDeparture d, string role, string text)
+    /// <summary>
+    /// A controller's call to an AI flight, with what its pilot says before (<paramref name="pilotCall"/>) and after
+    /// (<paramref name="readback"/>): spoken in the AI pilots' voice, if there is one.
+    /// </summary>
+    private void Say(AiDeparture d, string role, string text, string? pilotCall = null, string? readback = null)
     {
-        if (radio is not null && d.Airfield.Call(role, d.Coalition, text) is { } call) radio.Transmit(call);
+        if (radio is not null && d.Airfield.Call(role, d.Coalition, text) is { } call)
+            radio.Transmit(call with { PilotCall = pilotCall, PilotReadback = readback, ToAi = true });
+        if (pilotCall is not null) log?.Invoke($"AI {d.Callsign} (pilot): {pilotCall}");
         log?.Invoke($"AI {d.Callsign}: {text}");
+        if (readback is not null) log?.Invoke($"AI {d.Callsign} (pilot): {readback}");
     }
 
     /// <summary>The group's aircraft, lead (lowest id) first.</summary>
-    private static List<UnitState> MembersOf(string group, IReadOnlyDictionary<string, UnitState> units) =>
+    internal static List<UnitState> MembersOf(string group, IReadOnlyDictionary<string, UnitState> units) =>
         units.Values.Where(u => u.Group == group && !u.IsPlayer).OrderBy(u => u.Id).ToList();
 
     /// <summary>"Enfield 2-1", or for a group of several "Enfield 2 flight".</summary>
-    private static string CallsignOf(string group, IReadOnlyDictionary<string, UnitState> units)
+    internal static string CallsignOf(string group, IReadOnlyDictionary<string, UnitState> units)
     {
         var members = MembersOf(group, units);
         if (members.Count == 0) return group;

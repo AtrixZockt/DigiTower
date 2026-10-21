@@ -73,7 +73,7 @@ public sealed class ApproachFlight
 /// the edge of its area; and calls traffic to everyone it works. Hands arrivals to Tower on final.
 /// </summary>
 public sealed class ApproachControl(IDcsCommands dcs, AirfieldCatalog airfields, TowerControl tower, FlightRegistry flights,
-    Action<string>? log = null, Func<DateTime>? clock = null, IAtcRadio? radio = null, ApproachProcedures? defaults = null)
+    Action<string>? log = null, Func<DateTime>? clock = null, IAtcRadio? radio = null, ApproachProcedures? defaults = null, HoldingStacks? stacks = null)
 {
     private const double Nm = 1852, Ft = 0.3048;
     private static readonly TimeSpan VectorInterval = TimeSpan.FromSeconds(30), WarningInterval = TimeSpan.FromSeconds(30);
@@ -84,6 +84,21 @@ public sealed class ApproachControl(IDcsCommands dcs, AirfieldCatalog airfields,
     private readonly Func<DateTime> _now = clock ?? (() => DateTime.UtcNow);
 
     public IReadOnlyDictionary<int, ApproachFlight> Flights => _flights;
+
+    /// <summary>The holding levels, shared with the AI arrivals.</summary>
+    public HoldingStacks Stacks { get; } = stacks ?? new HoldingStacks();
+
+    private static string Occupant(int key) => $"player:{key}";
+
+    // Levels of players no longer holding (landed, gone, released) are free again.
+    private void SyncStacks()
+    {
+        foreach (var o in Stacks.Occupants.Where(o => o.StartsWith("player:", StringComparison.Ordinal)).ToList())
+        {
+            if (!(int.TryParse(o["player:".Length..], out int key) && _flights.TryGetValue(key, out var f) && f.Phase == ApproachPhase.Holding))
+                Stacks.Leave(o);
+        }
+    }
 
     /// <summary>Arrivals sent to Tower (party key → when, and whether for the overhead).</summary>
     public IReadOnlyDictionary<int, (DateTime At, bool Overhead)> HandedToTower => _handedToTower;
@@ -177,10 +192,11 @@ public sealed class ApproachControl(IDcsCommands dcs, AirfieldCatalog airfields,
         else if (_flights.Values.Count(o => o.Airfield == airfield && o.Phase == ApproachPhase.Vectoring) >= p.MaxVectored)
         {
             f.Phase = ApproachPhase.Holding;
-            var taken = _flights.Values.Where(o => o.Airfield == airfield && o.Phase == ApproachPhase.Holding).Select(o => o.HoldAltitude).ToHashSet();
-            f.HoldAltitude = Enumerable.Range(0, 50).Select(i => p.HoldingAltitude + i * p.HoldingStep).First(a => !taken.Contains(a));
+            SyncStacks();
+            int holding = Stacks.At(airfield.Airbase.Id).Count;
+            f.HoldAltitude = Stacks.Take(airfield.Airbase.Id, Occupant(party.Key), p.HoldingAltitude, p.HoldingStep);
             f.Altitude = f.HoldAltitude;
-            int minutes = 5 * (taken.Count + 1);
+            int minutes = 5 * (holding + 1);
             text = Phraseology.Hold(party.Callsign, airfield.Facility, where, airfield.Radio.Tacan is not null, f.HoldAltitude, weather, lead.Type, minutes);
         }
         else
@@ -251,6 +267,7 @@ public sealed class ApproachControl(IDcsCommands dcs, AirfieldCatalog airfields,
 
     public async Task OnUnitsAsync(IReadOnlyDictionary<string, UnitState> units, CancellationToken ct = default)
     {
+        SyncStacks();
         foreach (var f in _flights.Values.OrderBy(f => f.Since).ToList())
         {
             if (!units.TryGetValue(f.UnitName, out var unit) || !unit.InAir)
@@ -284,6 +301,7 @@ public sealed class ApproachControl(IDcsCommands dcs, AirfieldCatalog airfields,
     {
         _flights.Clear();
         _handedToTower.Clear();
+        SyncStacks();
     }
 
     // Vectors.
@@ -510,6 +528,7 @@ public sealed class ApproachControl(IDcsCommands dcs, AirfieldCatalog airfields,
             var next = group.OrderBy(f => f.HoldAltitude).First();
             if (!units.TryGetValue(next.UnitName, out var unit)) continue;
             next.Phase = ApproachPhase.Vectoring;
+            Stacks.Leave(Occupant(next.Key));
             Plan(next, unit, units, unit.Y / Ft);
             next.LastVector = _now();
             var guidance = next.Type == ApproachType.Ils ? next.Airfield.Radio.LocalizerFor(next.Runway, next.End) : next.Type == ApproachType.Tacan ? next.Airfield.Radio.Tacan : null;
@@ -662,7 +681,7 @@ public sealed class ApproachControl(IDcsCommands dcs, AirfieldCatalog airfields,
         return (airfield.Layout.Labels?.Departure ?? DepartureProcedures.Default).ClosedTraffic.GetValueOrDefault(end.Name, "left") == "right" ? 1 : -1;
     }
 
-    private static string PositionOf(GroundAirfield airfield, Vec2 position)
+    internal static string PositionOf(GroundAirfield airfield, Vec2 position)
     {
         var offset = position - new Vec2(airfield.Airbase.X, airfield.Airbase.Z);
         return Phraseology.Position(offset.Length / Nm, offset.Heading, airfield.Facility);

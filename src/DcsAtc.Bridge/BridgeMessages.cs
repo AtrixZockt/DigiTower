@@ -224,6 +224,19 @@ public sealed record MissionWeather
     public double AbsTime { get; init; }
 }
 
+/// <summary>Where an AI group's route in the mission file lands (group_destination).</summary>
+public sealed record GroupDestination
+{
+    /// <summary>False: spawned by a script, so DigiTower cannot know where it goes.</summary>
+    public bool InMission { get; init; }
+    /// <summary>The airbase id of its last Land waypoint; null if its route does not land.</summary>
+    public int? Id { get; init; }
+    public string? Name { get; init; }
+}
+
+/// <summary>A holding fix: a circle around (X, Z), or a race track from it to (X2, Z2); altitude (m) and speed (m/s).</summary>
+public sealed record HoldingFix(double X, double Z, double Alt, double Speed, double? X2 = null, double? Z2 = null);
+
 public sealed record AirbaseWeather
 {
     /// <summary>Wind velocity north component (m/s), in the direction the wind blows towards.</summary>

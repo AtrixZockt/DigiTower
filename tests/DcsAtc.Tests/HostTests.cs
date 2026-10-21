@@ -231,6 +231,55 @@ public class HostTests
         }
     }
 
+    /// <summary>
+    /// Two AI F-16s come back to Al Dhafra in the fake DCS (their mission routes land there) while a player is parked there:
+    /// the first comes straight in, the second holds over the TACAN behind it, both shown on Approach's strips.
+    /// </summary>
+    [SkippableFact]
+    public async Task Host_takes_ai_arrivals_through_the_bridge()
+    {
+        string? lua = TestPaths.FindLua();
+        Skip.If(lua is null, "Lua 5.1 with LuaSocket not found (set DIGITOWER_LUA)");
+        Skip.If(TestPaths.Terrains is null, "DCS not installed (set DIGITOWER_DCS_DIR)");
+        int port = FreePort();
+        string script = Path.Combine(TestPaths.RepoRoot, "bridge", "tests", "fake_dcs.lua");
+        using var fake = Process.Start(new ProcessStartInfo(lua!, $"\"{script}\" --port {port} --duration 60 --static --arrival --quiet")
+        {
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            WorkingDirectory = TestPaths.RepoRoot,
+        })!;
+        var log = new AtcLog();
+        await using var host = new AtcHost(log);
+        try
+        {
+            var holding = new TaskCompletionSource<AtcSnapshot>(TaskCreationOptions.RunContinuationsAsynchronously);
+            host.SnapshotChanged += s =>
+            {
+                if (s.Airfields.Any(f => f.Approach.Any(st => st.Ai && st.Clearance.StartsWith("Holding", StringComparison.Ordinal)))) holding.TrySetResult(s);
+            };
+            await host.StartAsync(new DigiTowerSettings
+            {
+                BridgePort = port,
+                Voice = false,
+                DataDirectory = Path.Combine(TestPaths.RepoRoot, "data"),
+                DcsDirectory = Path.GetDirectoryName(Path.GetDirectoryName(TestPaths.Terrains))!,
+                Log = { WriteFile = false },
+            });
+
+            var snapshot = await holding.Task.WaitAsync(TimeSpan.FromSeconds(40));
+            var approach = snapshot.Airfields.Single(f => f.Name == "Al Dhafra AFB").Approach;
+            Assert.Contains(approach, st => st is { Callsign: "Colt 1-1", Clearance: "Straight in", Ai: true });
+            Assert.Contains(approach, st => st is { Callsign: "Colt 2-1", Clearance: "Holding at 7000 ft", Note: "Colt 1-1 on approach" });
+            Assert.Contains(log.Recent(), e => e.Category == LogCategory.Ai && e.Text.EndsWith("Hold over the Al Dhafra TACAN, right turns, maintain 7000 feet. Expect further clearance in 5 minutes.", StringComparison.Ordinal));
+        }
+        finally
+        {
+            await host.StopAsync();
+            if (!fake.HasExited) fake.Kill();
+        }
+    }
+
     private static int FreePort()
     {
         var l = new TcpListener(IPAddress.Loopback, 0);

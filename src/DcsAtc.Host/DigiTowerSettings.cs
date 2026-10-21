@@ -42,6 +42,13 @@ public sealed class DigiTowerSettings
     public bool Voice { get; set; } = true;
     /// <summary>The controllers' voice (an id from data\voice\voices.json); null: its default.</summary>
     public string? VoiceId { get; set; }
+    /// <summary>AI pilots talk on the radio (calls and readbacks), when DigiTower handles AI traffic.</summary>
+    public bool AiVoice { get; set; } = true;
+    /// <summary>The AI pilots' voice; null: one that is not the controllers' (<see cref="AiVoiceChoices"/>).</summary>
+    public string? AiVoiceId { get; set; }
+
+    /// <summary>The AI pilots' voice when none is set: the first of these that is downloaded and not the controllers'.</summary>
+    public static readonly IReadOnlyList<string> AiVoiceChoices = ["kokoro-am_michael", "kokoro-am_adam", "kokoro-bm_george", "piper-ryan", "sapi-david", "sapi-zira"];
 
     /// <summary>Pilots can talk to the controllers on SRS (speech recognition).</summary>
     public bool VoiceRequests { get; set; }

@@ -146,6 +146,25 @@
                                 <TextBlock Style="{StaticResource Hint}" Margin="0,5,0,0" Text="Voices that are not downloaded: Install page." />
                             </StackPanel>
                             <CheckBox Style="{StaticResource Option}" Content="Text messages only (no voice on SRS)" IsChecked="{Binding TextOnly}" />
+                            <CheckBox Style="{StaticResource Option}" IsChecked="{Binding AiVoice}" AutomationProperties.Name="AI pilots talk"
+                                      IsEnabled="{Binding TextOnly, Converter={StaticResource Not}}">
+                                <StackPanel>
+                                    <TextBlock Text="AI pilots talk" />
+                                    <TextBlock Style="{StaticResource Hint}" Text="Their calls and readbacks, when DigiTower handles AI traffic (here and on the server)." />
+                                </StackPanel>
+                            </CheckBox>
+                            <StackPanel Style="{StaticResource Field}" IsEnabled="{Binding AiVoice}">
+                                <TextBlock Style="{StaticResource FieldCaption}" Text="AI PILOT VOICE" />
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <ComboBox ItemsSource="{Binding AiVoices}" SelectedItem="{Binding AiVoiceChoice}" AutomationProperties.Name="AI pilot voice" MaxDropDownHeight="420" />
+                                    <Button Grid.Column="1" Content="Test" Command="{Binding TestAiVoiceCommand}" Margin="8,0,0,0" ToolTip="Says a pilot's call on this PC's speakers, with the cockpit sound" />
+                                </Grid>
+                                <TextBlock Style="{StaticResource Hint}" Margin="0,5,0,0" Text="{Binding AiVoiceTestState}" Visibility="{Binding AiVoiceTestState, Converter={StaticResource VisibleWhen}}" />
+                            </StackPanel>
                         </StackPanel>
                     </Border>
 
@@ -203,10 +222,10 @@
                     <Border Style="{StaticResource Fieldset}">
                         <StackPanel>
                             <TextBlock Style="{StaticResource SectionTitle}" Text="TRAFFIC" />
-                            <CheckBox Style="{StaticResource Option}" IsChecked="{Binding ManageAi}" AutomationProperties.Name="Handle AI departures">
+                            <CheckBox Style="{StaticResource Option}" IsChecked="{Binding ManageAi}" AutomationProperties.Name="Handle AI traffic">
                                 <StackPanel>
-                                    <TextBlock Text="Handle AI departures" />
-                                    <TextBlock Style="{StaticResource Hint}" Text="Hold AI at parking while players taxi, take off or land. A server can turn this off in its bridge settings (Install page)." />
+                                    <TextBlock Text="Handle AI traffic" />
+                                    <TextBlock Style="{StaticResource Hint}" Text="Players first: AI departures wait at parking, AI arrivals hold in the air while players taxi, take off or land. A server can turn this off in its bridge settings (Install page)." />
                                 </StackPanel>
                             </CheckBox>
                             <CheckBox Style="{StaticResource Option}" IsChecked="{Binding MapDrawings}" AutomationProperties.Name="Draw on the F10 map">

@@ -61,6 +61,10 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty] private Choice? _voice;
     [ObservableProperty] private IReadOnlyList<Choice> _voices = [];
     [ObservableProperty] private string? _voiceTestState;
+    [ObservableProperty] private bool _aiVoice;
+    [ObservableProperty] private Choice? _aiVoiceChoice;
+    [ObservableProperty] private IReadOnlyList<Choice> _aiVoices = [];
+    [ObservableProperty] private string? _aiVoiceTestState;
 
     // ---- voice requests
     [ObservableProperty] private bool _voiceRequests;
@@ -100,7 +104,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     {
         base.OnPropertyChanged(e);
         if (_loading || e.PropertyName is nameof(Dirty) or nameof(Error) or nameof(Saved) or nameof(NeedsRestart) or nameof(VoiceTestState)
-            or nameof(Voices) or nameof(Recognizers) or nameof(DataSummary)) return;
+            or nameof(AiVoiceTestState) or nameof(Voices) or nameof(AiVoices) or nameof(Recognizers) or nameof(DataSummary)) return;
         Dirty = true;
         Saved = null;
         if (e.PropertyName == nameof(DataDirectory))
@@ -185,39 +189,49 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     /// <summary>Says a sample on this PC's speakers with the chosen voice.</summary>
     [RelayCommand]
-    private async Task TestVoice()
+    private async Task TestVoice() => VoiceTestState = await SpeakAsync(Voice?.Id,
+        "Hangman 1-2, Al Dhafra Ground, taxi to holding point runway 31 right via Alpha, Bravo. QNH 1013.", cockpit: false, s => VoiceTestState = s);
+
+    /// <summary>The same with the AI pilots' voice, as they sound (with the cockpit sound).</summary>
+    [RelayCommand]
+    private async Task TestAiVoice() => AiVoiceTestState = await SpeakAsync(AiVoiceChoice?.Id ?? AutomaticAiVoice()?.Id,
+        "Al Dhafra Approach, Colt 2-1, 14 miles north of Al Dhafra, inbound for landing.", cockpit: true, s => AiVoiceTestState = s);
+
+    // Plays a sample; returns what went wrong (null: fine).
+    private async Task<string?> SpeakAsync(string? id, string text, bool cockpit, Action<string> state)
     {
         var catalog = _models?.Voices;
-        if (catalog is null)
-        {
-            VoiceTestState = "No voices (data\\voice\\voices.json not found).";
-            return;
-        }
-        var info = catalog.Find(Voice?.Id ?? catalog.Default);
-        if (info is null || !catalog.IsAvailable(info))
-        {
-            VoiceTestState = "Not downloaded: download it on the Install page.";
-            return;
-        }
-        VoiceTestState = "Speaking…";
+        if (catalog is null) return "No voices (data\\voice\\voices.json not found).";
+        var info = catalog.Find(id ?? catalog.Default);
+        if (info is null || !catalog.IsAvailable(info)) return "Not downloaded: download it on the Install page.";
+        state("Speaking…");
         try
         {
             string wav = await Task.Run(() =>
             {
                 using var voice = catalog.Open(info);
-                var clip = voice.Render("Hangman 1-2, Al Dhafra Ground, taxi to holding point runway 31 right via Alpha, Bravo. QNH 1013.");
+                var clip = voice.Render(text);
+                if (cockpit) clip = Audio.Cockpit(clip);
                 string path = Path.Combine(Path.GetTempPath(), "digitower-voice-test.wav");
                 Wav.Write(path, clip);
                 return path;
             });
             using var player = new SoundPlayer(wav);
             await Task.Run(player.PlaySync);
-            VoiceTestState = null;
+            return null;
         }
         catch (Exception ex) when (ex is IOException or InvalidOperationException or InvalidDataException or NotSupportedException or DllNotFoundException)
         {
-            VoiceTestState = $"Could not speak: {ex.Message}";
+            return $"Could not speak: {ex.Message}";
         }
+    }
+
+    /// <summary>The AI pilots' voice when none is chosen: the first downloaded of the usual ones that is not the controllers'.</summary>
+    private VoiceInfo? AutomaticAiVoice()
+    {
+        if (_models?.Voices is not { } v) return null;
+        string controllers = Voice?.Id ?? v.Default;
+        return DigiTowerSettings.AiVoiceChoices.Select(v.Find).OfType<VoiceInfo>().FirstOrDefault(x => x.Id != controllers && v.IsAvailable(x));
     }
 
     private void Load(DigiTowerSettings s)
@@ -234,6 +248,7 @@ public sealed partial class SettingsViewModel : ObservableObject
             BridgePort = s.BridgePort.ToString(CultureInfo.InvariantCulture);
             Srs = s.Srs;
             TextOnly = !s.Voice;
+            AiVoice = s.AiVoice;
             VoiceRequests = s.VoiceRequests;
             RecordingsDirectory = s.RecordingsDirectory ?? "";
             CheckReadbacks = s.CheckReadbacks;
@@ -244,7 +259,7 @@ public sealed partial class SettingsViewModel : ObservableObject
             ApproachRequestRange = s.ApproachRequestRange;
             ApproachServiceRadius = s.ApproachServiceRadius;
             DataDirectory = s.DataDirectory ?? "";
-            Catalogs(s.VoiceId, s.Recognizer);
+            Catalogs(s.VoiceId, s.Recognizer, s.AiVoiceId);
             Dirty = false;
             Error = null;
             OnPropertyChanged(nameof(RecordingsHint));
@@ -256,13 +271,14 @@ public sealed partial class SettingsViewModel : ObservableObject
     }
 
     // The voices and recognizers to choose from, from the data folder's catalogs.
-    private void Catalogs(string? voiceId = null, string? recognizerId = null)
+    private void Catalogs(string? voiceId = null, string? recognizerId = null, string? aiVoiceId = null)
     {
         bool loading = _loading;
         _loading = true;
         try
         {
             voiceId ??= Voice?.Id;
+            aiVoiceId ??= AiVoiceChoice?.Id;
             recognizerId ??= Recognizer?.Id;
             try
             {
@@ -277,6 +293,9 @@ public sealed partial class SettingsViewModel : ObservableObject
                 : [new Choice(null, $"Default ({v.Find(v.Default)?.Label ?? v.Default})"),
                    .. v.Voices.Select(x => new Choice(x.Id, v.IsAvailable(x) ? x.Label : $"{x.Label} (not downloaded)"))];
             Voice = Voices.FirstOrDefault(c => c.Id is not null && c.Id.Equals(voiceId, StringComparison.OrdinalIgnoreCase)) ?? Voices[0];
+            AiVoices = v is null ? [new Choice(null, "Automatic")]
+                : [new Choice(null, $"Automatic ({AutomaticAiVoice()?.Label ?? "none downloaded"})"), .. Voices.Skip(1)];
+            AiVoiceChoice = AiVoices.FirstOrDefault(c => c.Id is not null && c.Id.Equals(aiVoiceId, StringComparison.OrdinalIgnoreCase)) ?? AiVoices[0];
             var r = _models?.Recognizers;
             Recognizers = r is null ? [new Choice(null, "Default")]
                 : [new Choice(null, $"Default ({r.Find(r.Default)?.Label ?? r.Default})"),
@@ -317,6 +336,8 @@ public sealed partial class SettingsViewModel : ObservableObject
         s.Srs = Srs.Trim();
         s.Voice = !TextOnly;
         s.VoiceId = Voice?.Id;
+        s.AiVoice = AiVoice;
+        s.AiVoiceId = AiVoiceChoice?.Id;
         s.VoiceRequests = VoiceRequests;
         s.Recognizer = Recognizer?.Id;
         s.RecordingsDirectory = NullIfEmpty(RecordingsDirectory);
