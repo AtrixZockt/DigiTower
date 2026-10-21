@@ -67,6 +67,11 @@ public class BridgeInstallerTests : IDisposable
         _installer.Install(dcs, new BridgeConfig(ManageAi: true, MapDrawings: false));
         Assert.Equal((BridgeState.Installed, new BridgeConfig(true, false, 42700)), (_installer.Status(dcs).State, _installer.Status(dcs).Config));
 
+        // Other line endings alone are not another version.
+        string hook = Path.Combine(dcs, "Scripts", BridgeInstaller.HookFile), text = File.ReadAllText(hook);
+        File.WriteAllText(hook, text.Contains("\r\n") ? text.Replace("\r\n", "\n") : text.Replace("\n", "\r\n"));
+        Assert.Equal(BridgeState.Installed, _installer.Status(dcs).State);
+
         _installer.Uninstall(dcs);
         Assert.Equal(BridgeState.NotInstalled, _installer.Status(dcs).State);
         Assert.Equal("options.graphics.maxfps = 60\n", Autoexec(dcs));

@@ -111,7 +111,7 @@ public sealed class BridgeInstaller(string scriptsDirectory)
         if (missing.Count > 0) return new(BridgeState.UpdateAvailable, $"Incomplete: {string.Join(", ", missing)} missing.", config, others);
         if (!HasBlock(target)) return new(BridgeState.UpdateAvailable, "Incomplete: the autoexec.cfg block is missing.", config, others);
         if (Files.Any(f => !SameFile(Path.Combine(ScriptsDirectory, f), Path.Combine(scripts, f))))
-            return new(BridgeState.UpdateAvailable, "An other version than this DigiTower's: update it.", config, others);
+            return new(BridgeState.UpdateAvailable, "Another version than this DigiTower's: update it.", config, others);
         if (old) return new(BridgeState.UpdateAvailable, "Old DCS-ATC files are still there: update to remove them.", config, others);
         return new(BridgeState.Installed, "Up to date.", config, others);
     }
@@ -251,7 +251,8 @@ public sealed class BridgeInstaller(string scriptsDirectory)
             : Directory.EnumerateFiles(hooks, "*.lua").Select(f => Path.GetFileName(f)).Where(n => n is not "DigiTowerHook.lua" and not "DcsAtcBridgeHook.lua").Order().ToList();
     }
 
-    private static bool SameFile(string a, string b) => File.ReadAllBytes(a).AsSpan().SequenceEqual(File.ReadAllBytes(b));
+    // Line endings don't make another version (git's autocrlf, an editor); a byte order mark doesn't either.
+    private static bool SameFile(string a, string b) => File.ReadAllText(a).Replace("\r", "") == File.ReadAllText(b).Replace("\r", "");
 
     private static string RemoveBlock(string text, string from, string to) =>
         Regex.Replace(text, "(?ms)^" + Regex.Escape(from) + ".*?^" + Regex.Escape(to) + @"[^\r\n]*\r?\n?", "");
