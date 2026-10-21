@@ -272,7 +272,9 @@ Then ATC reacts:
   ready for departure (north, east, south, west, closed traffic, own navigation), request landing, checking in
   (also "airborne" with Approach), final, initial, request approach (ILS, TACAN, visual, overhead), field in sight,
   cancel approach, say again, request startup ("start up approved", wind and QNH); plus radio check ("read you
-  five"). "Request takeoff" is ready for departure; "inbound" or "request landing" to Approach is an approach
+  five"). **Mayday** and **Pan Pan** (and "cancel Mayday") come before anything else said with them, and the station
+  called answers and stays with you, whatever its position (unless the server turned emergencies off: then the rest
+  of the call counts). "Request takeoff" is ready for departure; "inbound" or "request landing" to Approach is an approach
   request. Without a direction, a departure is own navigation; without a type, an approach is ILS (else TACAN, else
   visual). In the wrong state the
   controller says so, as with the menu ("you are already airborne").

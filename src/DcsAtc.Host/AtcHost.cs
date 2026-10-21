@@ -105,6 +105,7 @@ public sealed class AtcHost : IAsyncDisposable
                 VoiceAliases = recognition?.Aliases,
                 ManageAi = _settings.ManageAi,
                 CheckReadbacks = _settings.CheckReadbacks,
+                Emergencies = _settings.Emergencies,
                 ApproachDefaults = new ApproachProcedures { RequestRange = _settings.ApproachRequestRange, ServiceRadius = _settings.ApproachServiceRadius },
                 Log = _log,
             });

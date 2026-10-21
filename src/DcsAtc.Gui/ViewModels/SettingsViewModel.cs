@@ -75,6 +75,7 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     // ---- traffic
     [ObservableProperty] private bool _manageAi;
+    [ObservableProperty] private bool _emergencies;
     [ObservableProperty] private bool _mapDrawings;
     [ObservableProperty] private bool _keepStockAtc;
     [ObservableProperty] private string _silenceAirbases = "";
@@ -253,6 +254,7 @@ public sealed partial class SettingsViewModel : ObservableObject
             RecordingsDirectory = s.RecordingsDirectory ?? "";
             CheckReadbacks = s.CheckReadbacks;
             ManageAi = s.ManageAi;
+            Emergencies = s.Emergencies;
             MapDrawings = s.MapDrawings;
             KeepStockAtc = s.KeepStockAtc;
             SilenceAirbases = string.Join(Environment.NewLine, s.SilenceAirbases);
@@ -343,6 +345,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         s.RecordingsDirectory = NullIfEmpty(RecordingsDirectory);
         s.CheckReadbacks = CheckReadbacks;
         s.ManageAi = ManageAi;
+        s.Emergencies = Emergencies;
         s.MapDrawings = MapDrawings;
         s.KeepStockAtc = KeepStockAtc;
         s.SilenceAirbases = SilenceAirbases.Split('\n').Select(l => l.Trim()).Where(l => l.Length > 0).ToList();

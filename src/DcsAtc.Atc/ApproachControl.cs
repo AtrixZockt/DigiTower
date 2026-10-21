@@ -297,6 +297,14 @@ public sealed class ApproachControl(IDcsCommands dcs, AirfieldCatalog airfields,
         return Task.CompletedTask;
     }
 
+    /// <summary>Lets go of a flight without a word (Tower took it over for an emergency); its holding level is free again.</summary>
+    public void Release(int partyKey)
+    {
+        _flights.Remove(partyKey);
+        _handedToTower.Remove(partyKey);
+        SyncStacks();
+    }
+
     public void Reset()
     {
         _flights.Clear();

@@ -6,6 +6,7 @@ public enum PilotIntent
     RequestTaxi, TaxiToParking, CancelTaxi, RequestStartup, RadioCheck, SayAgain,
     ReadyForDeparture, RequestLanding, CheckIn, ReportFinal, ReportInitial,
     RequestApproach, FieldInSight, CancelApproach,
+    Mayday, PanPan, CancelEmergency,
 }
 
 /// <param name="Option">For a departure "own", "north", "east", "south", "west" or "closed"; for an approach "ils", "tacan", "visual" or "overhead"; null if not said.</param>
@@ -55,6 +56,14 @@ public sealed class PilotCallReader
         (PilotIntent.CancelApproach, ["cancel approach", "cancel the approach"]),
     ];
 
+    // Emergencies come before anything else said with them ("Mayday …, request landing"); the cancellation first.
+    private static readonly (PilotIntent Intent, string[] Phrases)[] Emergencies =
+    [
+        (PilotIntent.CancelEmergency, ["cancel mayday", "cancel pan pan", "cancel emergency", "cancel the emergency", "mayday cancelled", "pan pan cancelled"]),
+        (PilotIntent.Mayday, ["mayday", "may day"]),
+        (PilotIntent.PanPan, ["pan pan", "panpan"]),
+    ];
+
     private static readonly (string Option, string[] Phrases)[] Departures =
     [
         ("closed", ["closed traffic", "closed pattern", "request closed", "pattern work", "touch and go"]),
@@ -87,9 +96,11 @@ public sealed class PilotCallReader
 
     private readonly (string[] From, string[] To)[] _aliases;
     private readonly (PilotIntent Intent, string[][] Phrases)[] _calls;
+    private readonly (PilotIntent Intent, string[][] Phrases)[] _emergencies;
 
     /// <param name="aliases">The pilot's mishearings: "one way" → "runway" (normalized on both sides, longest first).</param>
-    public PilotCallReader(IReadOnlyDictionary<string, string>? aliases = null)
+    /// <param name="emergencies">Read Mayday and Pan Pan (off: on a server that does not handle them, what else was said counts).</param>
+    public PilotCallReader(IReadOnlyDictionary<string, string>? aliases = null, bool emergencies = true)
     {
         _aliases = (aliases ?? new Dictionary<string, string>())
             .Select(a => (From: Transcript.Normalize(a.Key), To: Transcript.Normalize(a.Value)))
@@ -97,12 +108,18 @@ public sealed class PilotCallReader
             .OrderByDescending(a => a.From.Length)
             .ToArray();
         _calls = Calls.Select(c => (c.Intent, c.Phrases.Select(Transcript.Normalize).ToArray())).ToArray();
+        _emergencies = emergencies ? Emergencies.Select(c => (c.Intent, c.Phrases.Select(Transcript.Normalize).ToArray())).ToArray() : [];
     }
 
     /// <param name="station">The station's name ("Al Dhafra Ground"): a call naming it is aimed at ATC.</param>
     public PilotCallReading Read(string text, string? station = null)
     {
         var words = Replace(Transcript.Normalize(text));
+        foreach (var (intent, phrases) in _emergencies)
+        {
+            double match = phrases.Max(p => Match(words, p));
+            if (match >= Threshold) return new PilotCallReading(new PilotCall(intent, null, match), false, true, words);
+        }
         PilotCall? best = null;
         double bestWeight = 0;
         foreach (var (intent, phrases) in _calls)

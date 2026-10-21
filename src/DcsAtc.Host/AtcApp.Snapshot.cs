@@ -105,6 +105,7 @@ public sealed partial class AtcApp
                 TowerPhase.Landed => "Landed, vacating",
                 _ => f.Phase.ToString(),
             };
+            if (f.Emergency is { } emergency) clearance = $"{Phraseology.Word(emergency).ToUpperInvariant()}: {clearance}";
             Add(f.Airfield.Airbase.Name, false, f.Airfield.Frequencies, f.Airfield.Airbase.Id, 1, $"twr{f.Key}",
                 departing ? StripKind.Departure : StripKind.Arrival, f.Callsign, TypeOf(f.UnitName, f.UnitType), runway, clearance, Capitalize(f.LastReason));
         }

@@ -228,6 +228,12 @@
                                     <TextBlock Style="{StaticResource Hint}" Text="Players first: AI departures wait at parking, AI arrivals hold in the air while players taxi, take off or land. A server can turn this off in its bridge settings (Install page)." />
                                 </StackPanel>
                             </CheckBox>
+                            <CheckBox Style="{StaticResource Option}" IsChecked="{Binding Emergencies}" AutomationProperties.Name="Emergency calls">
+                                <StackPanel>
+                                    <TextBlock Text="Emergency calls" />
+                                    <TextBlock Style="{StaticResource Hint}" Text="Pilots may declare a Mayday or Pan Pan (by voice, or F10 → ATC → Emergency): a priority landing at the nearest airfield. A Mayday clears the runway and silences the frequency." />
+                                </StackPanel>
+                            </CheckBox>
                             <CheckBox Style="{StaticResource Option}" IsChecked="{Binding MapDrawings}" AutomationProperties.Name="Draw on the F10 map">
                                 <StackPanel>
                                     <TextBlock Text="Draw on the F10 map" />

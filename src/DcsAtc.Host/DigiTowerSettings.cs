@@ -59,6 +59,9 @@ public sealed class DigiTowerSettings
     /// <summary>Wrong readbacks are corrected ("negative, I say again, runway 31R").</summary>
     public bool CheckReadbacks { get; set; } = true;
 
+    /// <summary>Pilots may declare a Mayday or Pan Pan (voice, F10): a priority landing at the nearest airfield.</summary>
+    public bool Emergencies { get; set; } = true;
+
     /// <summary>Hold AI departures at parking while players taxi, take off or land.</summary>
     public bool ManageAi { get; set; } = true;
     /// <summary>Taxi routes, hold lines, spots and pads on the F10 map.</summary>

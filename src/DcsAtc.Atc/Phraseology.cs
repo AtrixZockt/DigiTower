@@ -258,8 +258,39 @@ public static partial class Phraseology
     public const string TrafficOnFinal = "traffic on final", LandingTraffic = "landing traffic", RunwayOccupied = "runway occupied",
         TrafficDeparting = "traffic departing", NumberTwoForDeparture = "number two for departure", NumberTwoFollowTraffic = "number two, follow the traffic ahead";
 
-    public static readonly IReadOnlyList<string> HoldReasons = [TrafficOnFinal, LandingTraffic, RunwayOccupied, TrafficDeparting, NumberTwoForDeparture];
-    public static readonly IReadOnlyList<string> ApproachReasons = [RunwayOccupied, TrafficDeparting, NumberTwoFollowTraffic];
+    public static readonly IReadOnlyList<string> HoldReasons = [TrafficOnFinal, LandingTraffic, RunwayOccupied, TrafficDeparting, NumberTwoForDeparture, EmergencyTraffic];
+    public static readonly IReadOnlyList<string> ApproachReasons = [RunwayOccupied, TrafficDeparting, NumberTwoFollowTraffic, EmergencyTraffic];
+
+    // Emergencies (SKYbrary, "Emergency Communications"; learn-atc, "Distress and Urgency Communications").
+
+    /// <summary>Why others hold, wait or go around for a Mayday or Pan Pan.</summary>
+    public const string EmergencyTraffic = "emergency traffic";
+
+    /// <summary>Radio silence for a Mayday, and its end.</summary>
+    public const string StopTransmitting = "All stations, stop transmitting, Mayday.", DistressTrafficEnded = "All stations, distress traffic ended.";
+
+    /// <summary>"Mayday", "Pan Pan".</summary>
+    public static string Word(EmergencyKind kind) => kind == EmergencyKind.Mayday ? "Mayday" : "Pan Pan";
+
+    /// <summary>
+    /// "Hangman 1-2, roger Mayday, nearest airfield Al Dhafra, heading 290, 25 miles, runway 31R, wind 310 degrees, 10 knots,
+    /// cleared to land." A Pan Pan behind traffic landing: "…, wind …, continue approach, number two, follow the traffic ahead."
+    /// </summary>
+    public static string EmergencyLanding(string callsign, EmergencyKind kind, string? nearest, RunwayEnd runway, AirbaseWeather? weather, string? holdReason = null) =>
+        $"{callsign}, roger {Word(kind)}, {(nearest is null ? "" : nearest + ", ")}runway {runway.Name}, {(weather is null ? "" : Wind(weather) + ", ")}" +
+        $"{(holdReason is null ? "cleared to land" : $"continue approach, {holdReason}")}.";
+
+    /// <summary>"nearest airfield Al Dhafra, heading 290, 25 miles"</summary>
+    public static string NearestAirfield(string facility, int heading, double miles) => $"nearest airfield {facility}, heading {heading:000}, {miles:0} miles";
+
+    public static string EmergencyNoAirfield(string callsign, EmergencyKind kind, double miles) => $"{callsign}, roger {Word(kind)}, no airfield within {miles:0} miles.";
+
+    /// <summary>On the ground: acknowledged only.</summary>
+    public static string EmergencyAcknowledged(string callsign, EmergencyKind kind) => $"{callsign}, roger {Word(kind)}.";
+
+    public static string EmergencyCancelled(string callsign, EmergencyKind kind) => $"{callsign}, roger, {Word(kind)} cancelled.";
+
+    public static string Roger(string callsign) => $"{callsign}, roger.";
 
     public static string AlreadyAirborne(string callsign) => $"{callsign}, you are already airborne.";
 
@@ -381,6 +412,11 @@ public static partial class Phraseology
             yield return ClearedToLand(cs, end, weather);
             yield return LineUpAndWait(cs, end);
             yield return BacktrackAndLineUp(cs, end);
+            foreach (var kind in new[] { EmergencyKind.Mayday, EmergencyKind.PanPan })
+            {
+                yield return EmergencyLanding(cs, kind, null, end, weather);
+                yield return EmergencyLanding(cs, kind, NearestAirfield(facility, 360, 20), end, weather);
+            }
             yield return AiTaxi(cs, facility, end);
             yield return ClearedForTakeoff(cs, end, weather);
             yield return NotAtHoldingPoint(cs, facility, end);
@@ -419,6 +455,13 @@ public static partial class Phraseology
         yield return CheckAltitudeMaintain(cs, procedures ?? DepartureProcedures.Default);
         yield return CheckHeading(cs);
         yield return VacateContactGround(cs, facility, frequencies.Own("Ground"));
+        yield return StopTransmitting;
+        yield return DistressTrafficEnded;
+        foreach (var kind in new[] { EmergencyKind.Mayday, EmergencyKind.PanPan })
+        {
+            yield return EmergencyCancelled(cs, kind);
+            yield return EmergencyAcknowledged(cs, kind);
+        }
         foreach (string? exit in via.Where(v => !v.IsRunwayCrossing).Select(v => v.Name).Take(1).Append(null))
         {
             yield return BacktrackVacateContactGround(cs, facility, exit, frequencies.Own("Ground"));

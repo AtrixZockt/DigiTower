@@ -19,6 +19,13 @@ public enum TowerPhase
     Landed,
 }
 
+/// <summary>Distress (grave and imminent danger) or urgency (no immediate danger).</summary>
+public enum EmergencyKind
+{
+    Mayday,
+    PanPan,
+}
+
 /// <summary>An aircraft or declared flight Tower is working: departing from or landing on one runway.</summary>
 public sealed class TowerFlight
 {
@@ -58,6 +65,10 @@ public sealed class TowerFlight
     public bool Backtrack { get; set; }
     /// <summary>Told to backtrack to vacate the runway after landing (said once).</summary>
     internal bool BacktrackToVacateSaid { get; set; }
+    /// <summary>A Mayday or Pan Pan, until landed and slowed down or cancelled.</summary>
+    public EmergencyKind? Emergency { get; set; }
+    /// <summary>The station the pilot declared the emergency to and stays with: Tower's calls go out on its frequency.</summary>
+    public (GroundAirfield Airfield, string Role)? Station { get; set; }
     public string SpotDrawingKey => $"heli-{Key}";
     /// <summary>The members that take off together (on the ground at the runway when cleared): departed once all are airborne.</summary>
     internal IReadOnlyCollection<string> Departing { get; set; } = [];
@@ -467,13 +478,199 @@ public sealed class TowerControl(IDcsCommands dcs, AirfieldCatalog airfields, Gr
         if (unit.GroupId is int g && _flights.TryGetValue(flights.PartyFor(unit, units).Key, out var flight) && flight.LastText != "")
         {
             await dcs.ShowTextAsync(g, flight.LastText, 20, ct: ct);
-            Transmit(flight.Airfield, flight.Party.Coalition, flight.LastText);
+            TransmitTo(flight, flight.LastText);
         }
+    }
+
+    /// <summary>An emergency goes to the nearest airfield of the pilot's side (or neutral) with a runway within this distance (metres).</summary>
+    public const double EmergencyRange = 150 * NauticalMile;
+
+    /// <summary>Further than this from the runway, the emergency is told the way: heading and distance (metres).</summary>
+    public const double DirectionsBeyond = 10 * NauticalMile;
+
+    /// <summary>Traffic cleared to land this much closer to the runway than a Mayday lands ahead of it; the rest give way (metres).</summary>
+    public const double WellAhead = 2 * NauticalMile;
+
+    // The latest positions, for the calls to all stations when a flight is removed between updates.
+    private IReadOnlyDictionary<string, UnitState> _units = new Dictionary<string, UnitState>();
+
+    /// <summary>
+    /// A Mayday or Pan Pan (SKYbrary, "Emergency Communications"): acknowledged by the station the pilot called, which
+    /// stays with the flight; the nearest airfield of its side (or neutral) with a runway, its runway in use, with
+    /// heading and distance when further than <see cref="DirectionsBeyond"/>. A Mayday is cleared to land at once, the
+    /// frequency silenced ("all stations, stop transmitting") and its runway cleared: traffic cleared to land behind it
+    /// goes around, departures hold, AI waits. A Pan Pan lands first: cleared unless traffic is already landing ahead.
+    /// On the ground it is only acknowledged. False when Tower did not take the flight.
+    /// </summary>
+    /// <param name="station">The station called (null: the landing airfield's Tower) and its role.</param>
+    public async Task<bool> DeclareEmergencyAsync(UnitState unit, IReadOnlyDictionary<string, UnitState> units, EmergencyKind kind,
+        GroundAirfield? station, string? role, CancellationToken ct = default)
+    {
+        if (unit.GroupId is null) return false;
+        _units = units;
+        var party = flights.PartyFor(unit, units);
+        var lead = units.GetValueOrDefault(party.LeadUnit) ?? unit;
+        (GroundAirfield, string)? frequency = station is null ? null : (station, role ?? "Tower");
+        if (!lead.InAir)
+        {
+            await SayOnAsync(party, frequency, Phraseology.EmergencyAcknowledged(party.Callsign, kind), ct);
+            return false;
+        }
+        var position = new Vec2(lead.X, lead.Z);
+        GroundAirfield? airfield = null;
+        foreach (var airbase in airfields.Airbases.Where(a => a.Category == 0 && (a.Coalition == 0 || a.Coalition == lead.Coal))
+                     .OrderBy(a => new Vec2(a.X, a.Z).DistanceTo(position)))
+        {
+            if (new Vec2(airbase.X, airbase.Z).DistanceTo(position) > EmergencyRange) break;
+            if (await airfields.GetAsync(airbase, ct) is { Layout.Runways.Count: > 0 } found)
+            {
+                airfield = found;
+                break;
+            }
+        }
+        if (airfield is null)
+        {
+            await SayOnAsync(party, frequency, Phraseology.EmergencyNoAirfield(party.Callsign, kind, EmergencyRange / NauticalMile), ct);
+            return false;
+        }
+        var weather = await dcs.GetAirbaseWeatherAsync(airfield.Airbase.Name, ct);
+        // As for any landing: of the ends in use, the one whose extended centerline the aircraft is closest to.
+        var (runway, end) = airfield.Layout.ActiveEnds(weather?.WindFrom ?? 0, weather?.WindSpeed ?? 0).MinBy(e => e.Runway.FromCenterline(position));
+        if (runway is null) return false;
+
+        // Whatever Tower had for the flight (a landing elsewhere, a departure) gives way to the emergency.
+        if (_flights.Remove(party.Key, out var old) && old.Spot is not null) await dcs.ClearDrawingAsync(old.SpotDrawingKey, ct);
+        var f = new TowerFlight
+        {
+            Party = party, UnitType = lead.Type, Airfield = airfield, Runway = runway, End = end, Phase = TowerPhase.Inbound, Since = _now(),
+            Helicopter = lead.IsHelicopter, ReportedFinal = true, Emergency = kind, Station = frequency,
+        };
+        _flights[party.Key] = f;
+        double toRunway = position.DistanceTo(end.Threshold);
+        string? nearest = toRunway > DirectionsBeyond
+            ? Phraseology.NearestAirfield(airfield.Facility, Phraseology.Heading((end.Threshold - position).Heading), toRunway / NauticalMile) : null;
+        string? reason = kind == EmergencyKind.PanPan ? LandingBlocker(f, units) : null;
+        if (reason is null) Enter(f, TowerPhase.ClearedToLand);
+        else f.LastReason = reason;
+        await SayAsync(f, Phraseology.EmergencyLanding(party.Callsign, kind, nearest, end, weather, reason), ct);
+        if (kind == EmergencyKind.Mayday)
+        {
+            await AllStationsAsync(f, Phraseology.StopTransmitting, ct);
+            await ClearTheWayAsync(f, units, ct);
+        }
+        return true;
+    }
+
+    /// <summary>The pilot cancels the emergency: acknowledged ("distress traffic ended" after a Mayday); an early landing clearance becomes an ordinary arrival.</summary>
+    public async Task CancelEmergencyAsync(UnitState unit, IReadOnlyDictionary<string, UnitState> units, CancellationToken ct = default)
+    {
+        if (unit.GroupId is null) return;
+        _units = units;
+        var party = flights.PartyFor(unit, units);
+        if (!_flights.TryGetValue(party.Key, out var f) || f.Emergency is not { } kind)
+        {
+            await SayAsync(party, null, Phraseology.Roger(party.Callsign), ct);
+            return;
+        }
+        f.Emergency = null;
+        await SayAsync(f, Phraseology.EmergencyCancelled(f.Callsign, kind), ct);
+        if (kind == EmergencyKind.Mayday) await AllStationsAsync(f, Phraseology.DistressTrafficEnded, ct);
+        var lead = units.GetValueOrDefault(f.UnitName);
+        if (f.Phase == TowerPhase.ClearedToLand && (lead is null || DistanceOnFinal(f.Runway, f.End, lead) is not double toGo || toGo > LandingClearanceRange))
+        {
+            Enter(f, TowerPhase.Inbound);
+            f.ReportedFinal = false;
+        }
+    }
+
+    /// <summary>Whether a Mayday silences this airfield's frequencies (AI pilots and their controllers stay quiet).</summary>
+    public bool Silenced(int airbaseId) =>
+        _flights.Values.Any(f => f.Emergency == EmergencyKind.Mayday && (f.Airfield.Airbase.Id == airbaseId || f.Station?.Airfield.Airbase.Id == airbaseId));
+
+    /// <summary>A call to all stations: on the emergency's frequency and the landing airfield's Tower frequency, as text to the players of its side near the airfield.</summary>
+    private async Task AllStationsAsync(TowerFlight f, string text, CancellationToken ct)
+    {
+        var field = new Vec2(f.Airfield.Airbase.X, f.Airfield.Airbase.Z);
+        foreach (int g in _units.Values.Where(u => u.IsPlayer && u.Coal == f.Party.Coalition && u.GroupId is not null
+                                                   && new Vec2(u.X, u.Z).DistanceTo(field) <= InboundRange * 2).Select(u => u.GroupId!.Value).Union(f.Party.Groups).Distinct())
+            await dcs.ShowTextAsync(g, text, 15, ct: ct);
+        TransmitTo(f, text);
+        if (f.Station is { } s && (s.Airfield.Airbase.Id != f.Airfield.Airbase.Id || s.Role != "Tower")) Transmit(f.Airfield, f.Party.Coalition, text);
+        log?.Invoke(text);
+    }
+
+    /// <summary>
+    /// A Mayday's runway: traffic cleared to land that does not land well ahead of it (<see cref="WellAhead"/>) goes
+    /// around on final, or continues its approach without the clearance further out.
+    /// </summary>
+    private async Task ClearTheWayAsync(TowerFlight e, IReadOnlyDictionary<string, UnitState> units, CancellationToken ct)
+    {
+        if (!units.TryGetValue(e.UnitName, out var eu) || !eu.InAir) return;
+        double theirs = new Vec2(eu.X, eu.Z).DistanceTo(e.End.Threshold);
+        foreach (var o in _flights.Values.Where(o => o != e && o.Emergency is null && o.UsesRunway && o.Runway == e.Runway && o.Phase == TowerPhase.ClearedToLand).ToList())
+        {
+            if (!units.TryGetValue(o.UnitName, out var ou) || !ou.InAir) continue;
+            double? mine = DistanceOnFinal(o.Runway, o.End, ou);
+            if (mine is double m && m < theirs - WellAhead) continue;
+            Enter(o, TowerPhase.Inbound);
+            o.ReportedFinal = false;
+            o.LastReason = Phraseology.EmergencyTraffic;
+            await SayAsync(o, mine is null ? Phraseology.ContinueApproach(o.Callsign, Phraseology.EmergencyTraffic) : Phraseology.GoAround(o.Callsign, Phraseology.EmergencyTraffic), ct);
+        }
+    }
+
+    /// <summary>An emergency on this runway still in the air that the flight must give way to (null: none): it lands first.</summary>
+    private string? EmergencyAhead(TowerFlight f, IReadOnlyDictionary<string, UnitState> units)
+    {
+        foreach (var e in _flights.Values.Where(e => e != f && e.Emergency is not null && e.UsesRunway && e.Runway == f.Runway))
+        {
+            if (!units.TryGetValue(e.UnitName, out var eu) || !eu.InAir) continue;
+            double theirs = new Vec2(eu.X, eu.Z).DistanceTo(e.End.Threshold);
+            double? mine = units.TryGetValue(f.UnitName, out var me) ? DistanceOnFinal(f.Runway, f.End, me) : null;
+            if (mine is double m && m < theirs - (e.Emergency == EmergencyKind.Mayday ? WellAhead : 0)) continue;
+            return Phraseology.EmergencyTraffic;
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Why a departure waits for an emergency (null: it need not): any Mayday arriving on its runway (one already lined up
+    /// still goes while the Mayday is further than <see cref="DepartureBlockingFinal"/>); a Pan Pan within that distance.
+    /// </summary>
+    private string? EmergencyArriving(TowerFlight f, IReadOnlyDictionary<string, UnitState> units)
+    {
+        foreach (var e in _flights.Values.Where(e => e != f && e.Emergency is not null && e.UsesRunway && e.Runway == f.Runway))
+        {
+            if (!units.TryGetValue(e.UnitName, out var eu) || !eu.InAir) continue;
+            double distance = new Vec2(eu.X, eu.Z).DistanceTo(e.End.Threshold);
+            bool blocks = e.Emergency == EmergencyKind.Mayday ? f.Phase != TowerPhase.LineUpAndWait || distance <= DepartureBlockingFinal : distance <= DepartureBlockingFinal;
+            if (blocks) return Phraseology.EmergencyTraffic;
+        }
+        return null;
+    }
+
+    /// <summary>Landed and slowed down (or down off the runway): the emergency is over; after a Mayday, "distress traffic ended".</summary>
+    private async Task EndEmergencyAsync(TowerFlight f, CancellationToken ct)
+    {
+        if (f.Emergency is not { } kind) return;
+        f.Emergency = null;
+        if (kind == EmergencyKind.Mayday) await AllStationsAsync(f, Phraseology.DistressTrafficEnded, ct);
+    }
+
+    /// <summary>A call before Tower takes the flight: on the station's frequency if known, as text to the flight.</summary>
+    private async Task SayOnAsync(Party party, (GroundAirfield Airfield, string Role)? station, string text, CancellationToken ct)
+    {
+        foreach (var g in party.Groups) await dcs.ShowTextAsync(g, text, 20, ct: ct);
+        if (radio is not null && station is { } s && s.Airfield.Call(s.Role, party.Coalition, text) is { } call) radio.Transmit(call);
+        log?.Invoke($"{party.Callsign}: {text}");
     }
 
     public async Task OnUnitsAsync(IReadOnlyDictionary<string, UnitState> units, CancellationToken ct = default)
     {
+        _units = units;
         await _marks.OnUnitsAsync(units, ct);
+        // A Mayday's runway is kept clear first.
+        foreach (var e in _flights.Values.Where(f => f.Emergency == EmergencyKind.Mayday).ToList()) await ClearTheWayAsync(e, units, ct);
         // Departures first in the order they became ready, so the earliest is cleared first.
         foreach (var flight in _flights.Values.OrderBy(f => f.Since).ToList())
             await EvaluateAsync(flight, units, ct, requested: false);
@@ -488,9 +685,10 @@ public sealed class TowerControl(IDcsCommands dcs, AirfieldCatalog airfields, Gr
         }
     }
 
-    /// <summary>Tower is done with a flight (and its landing spot's drawing).</summary>
+    /// <summary>Tower is done with a flight (and its landing spot's drawing); an emergency gone ends.</summary>
     private async Task RemoveAsync(TowerFlight f, CancellationToken ct)
     {
+        await EndEmergencyAsync(f, ct);
         _flights.Remove(f.Key);
         if (f.Spot is not null) await dcs.ClearDrawingAsync(f.SpotDrawingKey, ct);
     }
@@ -639,7 +837,15 @@ public sealed class TowerControl(IDcsCommands dcs, AirfieldCatalog airfields, Gr
                 bool onDownwind = (f.Overhead || f.InPattern) && OnDownwind(f.Runway, f.End, unit);
                 if (!onDownwind && (toGo is null || (toGo > LandingClearanceRange && !f.ReportedFinal))) break;
                 string? reason = LandingBlocker(f, units);
-                if (reason is null)
+                if (reason == Phraseology.EmergencyTraffic && toGo is double close && close < GoAroundRange && unit.Agl > 15
+                    && !f.LastText.StartsWith($"{f.Callsign}, go around", StringComparison.Ordinal))
+                {
+                    // Not cleared and about to land before an emergency: around.
+                    f.ReportedFinal = false;
+                    f.LastReason = reason;
+                    await SayAsync(f, Phraseology.GoAround(f.Callsign, reason), ct);
+                }
+                else if (reason is null)
                 {
                     var weather = await dcs.GetAirbaseWeatherAsync(f.Airfield.Airbase.Name, ct);
                     Enter(f, TowerPhase.ClearedToLand);
@@ -668,8 +874,15 @@ public sealed class TowerControl(IDcsCommands dcs, AirfieldCatalog airfields, Gr
                     await LandedAsync(f, unit, ct);
                     break;
                 }
+                if (!unit.InAir && f.Emergency is not null)
+                {
+                    // Down somewhere else (another runway, off the airfield): the emergency is over for Tower.
+                    await RemoveAsync(f, ct);
+                    break;
+                }
                 double? toGo = DistanceOnFinal(f.Runway, f.End, unit);
-                if (toGo is not null && toGo < GoAroundRange && unit.Agl > 15 && RunwayOccupied(f, units) is { } occupied)
+                // A Mayday is never sent around.
+                if (toGo is not null && toGo < GoAroundRange && unit.Agl > 15 && f.Emergency != EmergencyKind.Mayday && RunwayOccupied(f, units) is { } occupied)
                 {
                     Enter(f, TowerPhase.Inbound);
                     f.ReportedFinal = false;
@@ -678,6 +891,7 @@ public sealed class TowerControl(IDcsCommands dcs, AirfieldCatalog airfields, Gr
                 break;
             }
             case TowerPhase.Landed:
+                if (f.Emergency is not null && unit.GroundSpeed < 15) await EndEmergencyAsync(f, ct);
                 if (f.InPattern)
                 {
                     // Closed traffic: airborne again is a touch and go; slow on the runway is a full stop.
@@ -948,8 +1162,16 @@ public sealed class TowerControl(IDcsCommands dcs, AirfieldCatalog airfields, Gr
     private async Task SayAsync(TowerFlight f, string text, CancellationToken ct)
     {
         f.LastText = text;
-        await SayAsync(f.Party, f.Airfield, text, ct);
+        foreach (var g in f.Party.Groups) await dcs.ShowTextAsync(g, text, 20, ct: ct);
+        TransmitTo(f, text);
         log?.Invoke($"{f.Callsign}: {text}");
+    }
+
+    /// <summary>On the airfield's Tower frequency, or for an emergency on the frequency of the station the pilot called.</summary>
+    private void TransmitTo(TowerFlight f, string text)
+    {
+        if (f.Station is not { } station) Transmit(f.Airfield, f.Party.Coalition, text);
+        else if (radio is not null && station.Airfield.Call(station.Role, f.Party.Coalition, text) is { } call) radio.Transmit(call);
     }
 
     /// <summary>Text to every member; on the radio too when it comes from an airfield's Tower.</summary>
@@ -970,8 +1192,11 @@ public sealed class TowerControl(IDcsCommands dcs, AirfieldCatalog airfields, Gr
     /// </summary>
     private (string? Reason, bool DepartingAhead) DepartureBlocker(TowerFlight f, IReadOnlyDictionary<string, UnitState> units)
     {
+        if (EmergencyArriving(f, units) is { } emergency) return (emergency, false);
         if (LandingTrafficWithin(f, units, DepartureBlockingFinal)) return (Phraseology.TrafficOnFinal, false);
-        if (_flights.Values.Any(o => o != f && o.UsesRunway && o.Runway == f.Runway && o.Phase == TowerPhase.ClearedToLand)) return (Phraseology.LandingTraffic, false);
+        // (An emergency cleared far out holds departures by the rules above.)
+        if (_flights.Values.Any(o => o != f && o.UsesRunway && o.Runway == f.Runway && o.Phase == TowerPhase.ClearedToLand && o.Emergency is null))
+            return (Phraseology.LandingTraffic, false);
 
         bool departingAhead = false;
         foreach (var other in units.Values)
@@ -993,8 +1218,12 @@ public sealed class TowerControl(IDcsCommands dcs, AirfieldCatalog airfields, Gr
     /// <summary>Why a landing cannot be cleared yet (null: cleared to land).</summary>
     private string? LandingBlocker(TowerFlight f, IReadOnlyDictionary<string, UnitState> units)
     {
-        if (RunwayOccupied(f, units) is { } occupied) return occupied;
-        if (_flights.Values.Any(o => o != f && o.UsesRunway && o.Runway == f.Runway && o.Phase is TowerPhase.LineUpAndWait or TowerPhase.ClearedForTakeoff
+        if (EmergencyAhead(f, units) is { } emergency) return emergency;
+        // An emergency far out is cleared now: whatever is on the runway will be gone by then.
+        bool farEmergency = f.Emergency is not null && units.TryGetValue(f.UnitName, out var self)
+                            && new Vec2(self.X, self.Z).DistanceTo(f.End.Threshold) > DepartureBlockingFinal;
+        if (!farEmergency && RunwayOccupied(f, units) is { } occupied) return occupied;
+        if (!farEmergency && _flights.Values.Any(o => o != f && o.UsesRunway && o.Runway == f.Runway && o.Phase is TowerPhase.LineUpAndWait or TowerPhase.ClearedForTakeoff
                                      && units.TryGetValue(o.UnitName, out var u) && !u.InAir))
             return Phraseology.TrafficDeparting;
         // Another aircraft cleared to land on this runway and still airborne goes first.

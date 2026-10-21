@@ -277,6 +277,12 @@ public sealed class AiTraffic(IDcsCommands dcs, AirfieldCatalog airfields, Groun
     /// </summary>
     private void Say(AiDeparture d, string role, string text, string? pilotCall = null, string? readback = null)
     {
+        // A Mayday silences the frequency: the AI is still worked, without a word.
+        if (tower.Silenced(d.Airfield.Airbase.Id))
+        {
+            log?.Invoke($"AI {d.Callsign}: {text} (not said: Mayday on the frequency)");
+            return;
+        }
         if (radio is not null && d.Airfield.Call(role, d.Coalition, text) is { } call)
             radio.Transmit(call with { PilotCall = pilotCall, PilotReadback = readback, ToAi = true });
         if (pilotCall is not null) log?.Invoke($"AI {d.Callsign} (pilot): {pilotCall}");

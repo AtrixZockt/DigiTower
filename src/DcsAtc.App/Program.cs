@@ -20,6 +20,7 @@
 //       [--no-ai-voice]              AI pilots stay silent
 //       [--no-ai]                    leave AI departures to DCS (never held)
 //       [--no-drawings]              draw nothing on the F10 map (taxi routes, landing spots: DCS shows them to the whole side)
+//       [--no-emergencies]           pilots cannot declare a Mayday or Pan Pan (--emergencies: they can, the default)
 //       [--transcribe [<id>]]        voice requests: what pilots say to the controllers on SRS is recognized and answered like
 //                                    the F10 menu, written to the console and recorded (out\heard); recognizer from
 //                                    data\voice\recognition.json
@@ -62,6 +63,8 @@ for (int i = 0; i < args.Length; i++)
         case "--no-ai-voice": settings.AiVoice = false; break;
         case "--no-ai": settings.ManageAi = false; break;
         case "--no-drawings": settings.MapDrawings = false; break;
+        case "--no-emergencies": settings.Emergencies = false; break;
+        case "--emergencies": settings.Emergencies = true; break;
         case "--transcribe":
             settings.VoiceRequests = true;
             if (i + 1 < args.Length && !args[i + 1].StartsWith("--")) settings.Recognizer = args[++i];

@@ -211,6 +211,10 @@ public class PilotCallTests
     [InlineData("Alhambra Ground, Hangman 1-2, request taxi.", "RequestTaxi")]
     [InlineData("Al Dhafra Apo, Hangman 1-2, check in.", "CheckIn")]
     [InlineData("Adafra Approach, Hangman 1-2, inbound.", "RequestLanding")]
+    // Emergencies come before anything else in the call; the cancellation before the emergency.
+    [InlineData("Mayday, Mayday, Mayday, Al Dhafra Tower, Hangman 1-2, engine fire, request landing.", "Mayday")]
+    [InlineData("Pan-pan, pan-pan, pan-pan, Approach, Hangman 1-2, hydraulic failure.", "PanPan")]
+    [InlineData("Approach, Hangman 1-2, cancel Mayday.", "CancelEmergency")]
     // The model tuned on DiGii's voice: "gear down" heard as "cleared down" made the call a readback.
     [InlineData("Tower, Hangman 1-2, 5 miles final, cleared down.", "ReportFinal")]
     [InlineData("Approach, Hangman 1-2, request Tekken approach.", "RequestApproach tacan")]
@@ -242,6 +246,13 @@ public class PilotCallTests
         Assert.Equal("say again", Read("Al Dhafra Tower, Hangman 1-2, blah blah blah.", "Al Dhafra Tower"));
         Assert.Equal("say again", Read("Tower, Hangman 1-2, request something odd.", "Al Dhafra Tower"));
         Assert.Equal("chatter", Read("Nice landing mate, see you at the bar.", "Al Dhafra Tower"));
+    }
+
+    [Fact]
+    public void Without_emergencies_the_rest_of_the_call_counts()
+    {
+        var reader = new PilotCallReader(emergencies: false);
+        Assert.Equal(PilotIntent.RequestLanding, reader.Read("Mayday, Mayday, Mayday, Al Dhafra Tower, Hangman 1-2, request landing.").Call?.Intent);
     }
 
     [Fact]

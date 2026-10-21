@@ -340,6 +340,12 @@ public sealed class AiArrivals(IDcsCommands dcs, AirfieldCatalog airfields, Towe
     /// <summary>A controller's call to an AI arrival, with what its pilot says before and after (in the AI pilots' voice, if any).</summary>
     private void Say(AiArrival a, string role, string text, string? pilotCall = null, string? readback = null)
     {
+        // A Mayday silences the frequency: the AI is still worked, without a word.
+        if (tower.Silenced(a.Airfield.Airbase.Id))
+        {
+            log?.Invoke($"AI {a.Callsign}: {text} (not said: Mayday on the frequency)");
+            return;
+        }
         if (radio is not null && a.Airfield.Call(role, a.Coalition, text) is { } call)
             radio.Transmit(call with { PilotCall = pilotCall, PilotReadback = readback, ToAi = true });
         if (pilotCall is not null) log?.Invoke($"AI {a.Callsign} (pilot): {pilotCall}");

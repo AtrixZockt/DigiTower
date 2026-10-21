@@ -13,14 +13,16 @@ public sealed record MenuEntry(IReadOnlyList<string> Path, string Label, string 
 /// (ready for departure, request landing, initial, check in, report final, say again), Approach (request approach,
 /// check in, field in sight, cancel, say again), and its frequencies. Then Flight (declare / leave) and Debug.
 /// </summary>
+/// <param name="emergencies">Offer Mayday and Pan Pan (in the air) under ATC → Emergency.</param>
 public sealed class AtcMenu(AirfieldCatalog airfields, GroundControl ground, TowerControl tower, ApproachControl approach, FlightRegistry flights,
-    FarpControl? farps = null)
+    FarpControl? farps = null, bool emergencies = false)
 {
     private const double Nm = 1852;
 
     public const string Root = "ATC";
     public static readonly string[] Flight = [Root, "Flight"];
     public static readonly string[] Debug = [Root, "Debug"];
+    public static readonly string[] Emergency = [Root, "Emergency"];
 
     /// <summary>In the air the menu lists this many airfields, within this distance (NM).</summary>
     public const int AirfieldCount = 5;
@@ -110,6 +112,19 @@ public sealed class AtcMenu(AirfieldCatalog airfields, GroundControl ground, Tow
                 string[] path = [Root, site.Name];
                 foreach (var (label, action, submenu) in FarpCalls(site, unit, lead, working, units))
                     entries.Add(new(submenu is null ? path : [.. path, submenu], label, IdFor(site.Id, action)));
+            }
+        }
+
+        if (emergencies && lead.InAir)
+        {
+            if (situation.Tower?.Emergency is { } kind)
+            {
+                entries.Add(new(Emergency, $"Cancel {Phraseology.Word(kind)}", "emergency.cancel"));
+            }
+            else
+            {
+                entries.Add(new(Emergency, "Mayday", "emergency.mayday"));
+                entries.Add(new(Emergency, "Pan Pan", "emergency.panpan"));
             }
         }
 

@@ -24,6 +24,8 @@ public sealed record AppOptions
     public IReadOnlyDictionary<string, string>? VoiceAliases { get; init; }
     /// <summary>Correct wrong readbacks ("negative, I say again, runway 31R").</summary>
     public bool CheckReadbacks { get; init; } = true;
+    /// <summary>Pilots may declare a Mayday or Pan Pan (voice, F10 → ATC → Emergency).</summary>
+    public bool Emergencies { get; init; } = true;
     /// <summary>Approach's procedures where an airfield's labels file has none.</summary>
     public ApproachProcedures? ApproachDefaults { get; init; }
     /// <summary>Where everything is logged; null: nowhere.</summary>
@@ -107,8 +109,8 @@ public sealed partial class AtcApp
             OnAir = PlayerNear,
         };
         _farps = new FarpControl(client, _flights, _log.For(LogCategory.Farp), _radio);
-        _menu = new AtcMenu(_airfields, _ground, _tower, _approach, _flights, _farps);
-        _reader = new PilotCallReader(options.VoiceAliases);
+        _menu = new AtcMenu(_airfields, _ground, _tower, _approach, _flights, _farps, options.Emergencies);
+        _reader = new PilotCallReader(options.VoiceAliases, options.Emergencies);
     }
 
     public async Task RunAsync(CancellationToken ct)
@@ -199,6 +201,15 @@ public sealed partial class AtcApp
             }
             Log(LogCategory.VoiceIn, $"voice: {party.Callsign} to {station}: not understood");
             await ReplyAsync(party, airfield, role, unit.Coal, Phraseology.SayAgainPlease(party.Callsign, station), ct);
+            return;
+        }
+
+        // An emergency: the station called answers and stays with the flight, whatever it is.
+        if (call.Intent is PilotIntent.Mayday or PilotIntent.PanPan or PilotIntent.CancelEmergency)
+        {
+            Log(LogCategory.VoiceIn, $"voice: {party.Callsign} to {station}: {call.Intent}");
+            await EmergencyAsync(unit, call.Intent, airfield, role, ct);
+            foreach (var u in PlayerGroups()) await UpdateMenuAsync(u, ct);
             return;
         }
 
@@ -666,7 +677,41 @@ public sealed partial class AtcApp
             case "approach.repeat":
                 await _approach.SayAgainAsync(unit, _units, ct);
                 break;
+            case "emergency.mayday":
+                await EmergencyAsync(unit, PilotIntent.Mayday, null, null, ct);
+                break;
+            case "emergency.panpan":
+                await EmergencyAsync(unit, PilotIntent.PanPan, null, null, ct);
+                break;
+            case "emergency.cancel":
+                await EmergencyAsync(unit, PilotIntent.CancelEmergency, null, null, ct);
+                break;
         }
+    }
+
+    /// <summary>
+    /// A Mayday, Pan Pan or its cancellation, said to <paramref name="station"/>'s <paramref name="role"/> or picked in the
+    /// F10 menu (then the station working the flight, else the nearest airfield's: Tower within 10 NM, else Approach).
+    /// Tower takes the flight over; Approach lets go of it.
+    /// </summary>
+    private async Task EmergencyAsync(UnitState unit, PilotIntent intent, GroundAirfield? station, string? role, CancellationToken ct)
+    {
+        if (!_options.Emergencies) return;
+        if (intent == PilotIntent.CancelEmergency)
+        {
+            await _tower.CancelEmergencyAsync(unit, _units, ct);
+            return;
+        }
+        var party = _flights.PartyFor(unit, _units);
+        if (station is null)
+        {
+            if (_tower.Flights.GetValueOrDefault(party.Key) is { } t) (station, role) = t.Station ?? (t.Airfield, "Tower");
+            else if (_approach.Flights.GetValueOrDefault(party.Key) is { } a) (station, role) = (a.Airfield, "Approach");
+            else if (await _airfields.NearestAsync(new Vec2(unit.X, unit.Z), TowerControl.EmergencyRange, b => b.Coalition == 0 || b.Coalition == unit.Coal, ct) is { } nearest)
+                (station, role) = (nearest, DefaultRole(unit, nearest));
+        }
+        var kind = intent == PilotIntent.Mayday ? EmergencyKind.Mayday : EmergencyKind.PanPan;
+        if (await _tower.DeclareEmergencyAsync(unit, _units, kind, station, role, ct)) _approach.Release(party.Key);
     }
 
     /// <summary>
