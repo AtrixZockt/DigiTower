@@ -87,7 +87,7 @@ public sealed class AtcHost : IAsyncDisposable
                 else if (data is null || !File.Exists(Path.Combine(data, "voice", RecognizerCatalog.File))) Write(LogCategory.VoiceIn, $"voice requests: no data\\voice\\{RecognizerCatalog.File}", LogLevel.Warning);
                 else
                 {
-                    recognition = RecognizerCatalog.Load(Path.Combine(data, "voice"), _settings.ResolvedModelsDirectory);
+                    recognition = RecognizerCatalog.Load(Path.Combine(data, "voice"), _settings.ResolvedModelsDirectory, RecognizerCatalog.UserFile);
                     _transcriber = OpenTranscriber(recognition, _radio);
                 }
             }

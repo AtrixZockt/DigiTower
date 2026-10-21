@@ -35,13 +35,14 @@ DCS and for building it from source.
 | `src/DcsAtc.Srs` | Headless SRS client: the controllers' radio stations (TCP sync, UDP Opus voice). |
 | `src/DcsAtc.Voice` | The ATC voice: how text is said, TTS engines (Kokoro/Piper via sherpa-onnx, Windows), clip cache, stitching. |
 | `src/DcsAtc.Recognition` | Speech recognition for voice requests: Whisper (whisper.cpp) and Parakeet (sherpa-onnx), transcript normalising, test calls ([docs/voice.md](docs/voice.md#speech-recognition)). |
-| `data/voice/` | `voices.json` (the voices), `recognition.json` (the recognizers), `test-calls.txt` (the recognition test); `models/` and `cache/` are downloaded / generated, not in git ([docs/voice.md](docs/voice.md)). |
+| `data/voice/` | `voices.json` (the voices), `recognition.json` (the recognizers), `test-calls.txt` (the recognition test), `train-calls.txt` (practice calls for tuning it); `models/` and `cache/` are downloaded / generated, not in git ([docs/voice.md](docs/voice.md)). |
 | `src/DcsAtc.Host` | Runs DigiTower for both programs: connects to DCS, F10 menus, runs the controllers, speaks on SRS; the settings file, the log, the bridge installer, model downloads. |
 | `src/DcsAtc.Gui` | The control panel, `DigiTower.exe` (WPF): status, flight strips, log, settings, install. |
 | `src/DcsAtc.App` | The console program, `DigiTowerConsole.exe`: the same without a window (servers, scheduled tasks). |
 | `tools/DcsAtc.Rn5Tool` | Inspects `.rn5` files, renders them as SVG, scans whole DCS installs. |
 | `tools/DcsAtc.VoiceTool` | Voice audition, test transmissions, SRS check without DCS, model download, speech-recognition bake-off. |
 | `tools/Convert-WhisperModel.ps1` | Converts a Whisper model from Hugging Face (a fine-tune) to whisper.cpp format for the app. |
+| `tools/Train-Whisper.ps1`, `tools/whisper-train/` | Tunes the speech recognizer on your own voice (overnight): [docs/voice.md](docs/voice.md#tuning-the-recognizer-on-your-voice). |
 | `tests/DcsAtc.Tests` | C# tests. |
 | `docs/bridge-protocol.md` | The JSON protocol between DCS and the app. |
 | `docs/labeling.md` | How to add taxiway names for an airfield. |

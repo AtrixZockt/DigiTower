@@ -34,7 +34,7 @@ public sealed class ModelStore(VoiceCatalog? voices, RecognizerCatalog? recogniz
         string? voice = settings.ResolvedDataDirectory is { } data ? Path.Combine(data, "voice") : null;
         return new ModelStore(
             voice is not null && File.Exists(Path.Combine(voice, "voices.json")) ? VoiceCatalog.Load(voice, settings.ResolvedModelsDirectory, settings.ResolvedVoiceCacheDirectory) : null,
-            voice is not null && File.Exists(Path.Combine(voice, RecognizerCatalog.File)) ? RecognizerCatalog.Load(voice, settings.ResolvedModelsDirectory) : null);
+            voice is not null && File.Exists(Path.Combine(voice, RecognizerCatalog.File)) ? RecognizerCatalog.Load(voice, settings.ResolvedModelsDirectory, RecognizerCatalog.UserFile) : null);
     }
 
     public IReadOnlyList<ModelEntry> Entries()

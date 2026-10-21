@@ -109,6 +109,44 @@ public class RecognitionTests
         Assert.Contains("Hangman", catalog.Vocabulary.Hotwords());
     }
 
+    [Fact]
+    public void Local_files_add_their_own_recognizers_and_models()
+    {
+        string dir = Path.Combine(Path.GetTempPath(), "digitower-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            File.WriteAllText(Path.Combine(dir, RecognizerCatalog.File), """
+                { "default": "whisper-turbo-vulkan", "threads": 4,
+                  "recognizers": [ { "id": "whisper-turbo-vulkan", "engine": "whisper", "model": "ggml-turbo", "runtime": "vulkan" } ],
+                  "models": [ { "name": "ggml-turbo", "url": "u", "license": "MIT", "sizeMb": 574 } ] }
+                """);
+            File.WriteAllText(Path.Combine(dir, RecognizerCatalog.LocalFile), """{ "threads": 2 }""");
+            // The user's own file (beside the settings), as tools/whisper-train/register.py writes it.
+            string user = Path.Combine(dir, "user.json");
+            File.WriteAllText(user, """
+                { "models": [ { "name": "ggml-turbo-tuned-q5_0", "license": "your own fine-tune", "sizeMb": 547 } ],
+                  "recognizers": [ { "id": "whisper-turbo-tuned-vulkan", "label": "Whisper turbo tuned on my voice, prompt (GPU, Vulkan)",
+                                     "engine": "whisper", "model": "ggml-turbo-tuned-q5_0", "runtime": "vulkan" } ] }
+                """);
+
+            var catalog = RecognizerCatalog.Load(dir, userFile: user);
+            Assert.Equal(("whisper-turbo-vulkan", 2), (catalog.Default, catalog.Threads));
+            Assert.Equal(["whisper-turbo-vulkan", "whisper-turbo-tuned-vulkan"], catalog.Recognizers.Select(r => r.Id));
+            var tuned = catalog.Find("whisper-turbo-tuned-vulkan")!;
+            Assert.Equal(("ggml-turbo-tuned-q5_0", null), (catalog.ModelFor(tuned)!.Name, catalog.ModelFor(tuned)!.Url));
+            Assert.False(catalog.IsAvailable(tuned));   // not converted yet
+            File.WriteAllText(Path.Combine(dir, "models", "ggml-turbo-tuned-q5_0.bin").Also(p => Directory.CreateDirectory(Path.GetDirectoryName(p)!)), "x");
+            Assert.True(catalog.IsAvailable(tuned));
+
+            // Without the user's file: only the shared ones.
+            Assert.Single(RecognizerCatalog.Load(dir).Recognizers);
+        }
+        finally
+        {
+            Directory.Delete(dir, true);
+        }
+    }
 }
 
 /// <summary>Loads a speech model (CPU-heavy): kept apart from the tests that measure real-time SRS timing.</summary>
@@ -173,6 +211,10 @@ public class PilotCallTests
     [InlineData("Alhambra Ground, Hangman 1-2, request taxi.", "RequestTaxi")]
     [InlineData("Al Dhafra Apo, Hangman 1-2, check in.", "CheckIn")]
     [InlineData("Adafra Approach, Hangman 1-2, inbound.", "RequestLanding")]
+    // The model tuned on DiGii's voice: "gear down" heard as "cleared down" made the call a readback.
+    [InlineData("Tower, Hangman 1-2, 5 miles final, cleared down.", "ReportFinal")]
+    [InlineData("Approach, Hangman 1-2, request Tekken approach.", "RequestApproach tacan")]
+    [InlineData("Approach, Hangman 1-2, request TAECAN approach.", "RequestApproach tacan")]
     public void Reads_the_request(string heard, string expected) => Assert.Equal(expected, Read(heard));
 
     // Readbacks never trigger a request, even when they contain one's words ("ILS approach", "for takeoff").
@@ -206,5 +248,13 @@ public class PilotCallTests
         var reader = new PilotCallReader(new Dictionary<string, string> { ["one way"] = "runway" });
         Assert.Equal(["cleared", "to", "land", "runway", "three", "one", "right"], reader.Read("cleared to land one way 31R").Words);
         Assert.Equal(["someway"], reader.Read("someway").Words);
+    }
+
+    [Fact]
+    public void Taxiway_letters_the_tuned_model_misspells_are_read_right()
+    {
+        var words = Reader.Read("Vaya Papa, Ubeck, Hotel, Hotel 1, runway 31 right, Hangman 1-2.").Words;
+        Assert.Contains("quebec", words);
+        Assert.Contains("foxtrot", Reader.Read("Taxi to holding point runway 13 left via Alpha, Foxtrott, QNH 1013, Hangman 1-2.").Words);
     }
 }
