@@ -187,6 +187,53 @@ public class TaxiRoutingTests
         Assert.Empty(through);
     }
 
+    // Fujairah has no taxiway to either threshold: the route used to run 1.4 km along the runway to 11 ("via D, B").
+    // Now it ends at D's holding point, and Tower has the aircraft backtrack.
+    [SkippableTheory]
+    [InlineData("11")]
+    [InlineData("29")]
+    public void Without_a_taxiway_to_the_threshold_the_route_stops_before_the_runway(string end)
+    {
+        var fujairah = Gulf("Fujarirah_AFB");
+        var departure = fujairah.RouteToRunway(new Vec2(-117254, 8562), end)!;
+        Assert.True(departure.Backtrack);
+        Assert.Equal(["D"], ViaNames(fujairah, departure));
+        Assert.False(departure.Route.UsesRunway);
+        Assert.Equal(RunwayFinder.DefaultHoldDistance, departure.Runway.DistanceFrom(departure.Route.Geometry[^1]), 1);
+    }
+
+    // Havadarya: to 08 the way off the runway is 144 m further along on the other side (an offset crossing); to 26 the
+    // holding point near the threshold is only reached along the runway (a backtrack from F).
+    [SkippableFact]
+    public void An_offset_crossing_is_a_crossing_a_way_along_the_runway_a_backtrack()
+    {
+        var havadarya = Gulf("Havadarya_AFB");
+        var to08 = havadarya.RouteToRunway(new Vec2(109148, -5806), "08")!;
+        Assert.False(to08.Backtrack);
+        Assert.Contains("cross 08/26", ViaNames(havadarya, to08));
+        var to26 = havadarya.RouteToRunway(new Vec2(109148, -5806), "26")!;
+        Assert.True(to26.Backtrack);
+        Assert.Equal(["F"], ViaNames(havadarya, to26));
+    }
+
+    // Landing on Fujairah's 11: D is the only way off to the parking (the loops at the ends lead back onto the runway).
+    [SkippableFact]
+    public void After_landing_past_the_last_way_off_the_aircraft_backtracks_to_it()
+    {
+        Skip.If(TestPaths.Terrains is null, "DCS install not found (set DIGITOWER_DCS_DIR)");
+        string rn5 = Path.Combine(TestPaths.Terrains!, "PersianGulf", "AirfieldsTaxiways", "Fujarirah_AFB.rn5");
+        Skip.IfNot(File.Exists(rn5), "Fujarirah_AFB.rn5 not found");
+        var labels = AirfieldLabels.Load(Path.Combine(TestPaths.RepoRoot, "data", "airfields", "PersianGulf", "Fujarirah_AFB.labels.json"));
+        var fujairah = Airfield.Build(Rn5Reader.Read(rn5), parking: [new ParkingSpot(1, 104, new Vec2(-117254, 8562)), new ParkingSpot(2, 104, new Vec2(-117377, 8492))], labels: labels);
+        var (runway, end) = fujairah.FindRunwayEnd("11")!.Value;
+        Vec2 At(double metres) => end.Threshold + Vec2.FromHeading(end.TrueHeading) * metres;
+
+        Assert.Null(fujairah.BacktrackToVacate(runway, end, At(500)));
+        Assert.Equal("D", fujairah.BacktrackToVacate(runway, end, At(2600))?.Name);
+        // Without parking spots there is nothing to judge by.
+        Assert.Null(Gulf("Fujarirah_AFB").BacktrackToVacate(runway, end, At(2600)));
+    }
+
     [Fact]
     public void Removes_sub_metre_spikes_but_keeps_real_turns()
     {

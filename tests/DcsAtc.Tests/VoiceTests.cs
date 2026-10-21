@@ -25,6 +25,11 @@ public class VoiceTests
     }
 
     [Fact]
+    public void Backtrack_instructions_say_their_taxiway_the_ICAO_way() =>
+        Assert.Equal("[backtrack and vacate via] [Delta] | [contact Ground on] [two five zero decimal zero]",
+            Spoken("backtrack and vacate via D, contact Ground on 250.0."));
+
+    [Fact]
     public void A_taxiway_without_a_letter_is_said_as_written() =>
         Assert.Equal("[taxi to holding point runway] [two seven] [via the parallel taxiway] | [Golf]",
             Spoken("taxi to holding point runway 27 via the parallel taxiway, G."));

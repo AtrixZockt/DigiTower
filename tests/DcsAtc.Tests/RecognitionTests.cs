@@ -226,6 +226,8 @@ public class PilotCallTests
     [InlineData("Watcher, Hangman 1-2.")]
     [InlineData("Atimeter, 2, Niner, Decimal, Niner, 2, Hangman 1-2.")]
     [InlineData("Tower, Hangman 1-2, full stop.")]
+    [InlineData("Runway 11, backtrack and line up, Hangman 1-2.")]
+    [InlineData("Backtrack and vacate via Delta, Hangman 1-2.")]
     public void Readbacks_get_no_answer(string heard) => Assert.Contains(Read(heard), new[] { "readback", "chatter" });
 
     // Near-misses of a few letters are accepted, but not a different word in a short phrase.

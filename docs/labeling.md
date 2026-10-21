@@ -35,7 +35,9 @@ can route through the links' curves and the aprons and name those too.
 How a route is said: consecutive pieces of one taxiway are one name, pieces of other taxiways under 200 m in all
 between two pieces of the same one are left out (an angled exit overlapping a parallel taxiway would otherwise give
 *"A, A6, A, A3"*), and a roll of up to 100 m on a runway between two taxiways is a crossing (*"cross runway 13R"*;
-DCS draws some angled crossings that way).
+DCS draws some angled crossings that way), up to 200 m when the route leaves to the other side. A departure route
+that would taxi along its own runway to the holding point (no taxiway to the threshold) ends at the holding point
+before the runway instead, and Tower has the aircraft backtrack.
 
 ## Workflow
 

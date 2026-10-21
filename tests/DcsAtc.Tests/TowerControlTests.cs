@@ -54,13 +54,15 @@ public partial class TowerControlTests
         CreateInAsync(Path.Combine(TestPaths.RepoRoot, "data"), name, id, radios, others);
 
     /// <param name="dataDirectory">The data folder the catalog reads labels files from.</param>
-    private static async Task<World?> CreateInAsync(string dataDirectory, string name, int id, IReadOnlyList<AirbaseRadios>? radios, AirbaseSummary[] others)
+    /// <param name="airbase">Another airbase than Al Dhafra (its DCS data), with <paramref name="windFrom"/> at 10 knots.</param>
+    private static async Task<World?> CreateInAsync(string dataDirectory, string name, int id, IReadOnlyList<AirbaseRadios>? radios, AirbaseSummary[] others,
+        AirbaseInfo? airbaseInfo = null, double windFrom = 310)
     {
         if (TestPaths.Terrains is null) return null;
         string dump = Path.Combine(TestPaths.RepoRoot, "data", "dcs", "Al Dhafra AFB.json");
-        if (!File.Exists(dump)) return null;
-        var info = JsonSerializer.Deserialize<AirbaseInfo>(File.ReadAllText(dump), new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
-        var weather = new AirbaseWeather { WindX = -5.14 * Math.Cos(310 * Math.PI / 180), WindZ = -5.14 * Math.Sin(310 * Math.PI / 180), Pressure = 101130, Elevation = 16, Temperature = 303 };
+        if (airbaseInfo is null && !File.Exists(dump)) return null;
+        var info = airbaseInfo ?? JsonSerializer.Deserialize<AirbaseInfo>(File.ReadAllText(dump), new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
+        var weather = new AirbaseWeather { WindX = -5.14 * Math.Cos(windFrom * Math.PI / 180), WindZ = -5.14 * Math.Sin(windFrom * Math.PI / 180), Pressure = 101130, Elevation = 16, Temperature = 303 };
         var airbase = new AirbaseSummary { Name = name, Id = id, Category = 0, Coalition = 2, X = info.X, Y = info.Y, Z = info.Z };
         var dcs = new FakeDcs([airbase, .. others], info, weather);
         dcs.Radios.AddRange(radios ?? []);

@@ -12,8 +12,15 @@ public sealed record ViaItem(string Name, Runway? CrossedRunway = null)
     public bool IsRunwayCrossing => CrossedRunway is not null;
 }
 
-/// <summary>A departure taxi route ending at a runway holding point.</summary>
-public sealed record DepartureRoute(TaxiRoute Route, Runway Runway, RunwayEnd End, HoldPoint Hold);
+/// <summary>
+/// A departure taxi route ending at a runway holding point. <paramref name="Backtrack"/>: the holding points near the
+/// threshold can only be reached along the runway, so the route ends at the holding point before it, and the
+/// aircraft backtracks on the runway to the threshold (Tower's clearance).
+/// </summary>
+public sealed record DepartureRoute(TaxiRoute Route, Runway Runway, RunwayEnd End, HoldPoint Hold, bool Backtrack = false);
+
+/// <summary>A route on a runway between two taxiways: steps <c>First</c> to <c>Last</c>, the metres it rolls along it, and whether that is a crossing.</summary>
+public sealed record RunwayStretch(int First, int Last, Runway Runway, double Rolled, bool IsCrossing);
 
 /// <summary>Everything we know about one airfield's ground layout.</summary>
 public sealed class Airfield
@@ -77,7 +84,7 @@ public sealed class Airfield
     public IReadOnlyList<ViaItem> Via(TaxiRoute route, double minLength = 40, double maxSideStep = 200)
     {
         var steps = route.Steps;
-        var crossings = ShortRunwayStretches(steps);
+        var crossings = RunwayStretches(steps).Where(s => s.IsCrossing).ToDictionary(s => s.First);
         var runs = new List<(string? Name, double Length, Runway? Crossing)>();
         for (int i = 0; i < steps.Count; i++)
         {
@@ -140,14 +147,23 @@ public sealed class Airfield
     /// <summary>A runway is 45-60 m wide: crossing it at an angle rolls up to about this far along it (metres).</summary>
     public const double MaxCrossingRoll = 100;
 
+    /// <summary>A crossing to the other side may roll this far along the runway when DCS offsets the way off it (metres).</summary>
+    public const double MaxOffsetCrossingRoll = 200;
+
+    /// <summary>A departure route that leaves its runway for at most this far to the holding point is a backtrack (metres).</summary>
+    public const double MaxAfterBacktrack = 1500;
+
     /// <summary>
-    /// Stretches of a route on a runway between two taxiways, short enough to be a crossing (by first step: last step
-    /// and runway). DCS draws some angled crossings as a way onto the runway and off it again, not as a crossing node.
+    /// Where a route is on a runway between two taxiways (steps <c>First</c> to <c>Last</c>), how far it rolls along it,
+    /// and whether that is a crossing: up to <see cref="MaxCrossingRoll"/>, or <see cref="MaxOffsetCrossingRoll"/> to
+    /// the other side (DCS draws some crossings as a way onto the runway and off it again, not as a crossing node).
+    /// Anything longer taxis along the runway: a backtrack. <paramref name="toTheEnd"/>: a stretch the route ends with
+    /// counts too (a route to a holding point that gets there from the runway).
     /// </summary>
-    private Dictionary<int, (int Last, Runway Runway)> ShortRunwayStretches(IReadOnlyList<RouteStep> steps)
+    public IReadOnlyList<RunwayStretch> RunwayStretches(IReadOnlyList<RouteStep> steps, bool toTheEnd = false)
     {
         static bool OnRunway(TaxiLink l) => l.Kind == LinkKind.Runway || l.TouchesRunway;
-        var stretches = new Dictionary<int, (int, Runway)>();
+        var stretches = new List<RunwayStretch>();
         for (int i = 0; i < steps.Count; i++)
         {
             if (!OnRunway(steps[i].Link)) continue;
@@ -156,11 +172,26 @@ public sealed class Airfield
             var on = steps.Skip(i).Take(last - i + 1).Where(s => s.Link.Kind == LinkKind.Runway).ToList();
             var runway = on.Select(s => s.Link.Rn5Edge).OfType<int>().Select(e => Network.Edges[e])
                 .Select(e => Runways.FirstOrDefault(r => r.Nodes.Contains(e.NodeA) || r.Nodes.Contains(e.NodeB))).FirstOrDefault(r => r is not null);
-            if (i > 0 && last + 1 < steps.Count && runway is not null && on.Sum(s => s.Link.Length) <= MaxCrossingRoll)
-                stretches[i] = (last, runway);
+            if (i > 0 && (last + 1 < steps.Count || toTheEnd) && runway is not null)
+            {
+                double rolled = on.Sum(s => s.Link.Length);
+                bool across = last + 1 < steps.Count && Side(runway, steps, i - 1, -1) * Side(runway, steps, last + 1, +1) < 0;
+                stretches.Add(new RunwayStretch(i, last, runway, rolled, rolled <= MaxCrossingRoll || (across && rolled <= MaxOffsetCrossingRoll)));
+            }
             i = last;
         }
         return stretches;
+    }
+
+    /// <summary>The side of the runway (-1, 0, +1) of the route's first point more than 25 m off it, from step <paramref name="from"/> on in <paramref name="direction"/>.</summary>
+    private int Side(Runway runway, IReadOnlyList<RouteStep> steps, int from, int direction)
+    {
+        for (int k = from; k >= 0 && k < steps.Count; k += direction)
+        {
+            double side = (Graph.Vertices[direction < 0 ? steps[k].From : steps[k].To].Position - runway.EndA.Threshold).Dot(runway.Axis.Left);
+            if (Math.Abs(side) > 25) return Math.Sign(side);
+        }
+        return 0;
     }
 
     /// <summary>The taxiway name of a route step's link, if known.</summary>
@@ -211,10 +242,23 @@ public sealed class Airfield
             // runway axis, e.g. when entering behind the threshold, so it may not contain the holding point.)
             var full = TaxiRouter.Route(Graph, from, hold.ArmVertex, options);
             if (full is null) continue;
-            var geometry = runway.HoldingPointOn(full.Geometry);
-            var route = full with { Geometry = geometry, Length = Polyline.Length(geometry) };
-            if (best is null || route.Length < best.Route.Length)
-                best = new DepartureRoute(route, runway, end, hold with { Position = geometry[^1], DistanceFromArm = full.Length - route.Length });
+            var steps = full.Steps;
+            var before = full.Geometry;
+            // Along this runway to get there (no taxiway to the threshold): stop at the holding point before the runway.
+            // Not when the route goes a long way on taxiways after its last time on it: the runway was only a way
+            // through (from a stand at its end).
+            var along = RunwayStretches(steps, toTheEnd: true).Where(s => !s.IsCrossing && s.Runway == runway).ToList();
+            bool backtrack = along.Count > 0 && steps.Skip(along[^1].Last + 1).Sum(x => x.Link.Length) <= MaxAfterBacktrack;
+            if (backtrack)
+            {
+                steps = steps.Take(along[0].First).ToList();
+                before = Polyline.Slice(full.Geometry, 0, Polyline.Project(full.Geometry, Graph.Vertices[full.Steps[along[0].First].From].Position).Along);
+            }
+            var geometry = runway.HoldingPointOn(before);
+            var route = full with { Steps = steps, Geometry = geometry, Length = Polyline.Length(geometry) };
+            // A route without a backtrack first, then the shortest.
+            if (best is null || (best.Backtrack && !backtrack) || (best.Backtrack == backtrack && route.Length < best.Route.Length))
+                best = new DepartureRoute(route, runway, end, hold with { Position = geometry[^1], DistanceFromArm = full.Length - route.Length }, backtrack);
         }
         return best;
     }
@@ -269,6 +313,31 @@ public sealed class Airfield
         double viaB = costs[entry.Link.B] == double.MaxValue ? double.MaxValue : costs[entry.Link.B] + entry.Link.Length - entry.Along;
         double best = Math.Min(viaA, viaB);
         return best == double.MaxValue ? best : best + entry.Distance;
+    }
+
+    private readonly Dictionary<(Runway, int), bool> _exitLeadsToParking = [];
+
+    /// <summary>
+    /// After landing on <paramref name="landing"/>, at <paramref name="position"/> on the runway: when no way off ahead
+    /// leads to the parking without the runway again (a turn pad, a loop back onto it), the way off behind to backtrack
+    /// to (its holding point, and its taxiway name if known). Null when one ahead does, or without parking spots to judge by.
+    /// </summary>
+    public (HoldPoint Exit, string? Name)? BacktrackToVacate(Runway runway, RunwayEnd landing, Vec2 position)
+    {
+        if (Parking.Count == 0) return null;
+        double at = runway.AlongFrom(landing, position);
+        double AlongOf(HoldPoint h) => landing == runway.EndA ? h.AlongRunway : runway.Length - h.AlongRunway;
+        bool LeadsToParking(HoldPoint h)
+        {
+            if (!_exitLeadsToParking.TryGetValue((runway, h.ArmVertex), out bool leads))
+                _exitLeadsToParking[(runway, h.ArmVertex)] = leads = RouteToParking(h.Position, helicopter: false, []) is { } p
+                                                                     && RunwayStretches(p.Route.Steps).All(s => s.IsCrossing);
+            return leads;
+        }
+        var exits = runway.HoldPoints.OrderBy(AlongOf).ToList();
+        if (exits.Where(h => AlongOf(h) >= at - 30).Any(LeadsToParking)) return null;
+        var behind = exits.Where(h => AlongOf(h) < at - 30).Reverse().FirstOrDefault(LeadsToParking);
+        return behind is null ? null : (behind, TaxiwayNames.TryGetValue(behind.Edge.Index, out var name) ? name : null);
     }
 
     /// <summary>The name of the labelled area (apron, parking) nearest to a point, if one is within <paramref name="maxDistance"/>.</summary>

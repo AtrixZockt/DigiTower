@@ -97,7 +97,7 @@ public sealed partial class AtcApp
             string clearance = f.Phase switch
             {
                 TowerPhase.WaitingForDeparture => "Ready for departure",
-                TowerPhase.LineUpAndWait => "Line up and wait",
+                TowerPhase.LineUpAndWait => f.Backtrack ? "Backtrack and line up" : "Line up and wait",
                 TowerPhase.ClearedForTakeoff => "Cleared for takeoff",
                 TowerPhase.Departed => "Departed",
                 TowerPhase.Inbound => f.InPattern ? "Closed traffic" : f.Overhead ? "Overhead, report initial" : "Inbound",

@@ -54,6 +54,10 @@ public sealed class TowerFlight
     public ParkingSpot? Spot { get; init; }
     /// <summary>Takes off from or lands on <see cref="Runway"/> (helicopters at a spot or leaving from where they stand do not).</summary>
     public bool UsesRunway => Spot is null && !FromPresentPosition;
+    /// <summary>No taxiway to the threshold: enters the runway partway along and backtracks to it before the takeoff.</summary>
+    public bool Backtrack { get; set; }
+    /// <summary>Told to backtrack to vacate the runway after landing (said once).</summary>
+    internal bool BacktrackToVacateSaid { get; set; }
     public string SpotDrawingKey => $"heli-{Key}";
     /// <summary>The members that take off together (on the ground at the runway when cleared): departed once all are airborne.</summary>
     internal IReadOnlyCollection<string> Departing { get; set; } = [];
@@ -96,6 +100,9 @@ public sealed class TowerControl(IDcsCommands dcs, AirfieldCatalog airfields, Gr
 
     /// <summary>"Ready for departure" is taken this close to a runway (metres).</summary>
     public const double HoldingPointRange = 400;
+
+    /// <summary>A departure further down the runway than this, with no taxiway to the threshold, backtracks (metres).</summary>
+    public const double BacktrackFrom = 300;
 
     /// <summary>Closed traffic further than this from the runway and flying away has left the pattern (metres).</summary>
     public const double PatternLimit = 5 * NauticalMile;
@@ -210,6 +217,8 @@ public sealed class TowerControl(IDcsCommands dcs, AirfieldCatalog airfields, Gr
 
         await ground.ReleaseAsync(party.Key, ct);
         var flight = Track(party, lead, airfield, runway, end, TowerPhase.WaitingForDeparture, intent, lead.IsHelicopter);
+        // Partway down the runway, with no taxiway to the threshold (Ground's route ended before the runway).
+        flight.Backtrack = runway.AlongFrom(end, position) > BacktrackFrom && airfield.Layout.RouteToRunway(position, end.Name) is { Backtrack: true };
         await EvaluateAsync(flight, units, ct, requested: true);
     }
 
@@ -562,6 +571,11 @@ public sealed class TowerControl(IDcsCommands dcs, AirfieldCatalog airfields, Gr
                     await HelicopterDepartureAsync(f, unit, units, ct, requested);
                     break;
                 }
+                if (f.Backtrack)
+                {
+                    await BacktrackDepartureAsync(f, unit, units, ct, requested);
+                    break;
+                }
                 var (reason, departingAhead) = DepartureBlocker(f, units);
                 if (reason is null)
                 {
@@ -617,7 +631,7 @@ public sealed class TowerControl(IDcsCommands dcs, AirfieldCatalog airfields, Gr
                 }
                 if (!unit.InAir && f.Runway.IsOnRunway(position))
                 {
-                    await LandedAsync(f, ct);
+                    await LandedAsync(f, unit, ct);
                     break;
                 }
                 double? toGo = DistanceOnFinal(f.Runway, f.End, unit);
@@ -651,7 +665,7 @@ public sealed class TowerControl(IDcsCommands dcs, AirfieldCatalog airfields, Gr
             {
                 if (!unit.InAir && f.Runway.IsOnRunway(position))
                 {
-                    await LandedAsync(f, ct);
+                    await LandedAsync(f, unit, ct);
                     break;
                 }
                 double? toGo = DistanceOnFinal(f.Runway, f.End, unit);
@@ -675,13 +689,62 @@ public sealed class TowerControl(IDcsCommands dcs, AirfieldCatalog airfields, Gr
                     else if (unit.GroundSpeed < 15)
                     {
                         f.InPattern = false;
-                        await SayVacateAsync(f, ct);
+                        await SayVacateAsync(f, unit, ct);
                     }
                     break;
                 }
                 if (!f.Runway.IsOnRunway(position, 15)) _flights.Remove(f.Key);
+                // Rolled past the last way off to the parking: back to the one behind.
+                else if (!f.BacktrackToVacateSaid && unit.GroundSpeed < 15
+                         && f.Airfield.Layout.BacktrackToVacate(f.Runway, f.End, position) is { } exit)
+                {
+                    f.BacktrackToVacateSaid = true;
+                    await SayAsync(f, Phraseology.BacktrackAndVacate(f.Callsign, exit.Name), ct);
+                }
                 break;
         }
+    }
+
+    /// <summary>
+    /// A departure with no taxiway to the threshold (SKYbrary, "Backtrack"): "backtrack and line up" once the runway is
+    /// free, no departure is ahead (it would take off towards the backtrack) and nobody is on final within
+    /// <see cref="FinalLength"/> (a backtrack takes minutes); then "cleared for takeoff" once lined up at the threshold.
+    /// </summary>
+    private async Task BacktrackDepartureAsync(TowerFlight f, UnitState unit, IReadOnlyDictionary<string, UnitState> units, CancellationToken ct, bool requested)
+    {
+        var (reason, _) = DepartureBlocker(f, units);
+        if (f.Phase == TowerPhase.WaitingForDeparture)
+        {
+            reason ??= LandingTrafficWithin(f, units, FinalLength) ? Phraseology.TrafficOnFinal : null;
+            if (reason is null)
+            {
+                Enter(f, TowerPhase.LineUpAndWait);
+                await SayAsync(f, Phraseology.BacktrackAndLineUp(f.Callsign, f.End), ct);
+            }
+            else if (requested || f.LastReason != reason)
+            {
+                f.LastReason = reason;
+                await SayAsync(f, Phraseology.HoldShort(f.Callsign, f.Airfield.Facility, f.End, reason), ct);
+            }
+            return;
+        }
+        if (reason is null && LinedUp(f, unit))
+        {
+            var weather = await dcs.GetAirbaseWeatherAsync(f.Airfield.Airbase.Name, ct);
+            f.Departure = PlanDeparture(f, units);
+            f.UntilAdvised = f.Departure.UntilAdvised;
+            Enter(f, TowerPhase.ClearedForTakeoff);
+            TakingOff(f, unit, units);
+            await SayAsync(f, Phraseology.ClearedForTakeoff(f.Callsign, f.End, weather, f.Departure), ct);
+        }
+    }
+
+    /// <summary>On the runway at the threshold (within <see cref="BacktrackFrom"/>), facing down it, nearly stopped.</summary>
+    private static bool LinedUp(TowerFlight f, UnitState unit)
+    {
+        var p = new Vec2(unit.X, unit.Z);
+        return !unit.InAir && f.Runway.IsOnRunway(p) && f.Runway.AlongFrom(f.End, p) < BacktrackFrom
+               && HeadingOff(unit.Hdg, f.End.TrueHeading) < 30 && unit.GroundSpeed < 8;
     }
 
     /// <summary>A helicopter waiting to depart from where it stands: cleared as soon as nothing is in its way, held otherwise.</summary>
@@ -857,15 +920,24 @@ public sealed class TowerControl(IDcsCommands dcs, AirfieldCatalog airfields, Gr
                && along > -1.5 * NauticalMile && along < runway.Length + NauticalMile && HeadingOff(unit.Hdg, end.TrueHeading + 180) < 45;
     }
 
-    private async Task LandedAsync(TowerFlight f, CancellationToken ct)
+    private async Task LandedAsync(TowerFlight f, UnitState unit, CancellationToken ct)
     {
         Enter(f, TowerPhase.Landed);
         // Closed traffic may touch and go: vacate only once it has slowed down.
-        if (!f.InPattern) await SayVacateAsync(f, ct);
+        if (!f.InPattern) await SayVacateAsync(f, unit, ct);
     }
 
-    private Task SayVacateAsync(TowerFlight f, CancellationToken ct) =>
-        SayAsync(f, Phraseology.VacateContactGround(f.Callsign, f.Airfield.Facility, f.Airfield.Frequencies.Own("Ground")), ct);
+    /// <summary>"Vacate runway when able", or "backtrack and vacate via D" when no way off ahead leads to the parking.</summary>
+    private Task SayVacateAsync(TowerFlight f, UnitState unit, CancellationToken ct)
+    {
+        double? ground = f.Airfield.Frequencies.Own("Ground");
+        if (f.Airfield.Layout.BacktrackToVacate(f.Runway, f.End, new Vec2(unit.X, unit.Z)) is { } exit)
+        {
+            f.BacktrackToVacateSaid = true;
+            return SayAsync(f, Phraseology.BacktrackVacateContactGround(f.Callsign, f.Airfield.Facility, exit.Name, ground), ct);
+        }
+        return SayAsync(f, Phraseology.VacateContactGround(f.Callsign, f.Airfield.Facility, ground), ct);
+    }
 
     private void Enter(TowerFlight f, TowerPhase phase)
     {

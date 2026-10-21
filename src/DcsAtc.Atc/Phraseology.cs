@@ -280,6 +280,9 @@ public static partial class Phraseology
 
     public static string LineUpAndWait(string callsign, RunwayEnd runway) => $"{callsign}, runway {runway.Name}, line up and wait.";
 
+    /// <summary>No taxiway to the threshold: "Hangman 1-2, runway 11, backtrack and line up." (SKYbrary, "Backtrack")</summary>
+    public static string BacktrackAndLineUp(string callsign, RunwayEnd runway) => $"{callsign}, runway {runway.Name}, backtrack and line up.";
+
     /// <summary>Closed traffic that flies off: "Viper 1-1, leaving the pattern, contact Approach on 257.0, good day."</summary>
     public static string LeavingPattern(string callsign, Contact? approach) => $"{callsign}, leaving the pattern, {ContactApproach(approach)}";
 
@@ -293,6 +296,15 @@ public static partial class Phraseology
     /// <summary>"Viper 1-1, welcome to Al Dhafra, vacate runway when able, contact Ground on 250.0."</summary>
     public static string VacateContactGround(string callsign, string facility, double? ground) =>
         $"{callsign}, welcome to {facility}, vacate runway when able, contact Ground{(Frequency(ground) is { } f ? $" on {f}" : "")}.";
+
+    /// <summary>The way off is behind: "Hangman 1-2, welcome to Fujairah, backtrack and vacate via D, contact Ground on 250.0."</summary>
+    public static string BacktrackVacateContactGround(string callsign, string facility, string? exit, double? ground) =>
+        $"{callsign}, welcome to {facility}, backtrack and vacate{ViaExit(exit)}, contact Ground{(Frequency(ground) is { } f ? $" on {f}" : "")}.";
+
+    /// <summary>Rolled past the last way off: "Hangman 1-2, backtrack and vacate via D."</summary>
+    public static string BacktrackAndVacate(string callsign, string? exit) => $"{callsign}, backtrack and vacate{ViaExit(exit)}.";
+
+    private static string ViaExit(string? exit) => exit is null ? "" : $" via {Taxiway(exit)}";
 
     /// <summary>A call ATC did not understand: "Hangman 1-2, Al Dhafra Ground, say again."</summary>
     public static string SayAgainPlease(string callsign, string station) => $"{callsign}, {station}, say again.";
@@ -368,6 +380,7 @@ public static partial class Phraseology
             }
             yield return ClearedToLand(cs, end, weather);
             yield return LineUpAndWait(cs, end);
+            yield return BacktrackAndLineUp(cs, end);
             yield return AiTaxi(cs, facility, end);
             yield return ClearedForTakeoff(cs, end, weather);
             yield return NotAtHoldingPoint(cs, facility, end);
@@ -406,6 +419,11 @@ public static partial class Phraseology
         yield return CheckAltitudeMaintain(cs, procedures ?? DepartureProcedures.Default);
         yield return CheckHeading(cs);
         yield return VacateContactGround(cs, facility, frequencies.Own("Ground"));
+        foreach (string? exit in via.Where(v => !v.IsRunwayCrossing).Select(v => v.Name).Take(1).Append(null))
+        {
+            yield return BacktrackVacateContactGround(cs, facility, exit, frequencies.Own("Ground"));
+            yield return BacktrackAndVacate(cs, exit);
+        }
         foreach (var type in new[] { "", UsTypes.First() }) yield return StartupApproved(cs, facility, weather, type);
 
         // Answers to voice requests, from each station: say again, read you five, contact another station.
