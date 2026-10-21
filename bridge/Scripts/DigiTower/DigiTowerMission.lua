@@ -471,6 +471,7 @@ end
 -- on its spots) and released with DCS's Start command. Held groups are released when the app goes away.
 
 ATCB.held = ATCB.held or {}   -- [group name] = true while held
+ATCB.holding = ATCB.holding or {}   -- [group name] = its flag, while an arrival holds in the air
 ATCB.lastPoll = ATCB.lastPoll or 0
 ATCB.holdWatchdog = 60        -- seconds without a poll from the hook before every held group is released
 
@@ -533,12 +534,80 @@ local function groupRelease(c)
   return true
 end
 
---- Releases every held group; returns how many there were.
+--- Where a group's route in the mission file lands: its last Land waypoint's airbase (airdrome, FARP or ship), or
+--- nothing for a route that does not land or a group that is not in the mission file (spawned by scripts).
+local function groupDestination(c)
+  local tpl = findTemplate(c.group)
+  if not tpl then return { inMission = false } end
+  local points = (tpl.route and tpl.route.points) or {}
+  for i = #points, 1, -1 do
+    local p = points[i]
+    if p.type == 'Land' then
+      local id = p.airdromeId or p.helipadId or p.linkUnit
+      local name
+      for _, ab in ipairs(world.getAirbases() or {}) do
+        if ab:getID() == id then name = ab:getName() break end
+      end
+      return { inMission = true, id = id, name = name, x = p.x, z = p.y }
+    end
+  end
+  return { inMission = true }
+end
+
+local function combo(tasks) return { id = 'ComboTask', params = { tasks = tasks or {} } } end
+
+--- An orbit that ends when a user flag is set to 1: at a point (a circle) or between two (a race track), at an
+--- altitude (m) and speed (m/s).
+local function orbitUntilFlag(hold, flag)
+  local orbit = { id = 'Orbit', params = { pattern = hold.x2 and 'Race-Track' or 'Circle', point = { x = hold.x, y = hold.z },
+    altitude = hold.alt, speed = hold.speed } }
+  if hold.x2 then orbit.params.point2 = { x = hold.x2, y = hold.z2 } end
+  return { id = 'ControlledTask', params = { task = orbit, stopCondition = { userFlag = flag, userFlagValue = 1 } } }
+end
+
+--- Holds an arriving AI group: a new route to the holding fix, where it orbits until its flag is set (arrival_clear),
+--- then to a point on final and onto the airfield (as MOOSE FLIGHTCONTROL does). DCS lands it from there. Measured
+--- (2026-10-21): the landing waypoint needs the glide-path altitude (land.alt); at 0 the AI dives to a few hundred feet
+--- miles out. Its own route's landing at the field itself makes DCS fly a wide circuit first.
+local function arrivalHold(c)
+  local g = Group.getByName(c.group)
+  if not g then error('group not found: ' .. tostring(c.group)) end
+  trigger.action.setUserFlag(c.flag, 0)
+  local task = orbitUntilFlag(c.hold, c.flag)
+  local route = { points = {
+    { type = 'Turning Point', action = 'Turning Point', x = c.hold.x, y = c.hold.z, alt = c.hold.alt, alt_type = 'BARO',
+      speed = c.hold.speed, speed_locked = true, name = 'HOLD',
+      task = combo({ { number = 1, enabled = true, auto = false, id = task.id, params = task.params } }) },
+    { type = 'Turning Point', action = 'Turning Point', x = c.final.x, y = c.final.z, alt = c.final.alt, alt_type = 'BARO',
+      speed = c.final.speed, speed_locked = true, name = 'FINAL', task = combo() },
+    { type = 'Land', action = 'Landing', airdromeId = c.airdromeId, x = c.land.x, y = c.land.z, alt = c.land.alt or 0, alt_type = 'BARO',
+      speed = c.final.speed, speed_locked = true, name = 'LANDING', task = combo() },
+  } }
+  g:getController():setTask({ id = 'Mission', params = { route = route } })
+  ATCB.holding[c.group] = c.flag
+  return true
+end
+
+--- Lets a holding group go: it leaves the hold for final.
+local function arrivalClear(c)
+  trigger.action.setUserFlag(c.flag, 1)
+  for name, flag in pairs(ATCB.holding) do
+    if flag == c.flag then ATCB.holding[name] = nil end
+  end
+  return true
+end
+
+--- Releases every held group, departures and arrivals; returns how many there were.
 function ATCB.releaseHeld()
   local n = 0
   for name in pairs(ATCB.held) do
     pcall(groupRelease, { group = name })
     ATCB.held[name] = nil
+    n = n + 1
+  end
+  for name, flag in pairs(ATCB.holding) do
+    pcall(trigger.action.setUserFlag, flag, 1)
+    ATCB.holding[name] = nil
     n = n + 1
   end
   return n
@@ -561,6 +630,9 @@ local COMMANDS = {
   mark_group = markGroup,
   group_hold = groupHold,
   group_release = groupRelease,
+  group_destination = groupDestination,
+  arrival_hold = arrivalHold,
+  arrival_clear = arrivalClear,
   -- Diagnostics: forward every DCS event, not only those the app uses.
   debug_events = function(c) ATCB.allEvents = c.on == true; return { allEvents = ATCB.allEvents } end,
 }
@@ -606,7 +678,7 @@ function ATCB.start()
     ATCB.watchdogScheduled = true
     ATCB.lastPoll = now()
     timer.scheduleFunction(function()
-      if next(ATCB.held) ~= nil and now() - ATCB.lastPoll > ATCB.holdWatchdog then
+      if (next(ATCB.held) ~= nil or next(ATCB.holding) ~= nil) and now() - ATCB.lastPoll > ATCB.holdWatchdog then
         local n = ATCB.releaseHeld()
         env.info(string.format('DigiTower: no contact with the ATC app for %d s, %d held AI groups released', ATCB.holdWatchdog, n))
       end

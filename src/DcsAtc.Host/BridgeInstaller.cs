@@ -274,7 +274,8 @@ public sealed class BridgeInstaller(string scriptsDirectory)
         -- DigiTower bridge settings for this DCS. DCS reads them when it starts: restart DCS (or the server) after a change.
         -- Installing the bridge again keeps this file.
         return {
-          -- true:  DigiTower holds AI departures at their parking spots and releases them in turn, players first.
+          -- true:  DigiTower handles AI traffic, players first: AI departures wait at their parking spots and AI arrivals hold
+          --        in the air until it is their turn, and AI pilots talk to the controllers.
           -- false: AI is left to DCS. The ATC still talks to players and counts AI as traffic.
           -- (DigiTower's Install page, or bridge\install.ps1 -NoAi / -Ai, switches this.)
           manageAi = true,

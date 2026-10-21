@@ -1,10 +1,10 @@
 # Bridge protocol
 
 The hook (`bridge/Scripts/Hooks/DigiTowerHook.lua`) listens on **127.0.0.1:42700**. Its settings are in
-`Scripts/DigiTower/DigiTowerConfig.lua`, which `bridge/install.ps1` writes on the first install (every setting explained)
-and keeps after that: `port`, `manageAi` (false: the server does not let the app hold or release AI;
-`install.ps1 -NoAi` / `-Ai`) and `mapDrawings` (false: `draw_route` draws nothing and answers `{ marks = 0 }`;
-`install.ps1 -NoMapDrawings` / `-MapDrawings`). A file that does not load is reported in `hello.error` and the defaults are used.
+`Scripts/DigiTower/DigiTowerConfig.lua`, which the installer (the control panel's Install page, or `bridge/install.ps1`)
+writes on the first install (every setting explained) and keeps after that: `port`, `manageAi` (false: the server
+does not let the app hold or release AI, departures or arrivals; `install.ps1 -NoAi` / `-Ai`) and `mapDrawings`
+(false: `draw_route` draws nothing and answers `{ marks = 0 }`; `install.ps1 -NoMapDrawings` / `-MapDrawings`). A file that does not load is reported in `hello.error` and the defaults are used.
 One app connects at a time; a new connection replaces the old one. Both directions send **one JSON object per line** (UTF-8, `\n`).
 
 Coordinates are DCS map coordinates in metres: `x` = north, `z` = east, `y` = altitude MSL.
@@ -58,24 +58,30 @@ them into a Lua table literal and the mission side runs one of the whitelisted h
 | `mark_group` | `key`, `groupId`, `x`, `z`, `text` | `{ id }`: a mark point with a label meant only for that group (`trigger.action.markToGroup`); removed with `drawing_clear` and its key. Lines and text (`draw_route`) can only be drawn for a whole coalition. |
 | `group_hold` | `group` | `true`: holds an AI group at its parking spots. The group is removed and spawned again from the mission file (`env.mission`) under the same names, **uncontrolled** and cold on the same spots: engines off, waiting for a start command. Fails (`not in the mission file`) for groups spawned by scripts. Measured: the removal fires no `dead`, `crash`, `unit_lost` or `kill` events. |
 | `group_release` | `group` | `true`: DCS's `Start` command for the group (a held group starts its engines and taxis) |
+| `group_destination` | `group` | `{ inMission, id?, name?, x?, z? }`: where the group's route in the mission file lands (its last `Land` waypoint: airdrome, helipad or ship id and name). `inMission = false` for groups spawned by scripts; no `id` for a route that does not land. |
+| `arrival_hold` | `group`, `flag`, `airdromeId`, `hold { x, z, alt, speed, x2?, z2? }`, `final { x, z, alt, speed }`, `land { x, z, alt }` | `true`: holds an arriving AI group. It gets a new route: to the holding fix, where it orbits (a circle, or a race track to `x2, z2`) at `alt` (m) and `speed` (m/s) until the user flag `flag` is 1; then to `final` and a landing waypoint for the airdrome at `land`, a point on final at the glide-path altitude (measured: at altitude 0 the AI dives to a few hundred feet miles out). The flag is set to 0 first. |
+| `arrival_clear` | `flag` | `true`: sets the flag to 1: the holding group leaves the hold. |
 | `debug_events` | `on` | `{ allEvents }`: while on, every DCS event is forwarded, not only those listed above (diagnostics) |
 
-With `manageAi = false` in the server's `DigiTowerConfig.lua`, the hook refuses `group_hold` and `group_release`
-(`AI handling is turned off on this server ...`).
+With `manageAi = false` in the server's `DigiTowerConfig.lua`, the hook refuses `group_hold`, `group_release`,
+`arrival_hold` and `arrival_clear` (`AI handling is turned off on this server ...`).
 
-**Held AI never stays held without the app:** when the app disconnects the hook releases every held group, and the
-mission side releases them by itself when the hook has not polled for 60 s.
+**Held AI never stays held without the app:** when the app disconnects the hook releases every held group (departures
+started, arrivals' flags set), and the mission side does the same by itself when the hook has not polled for 60 s.
 
 Runway `course` is DCS's value in radians; the true heading is `-course`.
 
 ## Requirements in DCS
 
-`Saved Games\<instance>\Config\autoexec.cfg` must allow hooks to run code in the mission (added by
-`bridge/install.ps1`):
+`Saved Games\<instance>\Config\autoexec.cfg` must allow hooks to run code in the mission (the installer adds this,
+between `-- >>> DigiTower bridge` and `-- <<< DigiTower bridge`):
 
 ```lua
-net.allow_unsafe_api = { "userhooks" }
-net.allow_dostring_in = { "mission" }
+net = net or {}
+net.allow_unsafe_api = net.allow_unsafe_api or {}
+table.insert(net.allow_unsafe_api, "userhooks")
+net.allow_dostring_in = net.allow_dostring_in or {}
+table.insert(net.allow_dostring_in, "mission")
 ```
 
 ED temporarily reverted this restriction in a hotfix, but the documentation still requires it, so the

@@ -73,6 +73,31 @@ internal sealed class FakeDcs(IReadOnlyList<AirbaseSummary> airbases, AirbaseInf
         Released.Add(group);
         return Task.CompletedTask;
     }
+
+    /// <summary>Where AI groups land, by group (from their mission-file routes); groups not listed do not land anywhere.</summary>
+    public Dictionary<string, GroupDestination> Destinations { get; } = [];
+    public Task<GroupDestination> GetGroupDestinationAsync(string group, CancellationToken ct = default) =>
+        OldBridge ? throw new BridgeCommandException("unknown command: group_destination")
+            : Task.FromResult(NotInMission.Contains(group) ? new GroupDestination() : Destinations.GetValueOrDefault(group) ?? new GroupDestination { InMission = true });
+
+    /// <summary>Arrivals holding, by flag: group, hold, final and landing point.</summary>
+    public Dictionary<string, (string Group, int Airdrome, HoldingFix Hold, (double X, double Z, double Alt, double Speed) Final, (double X, double Z, double Alt) Land)> Holding { get; } = [];
+    /// <summary>Flags cleared, in order.</summary>
+    public List<string> Cleared { get; } = [];
+
+    public Task HoldArrivalAsync(string group, string flag, int airdromeId, HoldingFix hold, (double X, double Z, double Alt, double Speed) final,
+        (double X, double Z, double Alt) land, CancellationToken ct = default)
+    {
+        Holding[flag] = (group, airdromeId, hold, final, land);
+        return Task.CompletedTask;
+    }
+
+    public Task ClearArrivalAsync(string flag, CancellationToken ct = default)
+    {
+        Holding.Remove(flag);
+        Cleared.Add(flag);
+        return Task.CompletedTask;
+    }
 }
 
 public class GroundControlTests

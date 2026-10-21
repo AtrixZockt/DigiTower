@@ -88,11 +88,14 @@ function M.new(opts)
   -- DCS's Start command starts an uncontrolled group: engines about 2 s later, rolling a few seconds after that (W:step).
   function Group:getController()
     local g = self
-    return { setCommand = function(_, cmd)
-      g.commands = g.commands or {}
-      g.commands[#g.commands + 1] = cmd.id
-      if cmd.id == 'Start' and g.uncontrolled then g.startedAt = W.time end
-    end }
+    return {
+      setCommand = function(_, cmd)
+        g.commands = g.commands or {}
+        g.commands[#g.commands + 1] = cmd.id
+        if cmd.id == 'Start' and g.uncontrolled then g.startedAt = W.time end
+      end,
+      setTask = function(_, task) g.task = task end,
+    }
   end
 
   local nextId = 1
@@ -110,10 +113,39 @@ function M.new(opts)
     g.uncontrolled = def.uncontrolled
     if def.start then
       local kind = ({ cold = 'TakeOffParking', hot = 'TakeOffParkingHot', runway = 'TakeOff' })[def.start] or 'Turning Point'
-      self.templates[#self.templates + 1] = { name = def.group, uncontrolled = def.uncontrolled, route = { points = { { type = kind } } },
+      local points = { { type = kind } }
+      if def.landAt then points[2] = { type = 'Land', action = 'Landing', airdromeId = def.landAt.id, x = def.landAt.x, y = def.landAt.z } end
+      self.templates[#self.templates + 1] = { name = def.group, uncontrolled = def.uncontrolled, route = { points = points },
         units = { { name = def.name, type = def.typeName, x = def.x, y = def.z, heading = math.rad(def.hdg or 0), callsign = def.callsign } } }
     end
     return u
+  end
+
+  --- An arriving AI group, roughly: steer to the next point (its own route: the field), circle at a holding point until
+  -- the hold's flag is 1, land within 500 m of the field.
+  function W:flyArrival(g, dt)
+    local u = g.units[1]
+    local points = g.task and g.task.params.route.points
+    g.wp = g.wp or 1
+    local target = points and points[g.wp] or { x = AL_DHAFRA.x, y = AL_DHAFRA.z, alt = FIELD_ELEVATION }
+    local dx, dz = target.x - u.x, target.y - u.z
+    local dist = math.sqrt(dx * dx + dz * dz)
+    local orbit = points and points[g.wp].task and points[g.wp].task.params.tasks[1]
+    if orbit and dist < 2000 and self.flags[orbit.params.stopCondition.userFlag] ~= 1 then
+      u.hdg = u.hdg + math.rad(3) * dt   -- holding
+    elseif points and g.wp < #points and dist < 1000 then
+      g.wp = g.wp + 1
+    else
+      u.hdg = math.atan2(dz, dx)
+      u.y = u.y + math.max(-20, math.min(20, (target.alt or FIELD_ELEVATION) - u.y)) * dt
+    end
+    local fx, fz = AL_DHAFRA.x - u.x, AL_DHAFRA.z - u.z
+    if (not points or g.wp == #points) and math.sqrt(fx * fx + fz * fz) < 500 then
+      g.landed, u.speed, u.y, u.climb = true, 0, FIELD_ELEVATION, 0
+      self:fire('runway_touch', u, self.airbases['Al Dhafra AFB'])
+      self:fire('land', u, self.airbases['Al Dhafra AFB'])
+      self.print(string.format('[AI] %s landed', u.name))
+    end
   end
 
   --- A unit by name (after a respawn it is a new object).
@@ -265,6 +297,7 @@ function M.new(opts)
     W.print(string.format('[F10 text -> %s] %s', target, text))
   end
   W.marks = {}   -- [id] = { kind = 'line' | 'text', ... }
+  W.flags = {}   -- user flags (trigger.action.setUserFlag)
   env.trigger = {
     action = {
       outText = function(t, s) recordText('all', t, s) end,
@@ -283,6 +316,7 @@ function M.new(opts)
         W.print(string.format('[F10 map] pin for group %s: "%s"', tostring(groupId), text))
       end,
       removeMark = function(id) W.marks[id] = nil end,
+      setUserFlag = function(flag, value) W.flags[flag] = value end,
     },
   }
 
@@ -398,6 +432,19 @@ function M.new(opts)
         callsign = 'Enfield11', x = SPOT_60.x, y = FIELD_ELEVATION, z = SPOT_60.z, hdg = 220, start = 'cold', uncontrolled = true })
       table.insert(self.script, { t = 8, run = function() self.enfield.group.startedAt = self.time end })
     end
+    if opts.arrival then
+      -- Two AI F-16s coming back to Al Dhafra (their mission routes land there), 12 and 14 NM out.
+      local function arriving(name, group, bearing, miles, feet)
+        local b = math.rad(bearing)
+        local u = self:addUnit({ name = name, group = group, typeName = 'F-16C_50', cat = 0, coal = 2, callsign = name:gsub('[ -]', ''),
+          x = AL_DHAFRA.x + math.cos(b) * miles * 1852, y = feet * 0.3048, z = AL_DHAFRA.z + math.sin(b) * miles * 1852,
+          hdg = (bearing + 180) % 360, speed = 150, start = 'air', landAt = { id = 4, x = AL_DHAFRA.x, z = AL_DHAFRA.z } })
+        u.group.arriving = true
+        return u
+      end
+      self.colt1 = arriving('Colt 1-1', 'Colt 1', 128, 12, 6000)
+      self.colt2 = arriving('Colt 2-1', 'Colt 2', 20, 14, 9000)
+    end
     if not opts.static then
       table.insert(self.script, { t = 6, run = function() self.viper.speed = 7; self.viper.hdg = math.rad(130) end })
       table.insert(self.script, { t = 30, run = function() self.viper.speed = 80 end })
@@ -431,6 +478,9 @@ function M.new(opts)
         for _, u in ipairs(g.units) do u.speed = 6 end
         self.print(string.format('[AI] %s starts to taxi', g.name))
       end
+    end
+    for _, g in ipairs(self.groups) do
+      if g.arriving and not g.landed then self:flyArrival(g, dt) end
     end
     for _, s in ipairs(self.scheduled) do
       if s.t and self.time >= s.t then

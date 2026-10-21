@@ -103,6 +103,60 @@ public static class Audio
         return clip with { Samples = s.Select(x => (float)(x * gain)).ToArray() };
     }
 
+    /// <summary>
+    /// A pilot in a cockpit: the voice narrowed to a headset microphone's band (300–3400 Hz), lightly driven, over a
+    /// steady low hiss (mask and engine) from the moment the microphone is keyed. SRS's radio effect comes on top when it
+    /// is received, as for the controllers, whose voices stay clean: the difference tells pilots from controllers.
+    /// </summary>
+    public static AudioClip Cockpit(AudioClip clip, int seed = 1)
+    {
+        var s = (float[])clip.Samples.Clone();
+        int rate = clip.SampleRate;
+        Biquad.HighPass(rate, 300).Run(s);
+        Biquad.LowPass(rate, 3400).Run(s);
+        const double drive = 1.6;
+        double norm = Math.Tanh(drive);
+        for (int i = 0; i < s.Length; i++) s[i] = (float)(Math.Tanh(s[i] * drive) / norm * 0.9);
+
+        // The hiss: white noise, low-passed, about 24 dB under the speech (-18 dB RMS).
+        var random = new Random(seed);
+        var noise = new float[s.Length];
+        for (int i = 0; i < noise.Length; i++) noise[i] = (float)(random.NextDouble() * 2 - 1);
+        Biquad.LowPass(rate, 1200).Run(noise);
+        Biquad.HighPass(rate, 150).Run(noise);
+        double rms = Math.Sqrt(noise.Average(x => (double)x * x));
+        float gain = rms > 0 ? (float)(Math.Pow(10, -42 / 20.0) / rms) : 0;
+        for (int i = 0; i < s.Length; i++) s[i] = Math.Clamp(s[i] + noise[i] * gain, -1f, 1f);
+        return clip with { Samples = s };
+    }
+
+    /// <summary>A second-order filter (RBJ cookbook), run in place.</summary>
+    private sealed class Biquad(double b0, double b1, double b2, double a1, double a2)
+    {
+        public static Biquad LowPass(int rate, double hz) => Make(rate, hz, low: true);
+        public static Biquad HighPass(int rate, double hz) => Make(rate, hz, low: false);
+
+        private static Biquad Make(int rate, double hz, bool low)
+        {
+            double w = 2 * Math.PI * hz / rate, cos = Math.Cos(w), alpha = Math.Sin(w) / (2 * Math.Sqrt(0.5));
+            double a0 = 1 + alpha;
+            return low
+                ? new Biquad((1 - cos) / 2 / a0, (1 - cos) / a0, (1 - cos) / 2 / a0, -2 * cos / a0, (1 - alpha) / a0)
+                : new Biquad((1 + cos) / 2 / a0, -(1 + cos) / a0, (1 + cos) / 2 / a0, -2 * cos / a0, (1 - alpha) / a0);
+        }
+
+        public void Run(float[] s)
+        {
+            double x1 = 0, x2 = 0, y1 = 0, y2 = 0;
+            for (int i = 0; i < s.Length; i++)
+            {
+                double x = s[i], y = b0 * x + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
+                x2 = x1; x1 = x; y2 = y1; y1 = y;
+                s[i] = (float)y;
+            }
+        }
+    }
+
     /// <summary>Joins clips (same sample rate) with the given silence after each.</summary>
     public static AudioClip Concat(IEnumerable<(AudioClip Clip, TimeSpan GapAfter)> parts, int sampleRate)
     {

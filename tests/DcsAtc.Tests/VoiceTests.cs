@@ -140,6 +140,23 @@ public class VoiceTests
         }
     }
 
+    [Fact]
+    public void Cockpit_sound_narrows_the_voice_and_adds_a_hiss()
+    {
+        static AudioClip Tone(double hz) => new(Enumerable.Range(0, 16000).Select(i => (float)(0.25 * Math.Sin(2 * Math.PI * hz * i / 16000))).ToArray(), 16000);
+        static double Rms(float[] s) => Math.Sqrt(s.Skip(1600).Average(x => (double)x * x));
+
+        var low = Audio.Cockpit(Tone(100));
+        var mid = Audio.Cockpit(Tone(1000));
+        Assert.Equal(16000, low.Samples.Length);
+        Assert.True(Rms(low.Samples) < Rms(Tone(100).Samples) / 4, "below the headset band: much quieter");
+        Assert.InRange(Rms(mid.Samples) / Rms(Tone(1000).Samples), 0.8, 1.6);   // in the band: kept (lightly driven)
+
+        var silence = Audio.Cockpit(new AudioClip(new float[16000], 16000));
+        Assert.InRange(Rms(silence.Samples), 0.004, 0.02);   // the hiss, about -42 dB
+        Assert.Equal(silence.Samples, Audio.Cockpit(new AudioClip(new float[16000], 16000)).Samples);   // the same every time
+    }
+
     /// <summary>"Says" every text as a short tone, 22.05 kHz like Piper.</summary>
     private sealed class ToneEngine : ISpeechEngine
     {

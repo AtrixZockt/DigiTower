@@ -17,6 +17,10 @@ public sealed record SrsRadioOptions
     public TimeSpan GapBetweenCalls { get; init; } = TimeSpan.FromMilliseconds(700);
     /// <summary>Stations assemble what they hear on their frequency into transmissions (<see cref="SrsRadio.Heard"/>).</summary>
     public bool Listen { get; init; }
+    /// <summary>Between an AI pilot's call and the controller's answer.</summary>
+    public TimeSpan AnswerPause { get; init; } = TimeSpan.FromMilliseconds(1000);
+    /// <summary>Between the controller's call and the AI pilot's readback.</summary>
+    public TimeSpan ReadbackPause { get; init; } = TimeSpan.FromMilliseconds(800);
 }
 
 /// <summary>
@@ -26,24 +30,32 @@ public sealed record SrsRadioOptions
 /// (<see cref="Prepare"/>), so a call normally only stitches cached clips. Broadcasts (ATIS) are clients of their own
 /// that repeat their text while any SRS client has a radio on one of their frequencies. With
 /// <see cref="SrsRadioOptions.Listen"/>, every airfield's client reports what pilots say on its frequencies (<see cref="Heard"/>).
+///
+/// Nobody is stepped on (<see cref="FrequencyFloor"/>): a station waits until its frequencies are quiet (nobody, players
+/// included, talking for half a second) and no other station is on them; after a call to a player it leaves room for
+/// the readback. A call to an AI pilot is one exchange on the frequency: the pilot's call, the controller's answer, the
+/// pilot's readback, in the AI pilots' voice with a cockpit sound (none without a pilot voice).
 /// </summary>
 public sealed class SrsRadio : IAtcRadio, IAsyncDisposable
 {
     private readonly SrsRadioOptions _options;
     private readonly AtcVoice _voice;
+    private readonly AtcVoice? _pilotVoice;
     private readonly Action<string> _log;
+    private readonly FrequencyFloor _floor = new();
     private readonly ConcurrentDictionary<(string Facility, int Coalition), Station> _stations = new();
     private readonly ConcurrentDictionary<string, Broadcaster> _broadcasts = new();
     // Clips to make: callsigns of pilots who just spawned first, then the airfields' phrases.
-    private readonly BlockingCollection<string> _prepareSoon = [];
-    private readonly BlockingCollection<string> _prepare = [];
+    private readonly BlockingCollection<(AtcVoice Voice, string Unit)> _prepareSoon = [];
+    private readonly BlockingCollection<(AtcVoice Voice, string Unit)> _prepare = [];
     private readonly CancellationTokenSource _stop = new();
     private readonly Thread _prepareThread;
 
-    public SrsRadio(SrsRadioOptions options, AtcVoice voice, Action<string> log)
+    public SrsRadio(SrsRadioOptions options, AtcVoice voice, Action<string> log, AtcVoice? pilotVoice = null)
     {
         _options = options;
         _voice = voice;
+        _pilotVoice = pilotVoice;
         _log = log;
         _prepareThread = new Thread(PrepareLoop) { IsBackground = true, Priority = ThreadPriority.BelowNormal, Name = "ATC voice prepare" };
         _prepareThread.Start();
@@ -61,10 +73,8 @@ public sealed class SrsRadio : IAtcRadio, IAsyncDisposable
 
     public void Transmit(RadioCall call) => StationFor(call.Facility, call.Stations, call.Coalition).Enqueue(call);
 
-    public void Listen(string facility, AirfieldStations stations, int coalition)
-    {
-        if (_options.Listen) StationFor(facility, stations, coalition);
-    }
+    /// <summary>On the air: the airfield's client connects now, to hear who talks on its frequencies (and, with listening, what).</summary>
+    public void Listen(string facility, AirfieldStations stations, int coalition) => StationFor(facility, stations, coalition);
 
     /// <summary>The SRS name of an airfield's controllers.</summary>
     public static string ClientName(string facility) => $"{facility} ATC";
@@ -74,12 +84,19 @@ public sealed class SrsRadio : IAtcRadio, IAsyncDisposable
     private Station StationFor(string facility, AirfieldStations stations, int coalition) =>
         _stations.GetOrAdd((facility, coalition), key => new Station(this, key.Facility, key.Coalition, [.. stations.All.Select(f => SrsFrequency.Mhz(f))]));
 
-    public void Prepare(IEnumerable<string> texts, bool soon = false)
+    public void Prepare(IEnumerable<string> texts, bool soon = false) => Prepare(_voice, texts, soon);
+
+    public void PreparePilot(IEnumerable<string> texts, bool soon = false)
+    {
+        if (_pilotVoice is { } pilot) Prepare(pilot, texts, soon);
+    }
+
+    private void Prepare(AtcVoice voice, IEnumerable<string> texts, bool soon)
     {
         var queue = soon ? _prepareSoon : _prepare;
         foreach (var unit in texts.SelectMany(SpokenText.Units).Select(u => u.Text).Distinct())
         {
-            if (!queue.IsAddingCompleted && !_voice.IsCached(unit)) queue.Add(unit);
+            if (!queue.IsAddingCompleted && !voice.IsCached(unit)) queue.Add((voice, unit));
         }
     }
 
@@ -97,11 +114,12 @@ public sealed class SrsRadio : IAtcRadio, IAsyncDisposable
         await Task.WhenAll(_stations.Values.Select(s => s.StopAsync()).Concat(_broadcasts.Values.Select(b => b.StopAsync())));
         _prepareThread.Join(TimeSpan.FromSeconds(5));
         _voice.Dispose();
+        _pilotVoice?.Dispose();
     }
 
     private void PrepareLoop()
     {
-        BlockingCollection<string>[] queues = [_prepareSoon, _prepare];
+        BlockingCollection<(AtcVoice Voice, string Unit)>[] queues = [_prepareSoon, _prepare];
         int made = 0;
         var clock = new Stopwatch();
         try
@@ -109,9 +127,9 @@ public sealed class SrsRadio : IAtcRadio, IAsyncDisposable
             while (true)
             {
                 // One clip at a time, so a callsign never waits behind a whole airfield.
-                BlockingCollection<string>.TakeFromAny(queues, out string? unit, _stop.Token);
+                BlockingCollection<(AtcVoice, string)>.TakeFromAny(queues, out var item, _stop.Token);
                 if (!clock.IsRunning) clock.Restart();
-                if (unit is not null && _voice.Prepare(unit)) made++;
+                if (item.Item2 is { } unit && item.Item1.Prepare(unit)) made++;
                 if (queues.All(q => q.Count == 0))
                 {
                     if (made > 0) _log($"voice: {made} new clips prepared in {clock.Elapsed.TotalSeconds:F1} s");
@@ -161,6 +179,8 @@ public sealed class SrsRadio : IAtcRadio, IAsyncDisposable
                     if (t.Sender?.Name is not { } sender || !radio.IsStation(sender)) radio.Heard?.Invoke(facility, t);
                 };
             }
+            // Whoever talks on these frequencies (a player, another program) keeps every station of ours off them.
+            _client.VoiceReceived += packet => radio._floor.Heard(packet.Frequencies);
             _run = _client.RunAsync(radio._stop.Token);
             _work = Task.Run(WorkAsync);
         }
@@ -186,20 +206,50 @@ public sealed class SrsRadio : IAtcRadio, IAsyncDisposable
                         _radio._log($"radio {_name}: dropped a stale call: {call.Text}");
                         continue;
                     }
+                    // Made before the frequency is taken: it is held only while talking.
                     var audio = await Task.Run(() => _radio._voice.Render(call.Text), ct);
-                    try
+                    AudioClip? pilotCall = null, readback = null;
+                    if (_radio._pilotVoice is { } pilot)
                     {
-                        var frequencies = call.Frequencies.Select(f => SrsFrequency.Mhz(f)).ToList();
-                        _radio._log($"radio {call.Station} {string.Join(", ", frequencies)}: {call.Text}");
-                        await _client.TransmitAsync(Audio.ToPcm16(audio.Samples), frequencies, ct);
+                        if (call.PilotCall is { } text) pilotCall = await Task.Run(() => Audio.Cockpit(pilot.Render(text)), ct);
+                        if (call.PilotReadback is { } text2) readback = await Task.Run(() => Audio.Cockpit(pilot.Render(text2), seed: 2), ct);
                     }
-                    catch (SrsException ex)
+                    var frequencies = call.Frequencies.Select(f => SrsFrequency.Mhz(f)).ToList();
+                    using (var lease = await _radio._floor.TakeAsync(frequencies, this, ct))
                     {
-                        // Once a minute is enough to say SRS is not there.
-                        if (_lastError < 0 || Stopwatch.GetElapsedTime(_lastError) > TimeSpan.FromMinutes(1))
+                        if (Stopwatch.GetElapsedTime(queued) > _radio._options.MaxDelay)
                         {
-                            _lastError = Stopwatch.GetTimestamp();
-                            _radio._log($"radio {_name}: not transmitted ({ex.Message})");
+                            _radio._log($"radio {_name}: dropped a call that waited too long for the frequency: {call.Text}");
+                            continue;
+                        }
+                        string on = string.Join(", ", frequencies);
+                        try
+                        {
+                            if (pilotCall is not null)
+                            {
+                                _radio._log($"radio {call.Station} {on}: (AI pilot) {call.PilotCall}");
+                                await _client.TransmitAsync(Audio.ToPcm16(pilotCall.Samples), frequencies, ct);
+                                await Task.Delay(_radio._options.AnswerPause, ct);
+                            }
+                            _radio._log($"radio {call.Station} {on}: {call.Text}");
+                            await _client.TransmitAsync(Audio.ToPcm16(audio.Samples), frequencies, ct);
+                            if (readback is not null)
+                            {
+                                await Task.Delay(_radio._options.ReadbackPause, ct);
+                                _radio._log($"radio {call.Station} {on}: (AI pilot) {call.PilotReadback}");
+                                await _client.TransmitAsync(Audio.ToPcm16(readback.Samples), frequencies, ct);
+                            }
+                            // A player gets the chance to read back before anyone else talks.
+                            lease.LeaveReadbackRoom = !call.ToAi;
+                        }
+                        catch (SrsException ex)
+                        {
+                            // Once a minute is enough to say SRS is not there.
+                            if (_lastError < 0 || Stopwatch.GetElapsedTime(_lastError) > TimeSpan.FromMinutes(1))
+                            {
+                                _lastError = Stopwatch.GetTimestamp();
+                                _radio._log($"radio {_name}: not transmitted ({ex.Message})");
+                            }
                         }
                     }
                     await Task.Delay(_radio._options.GapBetweenCalls, ct);

@@ -45,6 +45,7 @@ public sealed partial class AtcApp
     private readonly ApproachControl _approach;
     private readonly AtisService _atis;
     private readonly AiTraffic _ai;
+    private readonly AiArrivals _arrivals;
     private readonly FarpControl _farps;
     private readonly CallLog? _calls;
     private readonly IAtcRadio? _radio;
@@ -97,9 +98,14 @@ public sealed partial class AtcApp
         _flights = new FlightRegistry(client, _log.For(LogCategory.App));
         _ground = new GroundControl(client, _airfields, _flights, _log.For(LogCategory.Ground), radio: _radio);
         _tower = new TowerControl(client, _airfields, _ground, _flights, _log.For(LogCategory.Tower), radio: _radio);
-        _approach = new ApproachControl(client, _airfields, _tower, _flights, _log.For(LogCategory.Approach), radio: _radio, defaults: options.ApproachDefaults);
+        var stacks = new HoldingStacks();
+        _approach = new ApproachControl(client, _airfields, _tower, _flights, _log.For(LogCategory.Approach), radio: _radio, defaults: options.ApproachDefaults, stacks: stacks);
         _atis = new AtisService(client, _airfields, _radio, _log.For(LogCategory.Atis), onAir: a => _onAir.Any(k => k.Id == a.Id));
         _ai = new AiTraffic(client, _airfields, _ground, _tower, _approach, _log.For(LogCategory.Ai), radio: _radio);
+        _arrivals = new AiArrivals(client, _airfields, _tower, _approach, stacks, _log.For(LogCategory.Ai), radio: _radio)
+        {
+            OnAir = PlayerNear,
+        };
         _farps = new FarpControl(client, _flights, _log.For(LogCategory.Farp), _radio);
         _menu = new AtcMenu(_airfields, _ground, _tower, _approach, _flights, _farps);
         _reader = new PilotCallReader(options.VoiceAliases);
@@ -433,7 +439,11 @@ public sealed partial class AtcApp
                 await _tower.OnEventAsync(e, ct);
                 await _approach.OnEventAsync(e, ct);
                 await _farps.OnEventAsync(e, ct);
-                if (ManagingAi) _ai.OnEvent(e);
+                if (ManagingAi)
+                {
+                    _ai.OnEvent(e);
+                    _arrivals.OnEvent(e);
+                }
                 break;
             case MenuSelectedMessage m:
                 await OnMenuAsync(m, ct);
@@ -517,7 +527,11 @@ public sealed partial class AtcApp
         await _tower.OnUnitsAsync(_units, ct);
         await _approach.OnUnitsAsync(_units, ct);
         await _farps.OnUnitsAsync(_units, ct);
-        if (ManagingAi) await _ai.OnUnitsAsync(_units, ct);
+        if (ManagingAi)
+        {
+            await _ai.OnUnitsAsync(_units, ct);
+            await _arrivals.OnUnitsAsync(_units, ct);
+        }
         await _atis.OnUnitsAsync(ct);
         foreach (var u in PlayerGroups()) await UpdateMenuAsync(u, ct);
 
@@ -656,6 +670,14 @@ public sealed partial class AtcApp
     }
 
     /// <summary>
+    /// Whether a player of <paramref name="coalition"/> is within <see cref="OnAirRange"/> of an airbase: where AI arrivals
+    /// are worth handling (with or without voice; the controllers talk by text too).
+    /// </summary>
+    private bool PlayerNear(int airbaseId, int coalition) =>
+        _airfields.Airbases.FirstOrDefault(a => a.Id == airbaseId) is { } airbase
+        && _units.Values.Any(u => u.IsPlayer && u.Coal == coalition && Math.Sqrt(Math.Pow(airbase.X - u.X, 2) + Math.Pow(airbase.Z - u.Z, 2)) <= OnAirRange * Nm);
+
+    /// <summary>
     /// Puts airfields with frequencies on the air as players come within <see cref="OnAirRange"/>: their controllers
     /// listen for that coalition (voice requests), their ATIS broadcasts, and everything they say is prepared with
     /// today's weather, so calls only stitch cached clips. Airfields stay on the air until the mission ends.
@@ -701,6 +723,12 @@ public sealed partial class AtcApp
             radio.Prepare(Phraseology.ApproachSamples(airfield.Facility, layout.Runways, airfield.Radio, airfield.Frequencies, weather, _approach.ProceduresFor(airfield)));
         if (airfield.Frequencies.Atis.Count > 0)
             radio.Prepare(Phraseology.AtisSamples(airfield.Facility, layout.Runways, weather));
+        if (ManagingAi)
+        {
+            var p = _approach.ProceduresFor(airfield);
+            radio.PreparePilot(Phraseology.AiPilotSamples(airfield.Facility, layout.Runways.SelectMany(r => new[] { r.EndA, r.EndB }),
+                Enumerable.Range(0, 6).Select(i => p.HoldingAltitude + i * p.HoldingStep), p.InterceptAltitude));
+        }
     }
 
     /// <summary>One player unit per group with players (the menu is per group).</summary>
@@ -743,6 +771,7 @@ public sealed partial class AtcApp
         _approach.Reset();
         _atis.Reset();
         _ai.Reset();
+        _arrivals.Reset();
         _farps.Reset();
         _onAir.Clear();
         _prepared.Clear();

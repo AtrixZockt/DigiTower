@@ -17,7 +17,7 @@
 .EXAMPLE
     .\bridge\install.ps1                                  # the dedicated server (DCS.dcs_serverrelease)
     .\bridge\install.ps1 -Instance DCS                    # the normal game, for single-player tests
-    .\bridge\install.ps1 -Instance DCS.dcs_serverrelease -NoAi   # AI departures are left to DCS on this server
+    .\bridge\install.ps1 -Instance DCS.dcs_serverrelease -NoAi   # AI traffic is left to DCS on this server
     .\bridge\install.ps1 -Instance DCS.dcs_serverrelease -NoMapDrawings   # nothing drawn on the F10 map
     .\bridge\install.ps1 -Instance DCS.dcs_serverrelease -Uninstall
 #>
@@ -26,7 +26,7 @@ param(
     [string]$SavedGames = (Join-Path $env:USERPROFILE "Saved Games"),
     # Do not let DigiTower hold or release AI on this DCS (manageAi = false in DigiTowerConfig.lua).
     [switch]$NoAi,
-    # Let DigiTower hold AI departures and release them in turn again (manageAi = true).
+    # Let DigiTower handle AI traffic again: departures and arrivals in turn, players first (manageAi = true).
     [switch]$Ai,
     # Draw nothing on the F10 map (mapDrawings = false): DCS shows drawings to the whole side, not one player.
     [switch]$NoMapDrawings,
@@ -111,7 +111,8 @@ $configTemplate = @'
 -- DigiTower bridge settings for this DCS. DCS reads them when it starts: restart DCS (or the server) after a change.
 -- Installing the bridge again keeps this file.
 return {
-  -- true:  DigiTower holds AI departures at their parking spots and releases them in turn, players first.
+  -- true:  DigiTower handles AI traffic, players first: AI departures wait at their parking spots and AI arrivals hold
+  --        in the air until it is their turn, and AI pilots talk to the controllers.
   -- false: AI is left to DCS. The ATC still talks to players and counts AI as traffic.
   -- (bridge\install.ps1 -NoAi / -Ai switches this.)
   manageAi = true,

@@ -1,8 +1,23 @@
 # DigiTower
 
-*ATC for DCS World* (formerly DCS-ATC). A realistic air traffic control for DCS World: clearance, ground (with real taxi routes), tower,
-departure and approach, for jets and helicopters, on your own server. The plan and the research
-behind it are in [RESEARCH.md](RESEARCH.md).
+*ATC for DCS World* (formerly DCS-ATC). A realistic air traffic control for DCS World: ground (with real taxi
+routes), tower, departure and approach, ATIS and FARPs, for jets and helicopters, on your own server. The
+controllers talk on SRS, understand what pilots say on the frequency, and handle AI traffic, players first.
+
+## Install
+
+Download **DigiTower-win-Setup.exe** from the [latest release](https://github.com/AtrixZockt/DigiTower/releases/latest)
+and run it: it installs for your Windows user (no admin rights) and offers new versions itself. The portable zip on
+the same page works without installing. Then, in DigiTower:
+
+1. **Install** page: install the bridge into your DCS server's Saved Games folder (and into the game's, for single
+   player), and download a controller voice (and a speech recognizer, for voice requests).
+2. Restart DCS and start your SRS server.
+3. **Operations** page: **Start ATC**.
+
+Needs 64-bit Windows 10 or 11, DCS World and an SRS server; nothing else (.NET is included). The builds are not
+code-signed, so Windows SmartScreen may ask once (*More info → Run anyway*). The rest of this page is for using it in
+DCS and for building it from source.
 
 ## Layout
 
@@ -19,7 +34,7 @@ behind it are in [RESEARCH.md](RESEARCH.md).
 | `src/DcsAtc.Atc` | The ATC logic: ground control, tower, flights, phraseology, airfield catalog. |
 | `src/DcsAtc.Srs` | Headless SRS client: the controllers' radio stations (TCP sync, UDP Opus voice). |
 | `src/DcsAtc.Voice` | The ATC voice: how text is said, TTS engines (Kokoro/Piper via sherpa-onnx, Windows), clip cache, stitching. |
-| `src/DcsAtc.Recognition` | Speech recognition for voice requests: Whisper (whisper.cpp) and Parakeet (sherpa-onnx), transcript normalising, test calls ([docs/voice.md](docs/voice.md#speech-recognition-spike-s5)). |
+| `src/DcsAtc.Recognition` | Speech recognition for voice requests: Whisper (whisper.cpp) and Parakeet (sherpa-onnx), transcript normalising, test calls ([docs/voice.md](docs/voice.md#speech-recognition)). |
 | `data/voice/` | `voices.json` (the voices), `recognition.json` (the recognizers), `test-calls.txt` (the recognition test); `models/` and `cache/` are downloaded / generated, not in git ([docs/voice.md](docs/voice.md)). |
 | `src/DcsAtc.Host` | Runs DigiTower for both programs: connects to DCS, F10 menus, runs the controllers, speaks on SRS; the settings file, the log, the bridge installer, model downloads. |
 | `src/DcsAtc.Gui` | The control panel, `DigiTower.exe` (WPF): status, flight strips, log, settings, install. |
@@ -69,17 +84,17 @@ DigiTower comes as two programs that share one settings file, `%APPDATA%\DigiTow
 - **`DigiTowerConsole.exe`**, the console: the same ATC without a window, for a server box, a scheduled task or a
   service. Its options override the settings file for that run:
   `--settings <file>`, `--host`/`--port` (the bridge), `--dcs <folder>`, `--data <folder>`, `--srs host:port`,
-  `--voice <id>`, `--no-voice`, `--transcribe [<id>]`, `--recordings <folder>`, `--no-ai`, `--no-drawings`,
-  `--silence <airbase>`, `--keep-stock-atc`, `--dump <airbase>`, `--debug`.
+  `--voice <id>`, `--no-voice`, `--ai-voice <id>`, `--no-ai-voice`, `--transcribe [<id>]`, `--recordings <folder>`,
+  `--no-ai`, `--no-drawings`, `--silence <airbase>`, `--keep-stock-atc`, `--dump <airbase>`, `--debug`.
 
 Run from the repository (`dotnet run`), both find `D:\DCS\DCS World` (or `DIGITOWER_DCS_DIR`) and the repository's
 `data\` and keep what they make where they did before: `data\voice\models`, `out\heard`, `out\logs`. Installed, the
 models, recordings and logs go to `%LOCALAPPDATA%\DigiTower`.
 
-## ATC in DCS (Ground and Tower)
+## Using DigiTower in DCS
 
 1. Install (or update) the bridge in the server and **restart the server** (hooks load at start-up): on the
-   control panel's *Install* page, or
+   control panel's *Install* page (it also shows when an update of DigiTower brings a new bridge), or
    ```powershell
    .\bridge\install.ps1 -Instance DCS.dcs_serverrelease
    ```
@@ -88,7 +103,7 @@ models, recordings and logs go to `%LOCALAPPDATA%\DigiTower`.
    server that does not want DigiTower to handle its AI adds `-NoAi` (`-Ai` turns it back on); one that does not want
    taxi routes and landing spots on the F10 map adds `-NoMapDrawings` (`-MapDrawings`; the app's `--no-drawings` does
    the same for one app).
-2. Start the SRS server and the mission, then DigiTower from the repository folder (it finds
+2. Start the SRS server and the mission, then DigiTower and *Start ATC*. From the repository folder (it finds
    `D:\DCS\DCS World` and `data\`):
    ```powershell
    dotnet run --project tools/DcsAtc.VoiceTool -- fetch   # once: the voice model (or the control panel's Install page; else a Windows voice speaks)
@@ -104,8 +119,8 @@ models, recordings and logs go to `%LOCALAPPDATA%\DigiTower`.
    letter, Zulu time, runway in use, expected approach, wind, visibility and weather, clouds (from the DCS weather
    preset), temperature, QNH and altimeter; a new letter with every significant change and every hour. Every
    airfield's ATIS can also be read in the menu, and *Frequencies* lists them all.
-   The default voice is Kokoro "Michael"; the other voices and how to pick one (`data/voice/voices.local.json`):
-   [docs/voice.md](docs/voice.md#voices).
+   The controllers' default voice is Kokoro "Michael"; another is chosen in Settings (the voices:
+   [docs/voice.md](docs/voice.md#voices)).
 3. In the aircraft, F10 → Other → **ATC** → *airfield* → the call. On the ground the airfield is the one you are
    at; in the air the five nearest within 100 NM (nearest first; the order only changes when the list does), plus
    any airfield working you. Under each, the menu only shows the calls you can make right now and changes as you go
@@ -144,12 +159,35 @@ models, recordings and logs go to `%LOCALAPPDATA%\DigiTower`.
    again on the same spots with its engines off (you see them shut down), and starts it when its turn comes (about
    two minutes from start to rolling). Ground calls it as it starts to roll (*"Enfield 2-1, Al Dhafra Ground, taxi
    to holding point runway 31R"*) and Tower clears it for takeoff as it reaches the runway; DCS picks its taxi route
-   and runway (from the wind, as we do). AI arriving lands as DCS wants (it counts as traffic). AI spawned by scripts
-   (not in the mission file) cannot be held and goes when DCS wants; AI whose engines already ran when the app
-   connected is left alone; if the app stops, every held AI is started. `--no-ai` turns it off in the app; a
-   server that does not want it turns it off for every app: `.\bridge\install.ps1 -Instance <instance> -NoAi`
-   (or `manageAi = false` in the settings file the installer wrote), then restart DCS. This needs the updated
-   bridge: run `bridge\install.ps1` again and restart the DCS server.
+   and runway (from the wind, as we do). AI spawned by scripts (not in the mission file) cannot be held and goes
+   when DCS wants; AI whose engines already ran when DigiTower connected is left alone; if DigiTower stops, every
+   held AI is started. *Handle AI traffic* in Settings (the console's `--no-ai`) turns AI handling off in
+   DigiTower; a server that does not want it turns it off for everyone: *DigiTower handles AI traffic* on the
+   Install page, `.\bridge\install.ps1 -Instance <instance> -NoAi`, or `manageAi = false` in the bridge settings
+   file, then restart DCS.
+
+   **AI arrivals**: an AI flight whose mission route ends with a landing at an airfield near a player is taken over as
+   it comes back within 30 NM (Liberation and Retribution routes end that way; AI spawned by scripts stays plain
+   traffic). Players first: while a player is landing, on approach, inbound close in, on the runway or about to take
+   off, the AI **holds** in the same stack as players, over the TACAN (or the field) from 7000 ft up (*"Colt 2-1, Al
+   Dhafra Approach, radar contact, 14 miles north of Al Dhafra. Hold over the Al Dhafra TACAN, right turns, maintain
+   7000 feet."*), and AI comes in one at a time. When its turn comes it leaves the hold for a point 10 NM out on final
+   (*"leave the hold, proceed to final runway 31R, descend and maintain 3000 feet"*) and Tower clears it once it is on
+   final. An AI never holds longer than 10 minutes (fuel). With nobody in the way it comes straight in. DCS flies the
+   approach and the landing itself, so there are no vectors and no go-arounds for AI. The same switches as for AI
+   departures turn it off, and AI still holding is let go when DigiTower stops.
+
+   **AI pilots on the radio**: with voice on and AI traffic handled (in DigiTower and on the server), AI pilots
+   talk too, in their own voice (Settings, *AI pilot voice*; by default one that is not the controllers'), with a
+   cockpit sound so you can tell them from the controllers. They call first and read back: *"Al Dhafra Approach, Colt
+   2-1, 14 miles north of Al Dhafra, inbound for landing."* … *"Hold over the TACAN, 7000 feet, Colt 2-1."*; *"Al
+   Dhafra Ground, Enfield 1-1, request taxi."*; *"Al Dhafra Tower, Colt 2-1, final runway 31R."* … *"Cleared to land
+   runway 31R, Colt 2-1."*
+
+   **Nobody is stepped on**: nothing DigiTower says starts while anyone (players included) is talking on that
+   frequency, or until it has been quiet for half a second; airfields sharing a frequency take turns; an AI exchange
+   (call, answer, readback) is one turn; and after a call to a player the frequency stays quiet for the readback
+   (until you have read back, at most 4 seconds).
 
    **Traffic on the ground**: while you taxi, Ground watches everything else on the airfield's taxiways (players
    and AI) about 40 seconds ahead. If your paths would meet, the one giving way is told so, with the other aircraft
@@ -167,22 +205,20 @@ models, recordings and logs go to `%LOCALAPPDATA%\DigiTower`.
    ("Hangman 1-1 | DiGii" → "Hangman 1-1"), otherwise the whole name; flights need the
    "Name 1-1" form.
 
-## First bridge test (spike S1)
+## Troubleshooting
 
-1. Install the bridge into the dedicated server (or `-Instance DCS` for single-player):
-   ```powershell
-   .\bridge\install.ps1 -Instance DCS.dcs_serverrelease
-   ```
-   This copies two Lua files, writes the settings file `Scripts\DigiTower\DigiTowerConfig.lua` if there is none (an install from before the rename, as DCS-ATC, is moved over: old files removed, settings kept), and
-   adds a marked block to that instance's `Config\autoexec.cfg` (`-Uninstall` removes the files and the block and
-   keeps the settings).
-2. Start the server with a mission that has a client slot at Al Dhafra, then start the app:
-   ```powershell
-   dotnet run --project src/DcsAtc.App -- --dump "Al Dhafra AFB" --silence "Al Dhafra AFB"
-   ```
-3. Join and spawn. F10 → Other → **ATC (test)** → *Ping* / *Where am I?* answer with a text message.
-   The console shows traffic and events; `data/dcs/Al Dhafra AFB.json` gets the real runway and parking data.
-4. If nothing happens, look for `DigiTower` lines in `Saved Games\DCS.dcs_serverrelease\Logs\dcs.log`.
+- **Nothing happens in DCS.** The bridge loads when DCS starts: restart DCS (or the server) after installing or
+  updating it. *DCS BRIDGE* on the Operations page shows whether DigiTower is connected. Look for `DigiTower` lines
+  in `Saved Games\<instance>\Logs\dcs.log`; `mission injection failed` means the `autoexec.cfg` block is missing
+  (install the bridge again). Installing the bridge copies two Lua files, writes the settings file
+  `Scripts\DigiTower\DigiTowerConfig.lua` if there is none, and adds a marked block to the instance's
+  `Config\autoexec.cfg`; uninstalling removes the files and the block and keeps the settings. An install from before
+  the rename (DCS-ATC) is moved over.
+- **No voice.** Start the SRS server first; *SRS* and *VOICE* on the Operations page show the connection and the
+  voice in use. Without a downloaded voice a Windows voice speaks.
+- **What does DigiTower see?** F10 → Other → ATC → *Debug* → *Where am I?*; the Log page shows every call and event.
+- **Airbase data for labelling** (`data/dcs/<airbase>.json`, runways and parking spots):
+  `DigiTowerConsole --dump "Al Dhafra AFB"`.
 
 ## Taxi networks
 
@@ -214,12 +250,20 @@ Third-party parts keep their own licenses:
 | [Concentus](https://github.com/lostromb/concentus) (Opus codec) | BSD-style (Opus license) |
 | System.Speech (Windows voices) | MIT |
 | [Whisper.net](https://github.com/sandrohanea/whisper.net) and [whisper.cpp](https://github.com/ggml-org/whisper.cpp) (speech recognition) | MIT |
-| Speech-recognition models (downloaded by `VoiceTool fetch --recognition`, not part of this repository): OpenAI Whisper; NVIDIA [Parakeet TDT 0.6B v2](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v2) | MIT; CC-BY-4.0 |
-| Voice models (downloaded by `VoiceTool fetch`, not part of this repository) | per voice: [docs/voice.md](docs/voice.md#voices) |
+| Speech-recognition models (downloaded on the Install page or by `VoiceTool fetch --recognition`, not part of this repository): OpenAI Whisper; NVIDIA [Parakeet TDT 0.6B v2](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v2) | MIT; CC-BY-4.0 |
+| Voice models (downloaded on the Install page or by `VoiceTool fetch`, not part of this repository) | per voice: [docs/voice.md](docs/voice.md#voices) |
+| [DejaVu fonts](https://dejavu-fonts.github.io/) (the control panel's font, as in DCS) | Bitstream Vera license, changes public domain (`src/DcsAtc.Gui/Fonts/LICENSE-DejaVu.txt`) |
+| [Velopack](https://github.com/velopack/velopack) (installer and updates) | MIT |
+| [CommunityToolkit.Mvvm](https://github.com/CommunityToolkit/dotnet) (control panel) | MIT |
 | DCS World and its files (taxi networks, beacons, cloud presets: read from your installation, not included) | Eagle Dynamics |
 
 Credits: the SRS client follows the protocol of [DCS-SimpleRadioStandalone](https://github.com/ciribob/DCS-SimpleRadioStandalone)
 (GPL-3.0; implemented from its documentation and source, no SRS code is included). The Persian Gulf taxiway names come
 from the Master Arms charts ([wiki.masterarms.se](https://wiki.masterarms.se/index.php/Persian_Gulf_Charts)) and
 CombatWombat's airfield diagrams for the Persian Gulf (each labels file names its chart).
-The maps' time zones follow [MOOSE](https://github.com/FlightControl-Master/MOOSE).
+The maps' time zones, and the way AI arrivals are held (a new route with an orbit that ends on a flag), follow
+[MOOSE](https://github.com/FlightControl-Master/MOOSE).
+
+---
+
+I used AI to help design DigiTower and to help with the programming.

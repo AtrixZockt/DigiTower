@@ -117,6 +117,14 @@ public static partial class Phraseology
         $"maintain {altitude:0} feet{(weather is null ? "" : $", {Altimeter(weather, unitType)}")}. " +
         $"Expect further clearance in {minutes} minutes.";
 
+    /// <summary>An AI arrival let in without holding: "Enfield 2-1, Al Dhafra Approach, radar contact, 30 miles north of Al Dhafra. Proceed straight in runway 13L."</summary>
+    public static string AiStraightIn(string callsign, string facility, string position, RunwayEnd end) =>
+        $"{Identified(callsign, facility, position)} Proceed straight in runway {end.Name}.";
+
+    /// <summary>An AI arrival leaving the stack: "Enfield 2 flight, leave the hold, proceed to final runway 13L, descend and maintain 3000 feet."</summary>
+    public static string AiLeaveHold(string callsign, RunwayEnd end, double altitude) =>
+        $"{callsign}, leave the hold, proceed to final runway {end.Name}, descend and maintain {altitude:0} feet.";
+
     /// <summary>"Viper 1-3, leave the hold, turn left heading 220, descend and maintain 6000 feet. Expect ILS approach runway 31R, localizer 108.7."</summary>
     public static string LeaveHold(string callsign, string vector, string altitude, string expect) => $"{callsign}, leave the hold, {vector}, {altitude}. {expect}";
 
@@ -202,6 +210,7 @@ public static partial class Phraseology
             yield return DepartureContact(cs, facility, Position(10, 0, facility), altitude);
             yield return Hold(cs, facility, Position(30, 0, facility), navaids.Tacan is not null, altitude, weather, "", 5);
             yield return Hold(cs, facility, Position(30, 0, facility), navaids.Tacan is not null, altitude, weather, UsTypes.First(), 5);
+            yield return Hold(cs, facility, Position(30, 0, facility), navaids.Tacan is not null, altitude, null, "", 5);
         }
         for (int minutes = 5; minutes <= 30; minutes += 5) yield return $"Expect further clearance in {minutes} minutes.";
         for (int miles = 1; miles <= 30; miles++) yield return $"{cs}, {miles} miles from touchdown.";
@@ -220,6 +229,9 @@ public static partial class Phraseology
             yield return BreakApproved(cs, facility, end, weather);
             yield return ContinueOnFinal(cs, facility, end, weather);
             yield return ClearedToLandFirstCall(cs, facility, end, weather);
+            // AI arrivals.
+            yield return AiStraightIn(cs, facility, Position(30, 0, facility), end);
+            yield return AiLeaveHold(cs, end, p.InterceptAltitude);
         }
         yield return $"{cs}, {AltitudeChange(10000, p.ArrivalAltitude)}, {Altimeter(weather ?? new AirbaseWeather(), "")}. {AltitudeChange(10000, p.ArrivalAltitude)}, {Altimeter(weather ?? new AirbaseWeather(), UsTypes.First())}.";
         yield return ApproachToTower(cs, frequencies.Own("Tower"), overhead: false);
