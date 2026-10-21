@@ -1,0 +1,40 @@
+name: Wrong airfield data
+description: A wrong or missing taxiway name, frequency, runway or holding point at an airfield.
+title: "[Airfield] "
+labels: ["airfield data"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Taxiway names come from charts made for the DCS maps (see the README's credits); DCS's own taxi network can differ from them.
+        A screenshot of the F10 map with the drawn route makes it quick to find.
+
+  - type: input
+    id: airfield
+    attributes:
+      label: Map and airfield
+      placeholder: "Persian Gulf, Al Minhad AFB"
+    validations:
+      required: true
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What is wrong
+      description: What DigiTower said (the taxi clearance, for example) and what the chart or the airfield shows.
+      placeholder: |
+        From parking 12 to runway 27 Ground said "via H, G", but on the chart the link at the 27 end is F.
+    validations:
+      required: true
+
+  - type: textarea
+    id: source
+    attributes:
+      label: Chart or source
+      description: Which chart you compared with (a link or the kneeboard page), if any.
+
+  - type: textarea
+    id: media
+    attributes:
+      label: Screenshot (F10 map) and log file
+      description: Drag them here. The log is `%LOCALAPPDATA%\DigiTower\logs\digitower-<date>.log`.

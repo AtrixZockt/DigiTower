@@ -1,73 +1,83 @@
 # DigiTower
 
-*ATC for DCS World* (formerly DCS-ATC). A realistic air traffic control for DCS World: ground (with real taxi
+*ATC for DCS World.* A realistic air traffic control for DCS World: ground (with real taxi
 routes), tower, departure and approach, ATIS and FARPs, for jets and helicopters, on your own server. The
 controllers talk on SRS, understand what pilots say on the frequency, and handle AI traffic, players first.
 
+DigiTower runs on the PC that runs the mission: the dedicated server, or your own PC in single player and when you
+host from the game. Players only need SRS. It is a beta: see [Requirements and limits](#requirements-and-limits).
+
 ## Install
 
-Download **DigiTower-win-Setup.exe** from the [latest release](https://github.com/AtrixZockt/DigiTower/releases/latest)
-and run it: it installs for your Windows user (no admin rights) and offers new versions itself. The portable zip on
-the same page works without installing. Then, in DigiTower:
+1. Download **DigiTower-win-Setup.exe** from the [latest release](https://github.com/AtrixZockt/DigiTower/releases/latest)
+   and run it. It installs for your Windows user (no admin rights), adds a desktop and a Start menu shortcut, and
+   offers new versions itself. The builds are not code-signed, so Windows SmartScreen may ask once (*More info → Run
+   anyway*). The portable zip on the same page works without installing.
+2. In DigiTower, open the **Install** page:
+   - **The bridge:** *Install* it for your DCS server's Saved Games folder (`DCS.dcs_serverrelease` or similar), or
+     for the game's (`DCS`) when you fly single player or host from the game. DCS loads it when it starts, so restart
+     DCS afterwards.
+   - **The controllers' voice:** download *kokoro-multi-lang-v1_0* (400 MB). Without it a Windows voice speaks.
+   - **Voice requests** (optional, to talk to the controllers): download the speech recognizer
+     *ggml-large-v3-turbo-q5_0* (570 MB; it needs a graphics card, see [Requirements and
+     limits](#requirements-and-limits)), then turn on *Settings → Voice requests*, pick *Whisper large-v3-turbo
+     (GPU, Vulkan)* and save. The ATC uses new settings from its next start (*Stop ATC*, *Start ATC*).
+3. Start your **SRS server**, in single player too (on your PC, with your SRS client connected to it). DigiTower
+   joins it as the controllers; it does not start it.
+4. Start the mission. DigiTower starts its ATC when it opens (the *Operations* page; *Start ATC* otherwise), and
+   *DCS BRIDGE* there turns green once DCS is connected.
 
-1. **Install** page: install the bridge into your DCS server's Saved Games folder (and into the game's, for single
-   player), and download a controller voice (and a speech recognizer, for voice requests).
-2. Restart DCS and start your SRS server.
-3. **Operations** page: **Start ATC**.
+## Your first flight
 
-Needs 64-bit Windows 10 or 11, DCS World and an SRS server; nothing else (.NET is included). The builds are not
-code-signed, so Windows SmartScreen may ask once (*More info → Run anyway*). The rest of this page is for using it in
-DCS and for building it from source.
+An example at Al Dhafra (Persian Gulf); every airfield works the same way, on the frequencies DCS gives it
+(F10 → Other → ATC → *airfield* → *Frequencies* lists them).
 
-## Layout
+- **Your callsign** is your player name before "|": "Hangman 1-2 | DiGii" is called *Hangman 1-2*. Flights need the
+  "Name 1-1" form.
+- **SRS:** tune a radio (AM) to Al Dhafra **Ground 250.0**; Tower is **270.0**, Approach **257.0**, the ATIS **270.5**.
+- **The calls:** F10 → Other → **ATC** → *Al Dhafra* lists the calls you can make right now. With voice requests on,
+  say them on the frequency with your SRS push-to-talk instead ("Al Dhafra Ground, Hangman 1-2, request taxi").
 
-| Path | What |
-|---|---|
-| `bridge/Scripts/Hooks/DigiTowerHook.lua` | Runs inside DCS. Talks to the app over 127.0.0.1:42700 and injects the mission side. |
-| `bridge/Scripts/DigiTower/DigiTowerMission.lua` | Runs in the mission: unit states, events, F10 menus, text, airbase data. |
-| `bridge/install.ps1` | Installs/uninstalls the bridge in a DCS Saved Games folder (the control panel's Install page does the same). |
-| `bridge/tests/` | Lua tests and a **fake DCS** that runs the real hook without the game. |
-| `src/DcsAtc.Bridge` | C# client for the bridge. |
-| `src/DcsAtc.Airfields` | Airfield data: reader for DCS taxi networks (`.rn5`), routing graph, runways and holding points, taxi routing. |
-| `data/dcs/` | Airbase data dumped from DCS by the app (`--dump`). |
-| `data/airfields/<theatre>/` | Hand-labelled airfields: taxiway names, areas, frequencies ([docs/labeling.md](docs/labeling.md)). |
-| `src/DcsAtc.Atc` | The ATC logic: ground control, tower, flights, phraseology, airfield catalog. |
-| `src/DcsAtc.Srs` | Headless SRS client: the controllers' radio stations (TCP sync, UDP Opus voice). |
-| `src/DcsAtc.Voice` | The ATC voice: how text is said, TTS engines (Kokoro/Piper via sherpa-onnx, Windows), clip cache, stitching. |
-| `src/DcsAtc.Recognition` | Speech recognition for voice requests: Whisper (whisper.cpp) and Parakeet (sherpa-onnx), transcript normalising, test calls ([docs/voice.md](docs/voice.md#speech-recognition)). |
-| `data/voice/` | `voices.json` (the voices), `recognition.json` (the recognizers), `test-calls.txt` (the recognition test), `train-calls.txt` (practice calls for tuning it); `models/` and `cache/` are downloaded / generated, not in git ([docs/voice.md](docs/voice.md)). |
-| `src/DcsAtc.Host` | Runs DigiTower for both programs: connects to DCS, F10 menus, runs the controllers, speaks on SRS; the settings file, the log, the bridge installer, model downloads. |
-| `src/DcsAtc.Gui` | The control panel, `DigiTower.exe` (WPF): status, flight strips, log, settings, install. |
-| `src/DcsAtc.App` | The console program, `DigiTowerConsole.exe`: the same without a window (servers, scheduled tasks). |
-| `tools/DcsAtc.Rn5Tool` | Inspects `.rn5` files, renders them as SVG, scans whole DCS installs. |
-| `tools/DcsAtc.VoiceTool` | Voice audition, test transmissions, SRS check without DCS, model download, speech-recognition bake-off. |
-| `tools/Convert-WhisperModel.ps1` | Converts a Whisper model from Hugging Face (a fine-tune) to whisper.cpp format for the app. |
-| `tools/Train-Whisper.ps1`, `tools/whisper-train/` | Tunes the speech recognizer on your own voice (overnight): [docs/voice.md](docs/voice.md#tuning-the-recognizer-on-your-voice). |
-| `tests/DcsAtc.Tests` | C# tests. |
-| `docs/bridge-protocol.md` | The JSON protocol between DCS and the app. |
-| `docs/labeling.md` | How to add taxiway names for an airfield. |
-| `docs/voice.md` | The ATC voice on SRS: how it works, setup, choosing the voice, the SRS protocol. |
-| `docs/releasing.md` | Making a release: `tools/Publish-Release.ps1`, the installer and updates (Velopack), uploading to GitHub. |
+1. *Request startup* (optional, parked): *"Hangman 1-2, Al Dhafra Ground, start up approved, wind 310 degrees, 10
+   knots, QNH 1013."*
+2. *Request taxi*: *"…, taxi to holding point runway 31R via A, B."* The route is drawn on the F10 map; Ground warns
+   you if you leave it, taxi too fast or meet other traffic.
+3. At the holding point Ground sends you to Tower (270.0). *Ready for departure* (own navigation, a direction or
+   closed traffic): *"…, runway 31R, cleared for takeoff"*, with how to climb out.
+4. After takeoff Tower sends you to Approach (257.0): check in.
+5. Coming back: *Request approach* (ILS, TACAN, visual or overhead) to Approach. You get vectors to final, then
+   *"contact Tower"*, and Tower clears you to land.
+6. After landing: *"vacate, contact Ground"*. *Request taxi to parking* gives you a free spot, marked on the map.
 
-## Requirements
+The rest is in [Using DigiTower in DCS](#using-digitower-in-dcs): every call, AI traffic, emergencies.
 
-- .NET 10 SDK
-- For the Lua tests and the fake DCS: Lua 5.1 with LuaSocket (e.g. Lua for Windows). DCS itself uses Lua 5.1.
+## Requirements and limits
 
-## Build and test
+**What it needs**
 
-```powershell
-dotnet build DcsAtc.slnx
-dotnet test DcsAtc.slnx                       # integration tests skip themselves if Lua or DCS is missing
-lua bridge/tests/test_bridge.lua              # Lua tests (hook + mission side)
-```
+- 64-bit Windows 10 or 11, DCS World and an SRS server (DCS-SimpleRadio-Standalone). Nothing else; .NET is included.
+- DigiTower runs where the mission runs: on a dedicated server, the server's PC; in single player or when you host
+  from the game, your PC. Players only need SRS. One DigiTower per DCS: a second one that connects takes over.
+- About 250 MB for the program, 400 MB for the default voice, and 570 MB more for voice requests.
+- **Voice requests** (optional): a microphone, your SRS push-to-talk, and a graphics card with Vulkan for the
+  recommended recognizer, Whisper large-v3-turbo (about half a second per call). It is tested on an AMD Radeon;
+  NVIDIA and Intel cards should work through Vulkan too. On the CPU it takes far too long; the smaller recognizers
+  run on the CPU but understand less. Without voice requests everything works from the F10 menu.
 
-## Try it without DCS
+**Limits (beta)**
 
-```powershell
-lua bridge/tests/fake_dcs.lua --static --click "Request taxi"   # terminal 1: fake mission at Al Dhafra (real layout)
-dotnet run --project src/DcsAtc.Gui                             # terminal 2: the control panel (or src/DcsAtc.App, the console)
-```
+- Tested mostly in single player and on one dedicated server; multiplayer with many players is little tested yet.
+- Taxiway names exist for the Persian Gulf (27 airfields with charts). Elsewhere taxi routes follow DCS's taxi
+  network but name no taxiways. Airfields DCS gives no ATC frequency (a few small ones) get text messages only.
+- Departure and approach figures (altitudes, ranges) are tailored to Al Dhafra; other airfields use defaults.
+- Pilots use standard phrases (request taxi, ready for departure, …); free speech is not understood. A strong accent
+  can trip the recognizer; it can be [tuned on your voice](docs/voice.md#tuning-the-recognizer-on-your-voice).
+- No carrier, AWACS or tanker control.
+- AI: only AI flights from the mission file can be held at parking; AI spawned by scripts goes when DCS lets it. DCS
+  flies AI approaches itself (no vectors, no go-arounds). AI helicopters are left to DCS.
+- F10 map drawings (taxi routes, spots) are seen by the whole side, because DCS cannot draw for one group; they can
+  be turned off (Settings, or the bridge settings on the Install page).
+- The builds are not code-signed, so Windows SmartScreen asks once.
 
 ## The control panel and the console
 
@@ -221,8 +231,69 @@ models, recordings and logs go to `%LOCALAPPDATA%\DigiTower`.
 - **What does DigiTower see?** F10 → Other → ATC → *Debug* → *Where am I?*; the Log page shows every call and event.
 - **Airbase data for labelling** (`data/dcs/<airbase>.json`, runways and parking spots):
   `DigiTowerConsole --dump "Al Dhafra AFB"`.
+- **Voice requests not understood.** *VOICE REQUESTS* on the Operations page shows the recognizer in use; the Log page
+  (category VOICE IN) shows what it heard. Use the standard phrases from the F10 menu; the recognizer is set in
+  *Settings → Voice requests*.
+- **The connection keeps dropping.** Only one DigiTower can work a DCS: a second one that connects (another PC, a
+  test run) takes over the bridge.
+- **Reporting a problem:** [open an issue](https://github.com/AtrixZockt/DigiTower/issues/new/choose) and add the
+  day's log file, `%LOCALAPPDATA%\DigiTower\logs\digitower-<date>.log` (Windows key + R, paste the folder, Enter).
 
-## Taxi networks
+## For developers
+
+Building DigiTower from source, testing it, and the tools for the taxi networks.
+
+### Layout
+
+| Path | What |
+|---|---|
+| `bridge/Scripts/Hooks/DigiTowerHook.lua` | Runs inside DCS. Talks to the app over 127.0.0.1:42700 and injects the mission side. |
+| `bridge/Scripts/DigiTower/DigiTowerMission.lua` | Runs in the mission: unit states, events, F10 menus, text, airbase data. |
+| `bridge/install.ps1` | Installs/uninstalls the bridge in a DCS Saved Games folder (the control panel's Install page does the same). |
+| `bridge/tests/` | Lua tests and a **fake DCS** that runs the real hook without the game. |
+| `src/DcsAtc.Bridge` | C# client for the bridge. |
+| `src/DcsAtc.Airfields` | Airfield data: reader for DCS taxi networks (`.rn5`), routing graph, runways and holding points, taxi routing. |
+| `data/dcs/` | Airbase data dumped from DCS by the app (`--dump`). |
+| `data/airfields/<theatre>/` | Hand-labelled airfields: taxiway names, areas, frequencies ([docs/labeling.md](docs/labeling.md)). |
+| `src/DcsAtc.Atc` | The ATC logic: ground control, tower, flights, phraseology, airfield catalog. |
+| `src/DcsAtc.Srs` | Headless SRS client: the controllers' radio stations (TCP sync, UDP Opus voice). |
+| `src/DcsAtc.Voice` | The ATC voice: how text is said, TTS engines (Kokoro/Piper via sherpa-onnx, Windows), clip cache, stitching. |
+| `src/DcsAtc.Recognition` | Speech recognition for voice requests: Whisper (whisper.cpp) and Parakeet (sherpa-onnx), transcript normalising, test calls ([docs/voice.md](docs/voice.md#speech-recognition)). |
+| `data/voice/` | `voices.json` (the voices), `recognition.json` (the recognizers), `test-calls.txt` (the recognition test), `train-calls.txt` (practice calls for tuning it); `models/` and `cache/` are downloaded / generated, not in git ([docs/voice.md](docs/voice.md)). |
+| `src/DcsAtc.Host` | Runs DigiTower for both programs: connects to DCS, F10 menus, runs the controllers, speaks on SRS; the settings file, the log, the bridge installer, model downloads. |
+| `src/DcsAtc.Gui` | The control panel, `DigiTower.exe` (WPF): status, flight strips, log, settings, install. |
+| `src/DcsAtc.App` | The console program, `DigiTowerConsole.exe`: the same without a window (servers, scheduled tasks). |
+| `tools/DcsAtc.Rn5Tool` | Inspects `.rn5` files, renders them as SVG, scans whole DCS installs. |
+| `tools/DcsAtc.VoiceTool` | Voice audition, test transmissions, SRS check without DCS, model download, speech-recognition bake-off. |
+| `tools/Convert-WhisperModel.ps1` | Converts a Whisper model from Hugging Face (a fine-tune) to whisper.cpp format for the app. |
+| `tools/Train-Whisper.ps1`, `tools/whisper-train/` | Tunes the speech recognizer on your own voice (overnight): [docs/voice.md](docs/voice.md#tuning-the-recognizer-on-your-voice). |
+| `tests/DcsAtc.Tests` | C# tests. |
+| `docs/bridge-protocol.md` | The JSON protocol between DCS and the app. |
+| `docs/labeling.md` | How to add taxiway names for an airfield. |
+| `docs/voice.md` | The ATC voice on SRS: how it works, setup, choosing the voice, the SRS protocol. |
+| `docs/releasing.md` | Making a release: `tools/Publish-Release.ps1`, the installer and updates (Velopack), uploading to GitHub. |
+
+### What you need
+
+- .NET 10 SDK
+- For the Lua tests and the fake DCS: Lua 5.1 with LuaSocket (e.g. Lua for Windows). DCS itself uses Lua 5.1.
+
+### Build and test
+
+```powershell
+dotnet build DcsAtc.slnx
+dotnet test DcsAtc.slnx                       # integration tests skip themselves if Lua or DCS is missing
+lua bridge/tests/test_bridge.lua              # Lua tests (hook + mission side)
+```
+
+### Try it without DCS
+
+```powershell
+lua bridge/tests/fake_dcs.lua --static --click "Request taxi"   # terminal 1: fake mission at Al Dhafra (real layout)
+dotnet run --project src/DcsAtc.Gui                             # terminal 2: the control panel (or src/DcsAtc.App, the console)
+```
+
+### Taxi networks
 
 ```powershell
 dotnet run --project tools/DcsAtc.Rn5Tool -- info "D:\DCS\DCS World\Mods\terrains\PersianGulf\AirfieldsTaxiways\Dhafra_AFB.rn5"

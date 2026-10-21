@@ -1,0 +1,24 @@
+name: Feature request
+description: Something DigiTower should do, or do differently.
+title: "[Idea] "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What would you like DigiTower to do?
+      description: If it is about what the controllers say, the real-world phraseology you have in mind helps (and where it comes from).
+    validations:
+      required: true
+
+  - type: textarea
+    id: why
+    attributes:
+      label: Why, and where would you use it?
+      description: Single player, your server, a squadron; which map or airfield.
+
+  - type: textarea
+    id: more
+    attributes:
+      label: Anything else
+      description: Links, charts, screenshots, how other tools do it.

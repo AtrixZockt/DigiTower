@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Install and first flight
+    url: https://github.com/AtrixZockt/DigiTower#install
+    about: How to install DigiTower and fly the first time with it.
+  - name: Troubleshooting
+    url: https://github.com/AtrixZockt/DigiTower#troubleshooting
+    about: Nothing happens in DCS, no voice, voice requests not understood.

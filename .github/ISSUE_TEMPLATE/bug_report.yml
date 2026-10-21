@@ -1,0 +1,81 @@
+name: Bug report
+description: Something DigiTower does wrong, says wrong, or does not do.
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! The log file helps most: it holds everything the controllers said and did.
+        **Before you start:** please check you are on the [latest release](https://github.com/AtrixZockt/DigiTower/releases/latest) (the version is at the bottom left of the control panel).
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What did DigiTower do or say, and what did you expect instead?
+      placeholder: |
+        I asked for taxi at Al Dhafra (parking 106) and Ground sent me to runway 13L via A, F, but the wind favoured 31R.
+    validations:
+      required: true
+
+  - type: textarea
+    id: when
+    attributes:
+      label: When and where
+      description: Time (as in the log), map, airfield, runway, and what you did just before (the F10 call or what you said).
+      placeholder: |
+        About 20:15 local, Persian Gulf, Al Dhafra, after "request taxi" by voice on 250.0.
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: DigiTower version
+      placeholder: "0.1.3"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: setup
+    attributes:
+      label: Where DigiTower runs
+      options:
+        - Single player (my PC)
+        - Hosting a multiplayer mission from the game (my PC)
+        - Dedicated DCS server
+    validations:
+      required: true
+
+  - type: dropdown
+    id: voice
+    attributes:
+      label: Voice requests (talking to the controllers)
+      options:
+        - "Off (F10 menu only)"
+        - "On"
+    validations:
+      required: true
+
+  - type: input
+    id: recognizer
+    attributes:
+      label: Recognizer and graphics card (if voice requests are on)
+      placeholder: "Whisper large-v3-turbo (GPU, Vulkan), NVIDIA RTX 4070"
+
+  - type: textarea
+    id: log
+    attributes:
+      label: Log file
+      description: |
+        Drag the day's log file here: `%LOCALAPPDATA%\DigiTower\logs\digitower-<date>.log` (Windows key + R, paste the folder, Enter).
+        If DigiTower did not see DCS at all, also the lines with "DigiTower" from `Saved Games\<DCS folder>\Logs\dcs.log`.
+    validations:
+      required: true
+
+  - type: textarea
+    id: media
+    attributes:
+      label: Screenshot, recording or track (optional)
+      description: A screenshot of the F10 map or the control panel, or a short video with SRS audio, helps a lot.
