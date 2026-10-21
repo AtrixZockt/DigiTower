@@ -14,9 +14,6 @@ public sealed record RouteStep(TaxiLink Link, int From, int To);
 
 public sealed record TaxiRoute(IReadOnlyList<RouteStep> Steps, IReadOnlyList<Vec2> Geometry, double Length)
 {
-    /// <summary>Nodes where the route crosses a runway, in order.</summary>
-    public IReadOnlyList<int> CrossingNodes { get; init; } = [];
-
     /// <summary>True if any part of the route rolls along a runway.</summary>
     public bool UsesRunway => Steps.Any(s => s.Link.Kind == LinkKind.Runway || s.Link.TouchesRunway);
 }
@@ -104,8 +101,7 @@ public static class TaxiRouter
         // Junction arms a metre apart can leave sub-metre back-and-forth wiggles; aircraft can't follow those.
         geometry = Polyline.RemoveSpikes(geometry);
 
-        var crossings = steps.Where(s => s.Link.CrossesRunway).Select(s => graph.Vertices[s.To].Node).ToList();
-        return new TaxiRoute(steps, geometry, Polyline.Length(geometry)) { CrossingNodes = crossings };
+        return new TaxiRoute(steps, geometry, Polyline.Length(geometry));
     }
 
     /// <summary>
@@ -197,8 +193,7 @@ public static class TaxiRouter
             : new RouteStep(goal.Link, goal.Link.B, goal.Link.A));
         geometry = Polyline.RemoveSpikes(geometry);
 
-        var crossings = steps.Where(x => x.Link.CrossesRunway).Select(x => graph.Vertices[x.To].Node).ToList();
-        return new TaxiRoute(steps, geometry, Polyline.Length(geometry)) { CrossingNodes = crossings };
+        return new TaxiRoute(steps, geometry, Polyline.Length(geometry));
     }
 
     /// <summary>
@@ -246,7 +241,8 @@ public static class TaxiRouter
 
     private static double StepCost(TaxiLink link, RouteOptions o) => link switch
     {
-        { Kind: LinkKind.Runway } or { TouchesRunway: true } => link.Length * o.RunwayCostFactor,
+        // Every way onto or off a runway costs half a crossing: on and off again close by is a crossing.
+        { Kind: LinkKind.Runway } or { TouchesRunway: true } => link.Length * o.RunwayCostFactor + (link.TouchesRunway ? o.RunwayCrossingPenalty / 2 : 0),
         { CrossesRunway: true } => link.Length + o.RunwayCrossingPenalty,
         _ => link.Length,
     };

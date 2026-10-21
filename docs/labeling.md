@@ -25,6 +25,18 @@ Coordinates are DCS map coordinates (x north, z east, metres). Several waypoints
 the network route between them uses; one waypoint names the edge under it. Names then extend up to
 300 m along straight continuations to close small gaps (never across runways or into parking lead-ins).
 
+A parallel taxiway's letter may be printed only once, in an island beside it where no link reaches the runway
+(Al Minhad's H, Al Ain's F); the letters next to the links name the links. A taxiway the chart leaves unnamed but
+Ground has to say gets a lower-case description instead: `"parallel taxiway"` at Al Bateen, said *"via the
+parallel taxiway, F"*. Left unnamed, the links' names would extend along it. Name a parallel edge by edge (one
+waypoint on each edge of its line, where no other edge is nearer) and list it first: a path of waypoints along it
+can route through the links' curves and the aprons and name those too.
+
+How a route is said: consecutive pieces of one taxiway are one name, pieces of other taxiways under 200 m in all
+between two pieces of the same one are left out (an angled exit overlapping a parallel taxiway would otherwise give
+*"A, A6, A, A3"*), and a roll of up to 100 m on a runway between two taxiways is a crossing (*"cross runway 13R"*;
+DCS draws some angled crossings that way).
+
 ## Workflow
 
 1. **Chart.** Prefer a chart made for the DCS map (community charts such as Master Arms, or ED's

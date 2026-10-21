@@ -73,7 +73,10 @@ public static partial class Phraseology
 
     /// <summary>"A, F" or "A, cross runway 13R, P, X0".</summary>
     public static string ViaText(IReadOnlyList<ViaItem> via, RunwayEnd departure) =>
-        string.Join(", ", via.Select(v => v.IsRunwayCrossing ? $"cross runway {CrossingName(v.CrossedRunway!, departure)}" : v.Name));
+        string.Join(", ", via.Select(v => v.IsRunwayCrossing ? $"cross runway {CrossingName(v.CrossedRunway!, departure)}" : Taxiway(v.Name)));
+
+    /// <summary>A taxiway as said in a sentence: "B" and "N4" as they are, one without a letter with "the" ("the parallel taxiway").</summary>
+    public static string Taxiway(string name) => name.Length > 0 && char.IsLower(name[0]) ? $"the {name}" : name;
 
     /// <summary>A crossed runway is named by the end that points the same way as the departure runway.</summary>
     public static string CrossingName(Runway crossed, RunwayEnd departure)
@@ -100,7 +103,7 @@ public static partial class Phraseology
     public static string TaxiToParking(string callsign, string facility, string area, IReadOnlyList<ViaItem> via, bool airTaxi = false)
     {
         string text = $"{callsign}, {facility} Ground, {(airTaxi ? "air-taxi" : "taxi")} to {area}";
-        if (via.Count > 0) text += $" via {string.Join(", ", via.Select(v => v.IsRunwayCrossing ? $"cross runway {v.CrossedRunway!.EndA.Name}" : v.Name))}";
+        if (via.Count > 0) text += $" via {string.Join(", ", via.Select(v => v.IsRunwayCrossing ? $"cross runway {v.CrossedRunway!.EndA.Name}" : Taxiway(v.Name)))}";
         return text + ".";
     }
 

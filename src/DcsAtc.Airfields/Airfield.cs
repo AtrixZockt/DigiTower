@@ -70,13 +70,24 @@ public sealed class Airfield
     /// <summary>
     /// The taxiways a route follows, in order, as a controller would say them: consecutive pieces of the
     /// same taxiway merged, names used for less than <paramref name="minLength"/> metres dropped (except
-    /// the last), unnamed pieces skipped, runway crossings in between.
+    /// the last), unnamed pieces skipped, runway crossings in between. Pieces of other taxiways shorter than
+    /// <paramref name="maxSideStep"/> in all between two pieces of the same one are left out: an angled exit
+    /// overlapping a parallel taxiway makes "A, A6, A, A3" otherwise, said "A, A3".
     /// </summary>
-    public IReadOnlyList<ViaItem> Via(TaxiRoute route, double minLength = 40)
+    public IReadOnlyList<ViaItem> Via(TaxiRoute route, double minLength = 40, double maxSideStep = 200)
     {
+        var steps = route.Steps;
+        var crossings = ShortRunwayStretches(steps);
         var runs = new List<(string? Name, double Length, Runway? Crossing)>();
-        foreach (var step in route.Steps)
+        for (int i = 0; i < steps.Count; i++)
         {
+            var step = steps[i];
+            if (crossings.TryGetValue(i, out var stretch))
+            {
+                runs.Add((stretch.Runway.Name, 0, stretch.Runway));
+                i = stretch.Last;
+                continue;
+            }
             if (step.Link.CrossesRunway)
             {
                 int node = Graph.Vertices[step.To].Node;
@@ -92,6 +103,27 @@ public sealed class Airfield
                 runs.Add((name, step.Link.Length, null));
         }
 
+        for (int i = 0; i < runs.Count; i++)
+        {
+            if (runs[i].Name is null || runs[i].Crossing is not null) continue;
+            double between = 0;
+            for (int j = i + 1; j < runs.Count && runs[j].Crossing is null && between < maxSideStep; j++)
+            {
+                if (runs[j].Name != runs[i].Name)
+                {
+                    between += runs[j].Length;
+                    continue;
+                }
+                if (between < maxSideStep)
+                {
+                    runs[i] = (runs[i].Name, runs.Skip(i).Take(j - i + 1).Sum(r => r.Length), null);
+                    runs.RemoveRange(i + 1, j - i);
+                    i--;
+                }
+                break;
+            }
+        }
+
         int lastNamed = runs.FindLastIndex(r => r.Name is not null && r.Crossing is null);
         var via = new List<ViaItem>();
         for (int i = 0; i < runs.Count; i++)
@@ -103,6 +135,32 @@ public sealed class Airfield
             if (via.Count == 0 || via[^1] != item) via.Add(item);
         }
         return via;
+    }
+
+    /// <summary>A runway is 45-60 m wide: crossing it at an angle rolls up to about this far along it (metres).</summary>
+    public const double MaxCrossingRoll = 100;
+
+    /// <summary>
+    /// Stretches of a route on a runway between two taxiways, short enough to be a crossing (by first step: last step
+    /// and runway). DCS draws some angled crossings as a way onto the runway and off it again, not as a crossing node.
+    /// </summary>
+    private Dictionary<int, (int Last, Runway Runway)> ShortRunwayStretches(IReadOnlyList<RouteStep> steps)
+    {
+        static bool OnRunway(TaxiLink l) => l.Kind == LinkKind.Runway || l.TouchesRunway;
+        var stretches = new Dictionary<int, (int, Runway)>();
+        for (int i = 0; i < steps.Count; i++)
+        {
+            if (!OnRunway(steps[i].Link)) continue;
+            int last = i;
+            while (last + 1 < steps.Count && OnRunway(steps[last + 1].Link)) last++;
+            var on = steps.Skip(i).Take(last - i + 1).Where(s => s.Link.Kind == LinkKind.Runway).ToList();
+            var runway = on.Select(s => s.Link.Rn5Edge).OfType<int>().Select(e => Network.Edges[e])
+                .Select(e => Runways.FirstOrDefault(r => r.Nodes.Contains(e.NodeA) || r.Nodes.Contains(e.NodeB))).FirstOrDefault(r => r is not null);
+            if (i > 0 && last + 1 < steps.Count && runway is not null && on.Sum(s => s.Link.Length) <= MaxCrossingRoll)
+                stretches[i] = (last, runway);
+            i = last;
+        }
+        return stretches;
     }
 
     /// <summary>The taxiway name of a route step's link, if known.</summary>

@@ -25,6 +25,11 @@ public class VoiceTests
     }
 
     [Fact]
+    public void A_taxiway_without_a_letter_is_said_as_written() =>
+        Assert.Equal("[taxi to holding point runway] [two seven] [via the parallel taxiway] | [Golf]",
+            Spoken("taxi to holding point runway 27 via the parallel taxiway, G."));
+
+    [Fact]
     public void Numbers_runways_taxiways_and_frequencies()
     {
         Assert.Equal("[contact Tower on] [two seven zero decimal zero] [when ready for departure]", Spoken("contact Tower on 270.0 when ready for departure."));

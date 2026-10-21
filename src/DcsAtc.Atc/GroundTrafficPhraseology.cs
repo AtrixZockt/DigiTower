@@ -34,7 +34,7 @@ public static partial class Phraseology
     /// <paramref name="where"/> is "from the left", "from the right" or "opposite direction" (with "on A" when known).
     /// </summary>
     public static string GiveWay(string callsign, string facility, bool holdNow, string? holdShortOf, string type, string where) =>
-        $"{callsign}, {facility} Ground, {(holdNow ? "hold position, " : holdShortOf is not null ? $"hold short of {holdShortOf}, " : "")}give way to the {type} {where}.";
+        $"{callsign}, {facility} Ground, {(holdNow ? "hold position, " : holdShortOf is not null ? $"hold short of {Taxiway(holdShortOf)}, " : "")}give way to the {type} {where}.";
 
     /// <summary>"Hangman 1-2, Al Dhafra Ground, follow the F-16 ahead."</summary>
     public static string FollowTraffic(string callsign, string facility, string type) =>

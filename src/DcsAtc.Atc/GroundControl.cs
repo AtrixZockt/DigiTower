@@ -430,7 +430,7 @@ public sealed class GroundControl(IDcsCommands dcs, AirfieldCatalog airfields, F
         }
 
         string where = plan.Kind == TrafficKind.HeadOn
-            ? "opposite direction" + (plan.OtherTaxiway is { } t ? $" on {t}" : "")
+            ? "opposite direction" + (plan.OtherTaxiway is { } t ? $" on {Phraseology.Taxiway(t)}" : "")
             : (plan.Other.Position - plan.Yields.Position).Dot(plan.Yields.Direction.Left) > 0 ? "from the left" : "from the right";
         string text = Phraseology.GiveWay(c.Callsign, facility, plan.HoldNow, plan.HoldShortOf, plan.Other.Type, where);
         double along = Polyline.Project(c.Route.Geometry, plan.Yields.Position).Along + Math.Max(0, plan.HoldAlong);
@@ -442,7 +442,7 @@ public sealed class GroundControl(IDcsCommands dcs, AirfieldCatalog airfields, F
             var across = plan.Yields.DirectionAt(plan.HoldAlong / Math.Max(plan.Yields.Speed, 0.1)).Left * 15;
             Vec2 from = plan.HoldPoint - across, to = plan.HoldPoint + across;
             await dcs.DrawRouteAsync(c.HoldDrawingKey, c.Coalition, [(from.X, from.Z), (to.X, to.Z)], HoldColor,
-                plan.HoldShortOf is { } name ? $"HOLD SHORT {name}" : "HOLD", ct);
+                plan.HoldShortOf is { } name ? $"HOLD SHORT {name.ToUpperInvariant()}" : "HOLD", ct);
         }
     }
 
