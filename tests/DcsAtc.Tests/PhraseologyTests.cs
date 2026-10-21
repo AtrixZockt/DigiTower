@@ -61,6 +61,15 @@ public class PhraseologyTests
     [InlineData("something odd", "aircraft")]
     public void Ground_names_traffic_by_type(string dcsType, string expected) => Assert.Equal(expected, Phraseology.SpokenType(dcsType));
 
+    [Fact]
+    public void A_taxiway_without_a_letter_is_said_with_the()
+    {
+        Assert.Equal("the parallel taxiway", Phraseology.Taxiway("parallel taxiway"));
+        Assert.Equal("N4", Phraseology.Taxiway("N4"));
+        Assert.Equal("Hangman 1-2, Al Minhad Ground, hold short of the parallel taxiway, give way to the F-16 from the left.",
+            Phraseology.GiveWay("Hangman 1-2", "Al Minhad", false, "parallel taxiway", "F-16", "from the left"));
+    }
+
     /// <summary>Wind from <paramref name="from"/> degrees at <paramref name="knots"/>: DCS gives the vector it blows towards.</summary>
     private static AirbaseWeather Weather(double from, double knots, double pressure = 101325, double elevation = 0)
     {

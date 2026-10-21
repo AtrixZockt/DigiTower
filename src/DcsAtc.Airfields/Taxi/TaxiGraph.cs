@@ -139,6 +139,9 @@ public sealed class TaxiGraph
         foreach (var node in net.Nodes)
         {
             var arms = node.Ports.Keys.Select(p => byPort[(node.Id, p)]).ToList();
+            // Where a taxiway crosses a runway, the runway's edges may run on through the node; a taxiway arm joined to
+            // the middle of one would be a way across that is not a crossing (no "cross runway", no crossing penalty).
+            bool crossing = runwayNodes.Contains(node.Id) && arms.Count(x => !vertices[x].IsRunwayArm) >= 2;
             foreach (int a in arms)
             {
                 foreach (int b in arms)
@@ -160,6 +163,7 @@ public sealed class TaxiGraph
                     }
                     // Does arm a touch the middle of arm b's edge?
                     var other = armEdge[b].Item1;
+                    if (crossing && other.IsRunway && !va.IsRunwayArm) continue;
                     var (_, along, distance) = Polyline.Project(other.Points, va.Position);
                     if (distance <= MergeDistance && along > 2 && along < other.Length - 2) splits[other.Index].Add((along, a));
                 }

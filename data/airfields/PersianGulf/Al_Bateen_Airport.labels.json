@@ -1,7 +1,7 @@
 {
   "airfield": "Al-Bateen",
   "rn5": "Al_Bateen_Airport",
-  "source": "CombatWombat's airfield diagrams, Persian Gulf (page 3015, \"Al Bateen Executive (OMAD)\"); georeferenced on the threshold marks, which match DCS's runway ends. A: around the 13 end. B-E: the links from the parallel taxiway to 13/31 (D the angled one). F: around the 31 end. The parallel taxiway has no name on the chart; the links' names reach onto it next to each link. The chart's frequencies are not used.",
+  "source": "CombatWombat's airfield diagrams, Persian Gulf (page 3015, \"Al Bateen Executive (OMAD)\"); georeferenced on the threshold marks, which match DCS's runway ends. A: around the 13 end. B-E: the links from the parallel taxiway to 13/31 (D the angled one). F: around the 31 end. The parallel taxiway has no name on the chart; it is called \"parallel taxiway\" here (\"via the parallel taxiway, F\"). The chart's frequencies are not used.",
   "georeference": {
     "controlPoints": [
       {
@@ -23,6 +23,39 @@
     ]
   },
   "taxiways": [
+    {
+      "name": "parallel taxiway",
+      "path": [
+        [
+          -190134.8,
+          -183248.2
+        ],
+        [
+          -190374.4,
+          -182953.2
+        ],
+        [
+          -190626.5,
+          -182642.7
+        ],
+        [
+          -190878.6,
+          -182332.1
+        ],
+        [
+          -191130.7,
+          -182021.6
+        ],
+        [
+          -191382.9,
+          -181711.1
+        ],
+        [
+          -191483.7,
+          -181586.8
+        ]
+      ]
+    },
     {
       "name": "A",
       "path": [

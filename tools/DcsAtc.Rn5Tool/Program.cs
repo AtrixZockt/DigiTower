@@ -92,7 +92,7 @@ switch (args[0])
                 return 1;
             }
             var route = departure.Route;
-            var crossed = route.CrossingNodes.Select(n => airfield.Runways.First(r => r.Nodes.Contains(n)).Name);
+            var crossed = airfield.Via(route).Where(v => v.IsRunwayCrossing).Select(v => v.Name).ToList();
             double fromThreshold = departure.End == departure.Runway.EndA ? departure.Hold.AlongRunway : departure.Runway.Length - departure.Hold.AlongRunway;
             Console.WriteLine($"parking {spot.Index} -> holding point runway {departure.End.Name}: {route.Length:F0} m, {route.Steps.Count} links");
             Console.WriteLine($"  holding point {fromThreshold:F0} m from the {departure.End.Name} threshold");
@@ -101,7 +101,7 @@ switch (args[0])
                 if (airfield.NameOf(s.Link) is { } nm && (via.Count == 0 || via[^1] != nm)) via.Add(nm);
             Console.WriteLine($"  via (raw): {string.Join(", ", via)}");
             Console.WriteLine($"  via: {string.Join(", ", airfield.Via(route).Select(v => v.IsRunwayCrossing ? $"cross runway {v.Name}" : v.Name))}");
-            Console.WriteLine($"  runway crossings: {(route.CrossingNodes.Count == 0 ? "none" : string.Join(", ", crossed))}; rolls on a runway: {route.UsesRunway}");
+            Console.WriteLine($"  runway crossings: {(crossed.Count == 0 ? "none" : string.Join(", ", crossed))}; rolls on a runway: {route.UsesRunway}");
             if (args.Contains("--steps"))
             {
                 foreach (var s in route.Steps)

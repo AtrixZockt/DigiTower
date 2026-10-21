@@ -1,7 +1,7 @@
 {
   "airfield": "Al Ain Intl",
   "rn5": "Al_Ain_International_Airport",
-  "source": "CombatWombat's airfield diagrams, Persian Gulf (page 3017, \"Al Ain International (OMAL)\"); georeferenced on the pavement ends of DCS's taxi network. A-E: the links from the parallel taxiway east of 01/19 to the runway, south to north (A around the 01 end, B and D angled, C straight, E around the 19 end). The chart's other letters (F-Q, S) are printed in islands and aprons and are not used; the parallel taxiway has no name on the chart. The western parking area has no taxi link in DCS. The chart's frequencies are not used.",
+  "source": "CombatWombat's airfield diagrams, Persian Gulf (page 3017, \"Al Ain International (OMAL)\"); georeferenced on the pavement ends of DCS's taxi network. A-E: the links from the parallel taxiway east of 01/19 to the runway, south to north (A around the 01 end, B and D angled, C straight, E around the 19 end). F: the parallel taxiway (printed once beside it, north of O; the real airport lists A and F as its 30 m wide taxiways). The chart's other letters (G-Q, S) are printed by the links and aprons east of it and are not used. The western parking area has no taxi link in DCS. The chart's frequencies are not used.",
   "georeference": {
     "controlPoints": [
       {
@@ -23,6 +23,312 @@
     ]
   },
   "taxiways": [
+    {
+      "name": "F",
+      "path": [
+        [
+          -213106.7,
+          -65458.2
+        ]
+      ]
+    },
+    {
+      "name": "F",
+      "path": [
+        [
+          -213063.1,
+          -65450.3
+        ]
+      ]
+    },
+    {
+      "name": "F",
+      "path": [
+        [
+          -213048.5,
+          -65448.0
+        ]
+      ]
+    },
+    {
+      "name": "F",
+      "path": [
+        [
+          -212968.1,
+          -65437.0
+        ]
+      ]
+    },
+    {
+      "name": "F",
+      "path": [
+        [
+          -212764.3,
+          -65408.5
+        ]
+      ]
+    },
+    {
+      "name": "F",
+      "path": [
+        [
+          -212588.2,
+          -65384.1
+        ]
+      ]
+    },
+    {
+      "name": "F",
+      "path": [
+        [
+          -212328.4,
+          -65347.5
+        ]
+      ]
+    },
+    {
+      "name": "F",
+      "path": [
+        [
+          -212039.5,
+          -65307.4
+        ]
+      ]
+    },
+    {
+      "name": "F",
+      "path": [
+        [
+          -211919.1,
+          -65290.6
+        ]
+      ]
+    },
+    {
+      "name": "F",
+      "path": [
+        [
+          -211823.5,
+          -65277.2
+        ]
+      ]
+    },
+    {
+      "name": "F",
+      "path": [
+        [
+          -211610.0,
+          -65247.4
+        ]
+      ]
+    },
+    {
+      "name": "F",
+      "path": [
+        [
+          -211509.2,
+          -65233.3
+        ]
+      ]
+    },
+    {
+      "name": "F",
+      "path": [
+        [
+          -211235.0,
+          -65194.7
+        ]
+      ]
+    },
+    {
+      "name": "F",
+      "path": [
+        [
+          -211083.6,
+          -65173.9
+        ]
+      ]
+    },
+    {
+      "name": "F",
+      "path": [
+        [
+          -211056.2,
+          -65170.1
+        ]
+      ]
+    },
+    {
+      "name": "F",
+      "path": [
+        [
+          -210946.8,
+          -65154.8
+        ]
+      ]
+    },
+    {
+      "name": "F",
+      "path": [
+        [
+          -210863.9,
+          -65142.8
+        ]
+      ]
+    },
+    {
+      "name": "F",
+      "path": [
+        [
+          -210236.2,
+          -65051.5
+        ]
+      ]
+    },
+    {
+      "name": "F",
+      "path": [
+        [
+          -210524.6,
+          -65092.6
+        ]
+      ]
+    },
+    {
+      "name": "F",
+      "path": [
+        [
+          -210215.9,
+          -65048.9
+        ]
+      ]
+    },
+    {
+      "name": "F",
+      "path": [
+        [
+          -210171.0,
+          -65042.6
+        ]
+      ]
+    },
+    {
+      "name": "F",
+      "path": [
+        [
+          -210191.3,
+          -65045.2
+        ]
+      ]
+    },
+    {
+      "name": "F",
+      "path": [
+        [
+          -209782.5,
+          -64988.6
+        ]
+      ]
+    },
+    {
+      "name": "F",
+      "path": [
+        [
+          -210009.2,
+          -65020.3
+        ]
+      ]
+    },
+    {
+      "name": "F",
+      "path": [
+        [
+          -209417.4,
+          -64938.5
+        ]
+      ]
+    },
+    {
+      "name": "F",
+      "path": [
+        [
+          -209390.1,
+          -64934.7
+        ]
+      ]
+    },
+    {
+      "name": "F",
+      "path": [
+        [
+          -209363.4,
+          -64930.9
+        ]
+      ]
+    },
+    {
+      "name": "F",
+      "path": [
+        [
+          -209253.4,
+          -64915.6
+        ]
+      ]
+    },
+    {
+      "name": "F",
+      "path": [
+        [
+          -209550.4,
+          -64956.6
+        ]
+      ]
+    },
+    {
+      "name": "F",
+      "path": [
+        [
+          -209178.0,
+          -64902.9
+        ]
+      ]
+    },
+    {
+      "name": "B",
+      "path": [
+        [
+          -212065.7,
+          -65337.7
+        ]
+      ]
+    },
+    {
+      "name": "D",
+      "path": [
+        [
+          -210191.6,
+          -65056.1
+        ]
+      ]
+    },
+    {
+      "name": "A",
+      "path": [
+        [
+          -213095.2,
+          -65471.5
+        ]
+      ]
+    },
+    {
+      "name": "E",
+      "path": [
+        [
+          -209189.0,
+          -64910.1
+        ]
+      ]
+    },
     {
       "name": "A",
       "path": [
