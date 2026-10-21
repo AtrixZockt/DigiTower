@@ -69,6 +69,10 @@ public class SrsTests
         var clock = Stopwatch.StartNew();
         await client.TransmitAsync(new short[16000], [SrsFrequency.Mhz(247.2)], cts.Token);
         Assert.InRange(clock.ElapsedMilliseconds, 900, 1500);
+        // The server takes packets in on a loop of its own: under load the last one is still on its way when
+        // TransmitAsync returns. A packet that never comes still fails below.
+        var arriving = Stopwatch.StartNew();
+        while (server.VoicePackets.Count < 25 && arriving.ElapsedMilliseconds < 2000) await Task.Delay(10);
         var packets = server.VoicePackets.ToList();
         Assert.Equal(25, packets.Count);
         Assert.All(packets, p => Assert.Equal((client.Guid, SrsFrequency.Mhz(247.2)), (p.SenderGuid, p.Frequencies.Single())));
