@@ -189,6 +189,47 @@ as "three thousand", decimals without the point, taxiways phonetic (`src/DcsAtc.
    `dotnet run --project tools/DcsAtc.VoiceTool -- transcribe --corpus out/s5/calls --recognizer <id> --loop --interval 5`,
    compare Virtual Desktop's performance overlay (or the DCS frame counter) with and without it.
 
+## Tuning the recognizer on your voice
+
+Whisper understands most pilots well, but an accent, a microphone or SRS's radio sound can trip it up on the same
+words again and again. It can be tuned on your own calls: small LoRA adapters are trained on recordings of you and
+merged into a copy of Whisper large-v3-turbo, which becomes a recognizer of its own next to the stock one. The 51 test
+calls (`out/s5/calls`) are never trained on, so the bake-off before and after is a fair comparison.
+
+1. **Record the practice calls** (`data/voice/train-calls.txt`: about 180 requests and readbacks at different
+   airfields, never the test calls; the last 28 are a second round for the words a first tuning still got wrong), as for the bake-off: SRS in External AWACS Mode, your microphone and push-to-talk,
+   a radio on 250.0 AM. About 30–40 minutes; Q stops, running it again continues:
+   ```powershell
+   dotnet run --project tools/DcsAtc.VoiceTool -- record --calls data/voice/train-calls.txt --out out/train/calls
+   ```
+2. **Check the calls DigiTower heard in flight** (`out/heard`, only read): each is played with what was understood;
+   Enter keeps the text, typing corrects it, S skips a call that is not yours or not usable:
+   ```powershell
+   dotnet run --project tools/DcsAtc.VoiceTool -- review
+   ```
+3. **Train overnight:**
+   ```powershell
+   .\tools\Train-Whisper.ps1
+   ```
+   It sets up a Python environment of its own in `out/whisper-train` (several GB, once), with AMD's PyTorch for
+   Windows if the graphics card works with it (Radeon RX 9000/7000), else the CPU build; nothing is installed
+   system-wide and no driver is changed. A one-minute check with a tiny model comes first, so a problem shows before
+   you leave it. Training takes about an hour on the graphics card (65 minutes for 200 calls on a Radeon RX 9060 XT) and some
+   hours on the CPU (`-Cpu` forces it;
+   `-SafeBlas` is AMD's workaround if the card resets during training). The result is converted for DigiTower
+   (`data/voice/models/ggml-turbo-tuned-q5_0.bin`, copied for an installed DigiTower too), registered for you in
+   `%APPDATA%\DigiTower\recognition.local.json` (kept by updates), and compared with the stock model on the test
+   calls: `out/train/bakeoff/report.html`. The script's own steps are logged in `out/whisper-train/train-<date>.log`.
+4. **Use it** if the report says it is better: *Settings → Voice requests → Recognizer: Whisper turbo tuned on my voice*.
+   The variant without the prompt is usually the better one: the tuned model knows the words already.
+
+Tuning on DiGii's voice (226 calls, the second round included) took the word errors on the test calls from 13 % to
+2 % and exact understanding from 34 to 48 of 51, and ATC answers all 51 right. The few words a first tuning got wrong
+in its own way are aliases in `recognition.json` ("Tekken" for TACAN, "cleared down" for gear down).
+
+Training more later (more recordings, more flights reviewed) runs the same steps again and replaces the tuned model;
+`record` continues with practice calls added at the end of the file.
+
 ## SRS protocol (2.4.1)
 
 From the SRS source (`ciribob/DCS-SimpleRadioStandalone`, tag 2.4.1.0, `Common/Models`, `Common/Network`):

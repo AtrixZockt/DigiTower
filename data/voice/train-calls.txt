@@ -1,0 +1,200 @@
+# Practice calls for tuning the speech recognizer on your own voice: VoiceTool record --calls with this file, see
+# docs/voice.md ("Tuning the recognizer on your voice"). Same format as test-calls.txt; never the same calls, so
+# the test calls stay a fair test. Say each call the way you would on the radio, numbers too.
+
+# Ground
+Ground, Hangman 1-1, [say again].
+Ground, Ford 3-2, [say again].
+Dubai Ground, Hangman 1-2, [request taxi].
+Al Dhafra Ground, Colt 1-1, [vacated] runway 31 right, [request taxi to parking].
+Liwa Ground, Hangman 1-2, [radio check].
+Al Dhafra Ground, Ford 3-2, [request taxi].
+Al Ain Ground, Hangman 1-2, [request taxi].
+Lar Ground, Springfield 4-1, [request startup].
+Ground, Chevy 2-2, [say again].
+Sharjah Ground, Hangman 1-2, [vacated] runway 30, [request taxi to parking].
+Ground, Pontiac 1-1, [cancel taxi].
+Kish Ground, Hangman 1-2, [request startup].
+Sharjah Ground, Hangman 1-2, at parking 106, [request taxi].
+Al Dhafra Ground, Dodge 1-2, [radio check].
+Ground, Colt 1-1, [cancel taxi].
+Ground, Enfield 2-1, [say again].
+Al Dhafra Ground, Hangman 1-2, at parking 168, [request taxi].
+Abu Dhabi Ground, Ford 3-2, [radio check].
+Liwa Ground, Ford 3-2, [vacated] runway 31, [request taxi to parking].
+Sharjah Ground, Hangman 1 flight, [request taxi].
+Al Minhad Ground, Hangman 1-2, [request air-taxi].
+Fujairah Ground, Hangman 1-1, [request startup].
+Fujairah Ground, Hangman 1-2, [radio check].
+Kish Ground, Hangman 1-2, at parking 143, [request taxi].
+Al Dhafra Ground, Ford 3-2, at parking 234, [request taxi].
+Al Dhafra Ground, Uzi 3-1, [request startup].
+Khasab Ground, Springfield 4-1, [request startup].
+Ground, Enfield 2-1, [cancel taxi].
+
+# Tower
+Dubai Tower, Hangman 1-2, [request departure], [departure east].
+Al Dhafra Tower, Hangman 1-2, [checking in], [runway 31 left].
+Al Bateen Tower, Chevy 2-2, [ready for departure], [departure east].
+Khasab Tower, Hangman 1-2, [request departure], [departure north].
+Dubai Tower, Hangman 1-2, [request takeoff].
+Al Maktoum Tower, Hangman 1-2, [checking in], [runway 12].
+Lar Tower, Hangman 1-2, [ready for departure], [departure west].
+Tower, Hangman 1 flight, [initial] [runway 31 right].
+Tower, Hangman 1 flight, [ready for departure], [request closed traffic].
+Al Dhafra Tower, Pontiac 1-1, 12 miles northeast, [request landing].
+Havadarya Tower, Enfield 2-1, [ready for departure], [departure west].
+Havadarya Tower, Hangman 1-2, [request departure], [departure west].
+Liwa Tower, Hangman 1-2, [ready for departure], [departure north].
+Tower, Hangman 1-2, [initial] [runway 01].
+Al Dhafra Tower, Hangman 1-2, [final] [runway 31 right].
+Al Dhafra Tower, Hangman 1-2, [holding short] [runway 13 right], [ready for departure].
+Tower, Hangman 1-2, [initial] [runway 31 left].
+Sharjah Tower, Enfield 2-1, [holding short] [runway 12], [ready for departure].
+Bandar Abbas Tower, Hangman 1-2, [request takeoff].
+Kerman Tower, Dodge 1-2, [final] [runway 16].
+Kish Tower, Hangman 1-2, [checking in], [runway 09 left].
+Al Minhad Tower, Hangman 1-2, [request departure], [departure north].
+Dubai Tower, Hangman 1-1, [ready for departure], [departure east].
+Al Dhafra Tower, Hangman 1-2, [checking in], [runway 13 right].
+Abu Dhabi Tower, Hangman 1-2, 40 miles northwest, [request landing].
+Al Dhafra Tower, Pontiac 1-1, 15 miles northwest, [request landing].
+Tower, Enfield 2-1, [initial] [runway 12].
+Sharjah Tower, Hangman 1-2, [checking in], [runway 30].
+Tower, Hangman 1-2, [initial] [runway 09].
+Tower, Pontiac 1-1, [ready for departure], [request closed traffic].
+
+# Approach
+Al Ain Approach, Hangman 1-2, 45 miles west, [request approach].
+Approach, Hangman 1 flight, [cancel approach].
+Approach, Dodge 1-2, [checking in], [4000 feet].
+Approach, Colt 1-1, [cancel approach].
+Approach, Hangman 1-2, [checking in], [9000 feet].
+Al Maktoum Approach, Hangman 1-2, [request overhead].
+Approach, Uzi 3-1, [checking in], [7000 feet].
+Abu Dhabi Approach, Pontiac 1-1, [airborne], passing [4000 feet].
+Al Minhad Approach, Dodge 1-2, [airborne], passing [3000 feet].
+Approach, Chevy 2-2, [checking in], [4000 feet].
+Approach, Dodge 1-2, [field in sight].
+Approach, Pontiac 1-1, [cancel approach].
+Kerman Approach, Hangman 1-2, [request overhead].
+Liwa Approach, Hangman 1-1, [request overhead].
+Sharjah Approach, Chevy 2-2, 8 miles southeast, [request approach].
+Al Dhafra Approach, Ford 3-2, 8 miles south, [request approach].
+Havadarya Approach, Hangman 1-2, 40 miles south, [request approach].
+Sharjah Approach, Hangman 1-2, 15 miles southwest, [inbound], [request ILS approach] [runway 12].
+Kish Approach, Hangman 1-1, 15 miles northeast, [inbound], [request TACAN approach] [runway 09 left].
+Approach, Uzi 3-1, [cancel approach].
+Kerman Approach, Hangman 1-2, [airborne], passing [4000 feet].
+Al Dhafra Approach, Enfield 2-1, 40 miles west, [request approach].
+Al Dhafra Approach, Hangman 1-2, [airborne], passing [6000 feet].
+Approach, Ford 3-2, [cancel approach].
+Shiraz Approach, Hangman 1-2, 12 miles northeast, [inbound], [request ILS approach] [runway 11 left].
+Bandar Abbas Approach, Hangman 1-2, 30 miles west, [request approach].
+
+# FARPs
+FOB Bravo, Hangman 1 flight, 30 miles west, [request landing].
+FOB Bravo, Hangman 1-2, [request departure], [departure east].
+FOB Bravo, Hangman 1 flight, [request startup].
+FOB Laos, Hangman 1-2, [request startup].
+FOB Bravo, Hangman 1-2, [request startup].
+FOB Bravo, Uzi 3-1, [request departure], [departure east].
+FOB Laos, Hangman 1-1, [request departure], [departure west].
+FOB Bravo, Hangman 1 flight, [request departure], [departure east].
+FOB Laos, Hangman 1-2, [request departure], [departure east].
+FOB Laos, Ford 3-2, [request startup].
+
+# Readbacks
+[Traffic in sight], Hangman 1 flight.
+[QNH 1019], Hangman 1-2.
+[Radar service terminated], [frequency change approved], Hangman 1-2.
+[Hold over the TACAN], [7000 feet], Pontiac 1-1.
+[Continue taxi], Hangman 1 flight.
+Taxi to [Apron 2] via [November], [Juliet], Hangman 1-2.
+[Looking], Uzi 3-1.
+[Cleared to land] [runway 01], Hangman 1-2.
+[Cleared to land] [runway 26], Hangman 1-2.
+[Maintain 3000 feet until advised], Hangman 1-2.
+[Continue taxi], Dodge 1-2.
+[Contact Approach on 251.1], Hangman 1-2.
+[Contact Tower on 118.55], Hangman 1-2.
+[QNH 1018], Dodge 1-2.
+Taxi to [holding point] [runway 09 left] via [Kilo 2], Hangman 1 flight.
+[Looking], Hangman 1-2.
+[Line up and wait] [runway 30], Springfield 4-1.
+[Line up and wait] [runway 13], Hangman 1-2.
+[Hold short of Alpha], [give way] to the Hornet, Chevy 2-2.
+[Cleared for takeoff] [runway 12], Hangman 1-2.
+[Heading 010], [maintain 4000 feet until established], [cleared ILS approach] [runway 09], Hangman 1-1.
+[Climb and maintain 4000 feet], Hangman 1-2.
+[Cleared to land] [runway 29 right], Hangman 1-2.
+[Continue taxi], Enfield 2-1.
+[QNH 1020], Ford 3-2.
+Taxi to [holding point] [runway 13 right] via [Lima], [Delta 2], [QNH 1010], Hangman 1-2.
+Taxi to [holding point] [runway 29 right] via [Uniform], [Echo], [QNH 1020], Enfield 2-1.
+[Right heading 220], [descend and maintain 4000 feet], Colt 1-1.
+Taxi to [holding point] [runway 16] via [Bravo], [Echo], [QNH 1018], Hangman 1-1.
+[Unrestricted climb], [runway 03 right], [cleared for takeoff], Hangman 1-2.
+[Extend downwind], [number 3], Hangman 1 flight.
+[Cleared to land] [runway 16], Hangman 1-2.
+[Line up and wait] [runway 05], Hangman 1-2.
+[Continue taxi], Hangman 1-2.
+[Extend downwind], [number 3], Hangman 1-2.
+[Climb and maintain 13000 feet], Hangman 1-2.
+[Traffic in sight], Hangman 1-2.
+[Hold position], Hangman 1-2.
+Taxi to [holding point] [runway 13 right] via [Foxtrot], [November 4], [November], Hangman 1-1.
+[Unrestricted climb], [runway 09], [cleared for takeoff], Hangman 1-2.
+[Unrestricted climb], [runway 01], [cleared for takeoff], Hangman 1-2.
+[Follow the F-16], Hangman 1 flight.
+[Hold over the TACAN], [11000 feet], Hangman 1-1.
+[Hold position], Chevy 2-2.
+[Cleared to land] [runway 11], Ford 3-2.
+[Cleared for takeoff] [runway 08], Ford 3-2.
+[Hold short of Hotel 1], [give way] to the Hornet, Chevy 2-2.
+[Roger], Pontiac 1-1.
+[Hold over the TACAN], [8000 feet], Springfield 4-1.
+[QNH 1018], Pontiac 1-1.
+Taxi to [holding point] [runway 11 left] via [Delta], Hangman 1-1.
+Taxi to [holding point] [runway 30] via [Delta 2], [Kilo 2], [QNH 1011], Hangman 1-1.
+[Roger], Springfield 4-1.
+[Follow the F-16], Hangman 1-2.
+[Cleared to land] [runway 13 left], Hangman 1-2.
+[Holding short] [runway 13 right], Enfield 2-1.
+[Contact Approach on 257.0], Hangman 1 flight.
+[Right heading 130], [descend and maintain 6000 feet], Hangman 1 flight.
+[Right heading 330], [descend and maintain 5000 feet], Enfield 2-1.
+[Holding short] [runway 13], Enfield 2-1.
+[Wilco], Ford 3-2.
+[Unrestricted climb], [runway 30], [cleared for takeoff], Hangman 1-2.
+
+# Round 2: the words the first tuning still got wrong (TACAN, Quebec, Foxtrot, altimeter, angels, descend, "fly
+# runway heading", "right" after a runway, "gear down"). Recorded after the first 156: record continues at 157.
+Al Dhafra Approach, Hangman 1-2, [request TACAN approach] [runway 13 left].
+Approach, Ford 3-2, [request TACAN approach].
+Al Minhad Approach, Hangman 1-1, 20 miles west, [inbound], [request TACAN approach].
+Approach, Hangman 1-2, [request TACAN approach] [runway 31 right].
+[Hold over the TACAN], [9000 feet], Hangman 1-2.
+[Maintain 4000 feet until established], [cleared TACAN approach] [runway 31 left], Hangman 1-2.
+Taxi to [holding point] [runway 31 left] via [Foxtrot], [Golf], Hangman 1-2.
+Taxi to [holding point] [runway 12] via [Quebec], [Foxtrot 2], [QNH 1015], Hangman 1-1.
+Via [Quebec], [Papa], [runway 13 right], Hangman 1-2.
+Taxi to [Apron 1] via [Foxtrot], [Quebec 3], Hangman 1-2.
+[Hold short of Quebec], [give way] to the Viper, Hangman 1-2.
+Taxi to [holding point] [runway 31 right] via [Kilo], [Foxtrot], Ford 3-2.
+[Altimeter 30.01], Hangman 1-2.
+[Altimeter 29.85], Ford 3-2.
+[QNH 1009], [altimeter 29.80], Hangman 1-1.
+[Hold over the TACAN], [6000 feet], [altimeter 29.95], Hangman 1-2.
+Abu Dhabi Approach, Hangman 1-2, [airborne], [passing 3000] for [angels 12].
+Approach, Colt 1-1, [airborne], [passing 1500] for [angels 8].
+Al Dhafra Approach, Hangman 1-2, 30 miles south, [angels 15], [request ILS approach].
+[Heading 270], [descend 5000], Hangman 1-2.
+[Left heading 180], [descend and maintain 3000 feet], Hangman 1-1.
+[Heading 090], [descend 6000], Ford 3-2.
+[Fly runway heading], [climb] and maintain [5000 feet], Ford 3-2.
+[Fly runway heading], [climb] and maintain [4000 feet], Hangman 1-1.
+[Line up and wait] [runway 31 right], Hangman 1-1.
+Tower, Hangman 1-2, [3 mile final], [gear down].
+Tower, Ford 3-2, [5 mile final], [gear down].
+Al Dhafra Tower, Hangman 1-2, [short final], [gear down], [runway 13 left].

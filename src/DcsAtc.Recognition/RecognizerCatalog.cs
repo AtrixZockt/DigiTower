@@ -75,24 +75,51 @@ public sealed class RecognizerCatalog
     private readonly string? _models;
 
     /// <summary>
-    /// Loads <c>recognition.json</c> from <paramref name="voiceDirectory"/> (normally <c>data/voice</c>), with
-    /// <c>recognition.local.json</c> on top; the models are beside it unless <paramref name="modelsDirectory"/> says otherwise.
+    /// This user's own recognizers and models, such as one tuned on their voice (<c>tools/Train-Whisper.ps1</c>):
+    /// <c>%APPDATA%\DigiTower\recognition.local.json</c>, beside the settings, so updates of DigiTower keep it.
     /// </summary>
-    public static RecognizerCatalog Load(string voiceDirectory, string? modelsDirectory = null)
+    public static string UserFile => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "DigiTower", LocalFile);
+
+    /// <summary>
+    /// Loads <c>recognition.json</c> from <paramref name="voiceDirectory"/> (normally <c>data/voice</c>), with
+    /// <c>recognition.local.json</c> beside it and then <paramref name="userFile"/> on top (a default and threads, and
+    /// recognizers and models of their own); the models are beside it unless <paramref name="modelsDirectory"/> says otherwise.
+    /// </summary>
+    public static RecognizerCatalog Load(string voiceDirectory, string? modelsDirectory = null, string? userFile = null)
     {
         var file = JsonSerializer.Deserialize<CatalogFile>(System.IO.File.ReadAllText(Path.Combine(voiceDirectory, File)), Json)
             ?? throw new InvalidDataException($"empty {File}");
-        string localPath = Path.Combine(voiceDirectory, LocalFile);
-        var local = System.IO.File.Exists(localPath) ? JsonSerializer.Deserialize<LocalSettings>(System.IO.File.ReadAllText(localPath), Json) : null;
+        string? defaultId = file.Default;
+        int? threads = file.Threads;
+        var recognizers = file.Recognizers.ToList();
+        var models = file.Models.ToList();
+        foreach (var path in new[] { Path.Combine(voiceDirectory, LocalFile), userFile })
+        {
+            if (path is null || !System.IO.File.Exists(path)) continue;
+            var local = JsonSerializer.Deserialize<LocalSettings>(System.IO.File.ReadAllText(path), Json);
+            if (local is null) continue;
+            defaultId = local.Default ?? defaultId;
+            threads = local.Threads ?? threads;
+            foreach (var r in local.Recognizers ?? [])
+            {
+                recognizers.RemoveAll(x => x.Id == r.Id);
+                recognizers.Add(r);
+            }
+            foreach (var m in local.Models ?? [])
+            {
+                models.RemoveAll(x => x.Name == m.Name);
+                models.Add(m);
+            }
+        }
         return new RecognizerCatalog
         {
             Directory = voiceDirectory,
-            Default = local?.Default ?? file.Default,
-            Recognizers = file.Recognizers,
-            Models = file.Models,
+            Default = defaultId ?? throw new InvalidDataException($"{File}: no default recognizer"),
+            Recognizers = recognizers,
+            Models = models,
             Vocabulary = file.Vocabulary ?? new SpeechVocabulary(),
             Aliases = file.Aliases ?? [],
-            Threads = local?.Threads ?? file.Threads ?? 4,
+            Threads = threads ?? 4,
             ModelsDirectory = modelsDirectory ?? Path.Combine(voiceDirectory, "models"),
         };
     }
@@ -124,5 +151,5 @@ public sealed class RecognizerCatalog
     private sealed record CatalogFile(string Default, List<RecognizerInfo> Recognizers, List<RecognitionModel> Models, SpeechVocabulary? Vocabulary,
         Dictionary<string, string>? Aliases, int? Threads);
 
-    private sealed record LocalSettings(string? Default, int? Threads);
+    private sealed record LocalSettings(string? Default, int? Threads, List<RecognizerInfo>? Recognizers, List<RecognitionModel>? Models);
 }

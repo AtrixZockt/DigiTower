@@ -37,6 +37,9 @@ using DcsAtc.Voice;
 //   transcribe <file.wav ...> | --corpus out/s5/calls [--recognizer id] [--threads n] [--json results.json] [--loop [--interval 5]]
 //       Speech to text with one recognizer; --loop repeats the corpus (load test while flying in VR).
 //
+//   review [--heard out/heard] [--out out/train/flight] [--from name]
+//       Goes through the calls heard in flight for tuning the recognizer: plays each, shows its text; Enter keeps it,
+//       a typed text corrects it, S skips it. Writes out/train/flight/labels.jsonl (recordings are only read).
 //   bakeoff [--corpus out/s5/calls] [--recognizers id,id,...] [--threads n] [--out out/s5] [--rescore] [--misses]
 //       Runs every recognizer (each in a process of its own, below-normal priority) over the recorded calls and
 //       writes report.html: what ATC understood, word errors, time per call, CPU, memory. --rescore: score the
@@ -47,7 +50,7 @@ using DcsAtc.Voice;
 
 if (args.Length == 0)
 {
-    Console.Error.WriteLine("usage: DcsAtc.VoiceTool srs-test|units|say|audition|fetch|listen|record|transcribe|bakeoff [options]");
+    Console.Error.WriteLine("usage: DcsAtc.VoiceTool srs-test|units|say|audition|fetch|listen|record|transcribe|bakeoff|review [options]");
     return 1;
 }
 
@@ -80,6 +83,8 @@ switch (args[0])
         return await RecognitionCommands.TranscribeAsync(options, cts.Token);
     case "bakeoff":
         return await RecognitionCommands.BakeoffAsync(options, cts.Token);
+    case "review":
+        return ReviewCommand.Run(options);
     default:
         Console.Error.WriteLine($"unknown command: {args[0]}");
         return 1;
@@ -453,7 +458,7 @@ sealed class Options
     }
 
     /// <summary>The speech recognizers (data/voice/recognition.json).</summary>
-    public RecognizerCatalog Recognizers() => RecognizerCatalog.Load(Path.Combine(DataDirectory(), "voice"));
+    public RecognizerCatalog Recognizers() => RecognizerCatalog.Load(Path.Combine(DataDirectory(), "voice"), userFile: RecognizerCatalog.UserFile);
 
     private static string? FindDataDirectory()
     {

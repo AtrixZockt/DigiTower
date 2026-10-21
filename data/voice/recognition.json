@@ -17,7 +17,9 @@
   "aliases": {
     "one way": "runway", "oneway": "runway", "white": "right", "power": "tower", "stay again": "say again",
     "on navigation": "own navigation", "healed inside": "field in sight", "adding": "heading", "angelus": "angels",
-    "atimeter": "altimeter", "taccan": "tacan", "tackan": "tacan", "takan": "tacan", "tag can": "tacan", "tarcan": "tacan"
+    "atimeter": "altimeter", "taccan": "tacan", "tackan": "tacan", "takan": "tacan", "tag can": "tacan", "tarcan": "tacan",
+    // The tuned model's (tools/Train-Whisper.ps1) few left: "5 mile final, gear down" heard as a readback, and so on.
+    "tekken": "tacan", "taecan": "tacan", "cleared down": "gear down", "foxtrott": "foxtrot", "ubeck": "quebec"
   },
   "recognizers": [
     { "id": "parakeet", "label": "Parakeet TDT 0.6B v2, hotwords (CPU)", "engine": "parakeet", "model": "sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8" },
