@@ -235,6 +235,7 @@ public sealed class Airfield
         var candidates = holds.Where(h => DistanceFromThreshold(runway, end, h) <= nearest + maxFromThreshold).ToList();
 
         DepartureRoute? best = null;
+        int bestCrossings = 0;
         foreach (var hold in candidates)
         {
             // Route onto the runway, then cut the route at the holding point: walking back along it, the first
@@ -256,9 +257,18 @@ public sealed class Airfield
             }
             var geometry = runway.HoldingPointOn(before);
             var route = full with { Steps = steps, Geometry = geometry, Length = Polyline.Length(geometry) };
+            // A route to the entry on the far side passes the same holding point and crosses the runway beyond it
+            // (Sas Al Nakheel): of two as long, the one with fewer crossings, as its steps are said.
+            int crossings = RunwayStretches(steps).Count(s => s.IsCrossing);
+            bool tie = best is not null && Math.Abs(route.Length - best.Route.Length) <= 0.5;
             // A route without a backtrack first, then the shortest.
-            if (best is null || (best.Backtrack && !backtrack) || (best.Backtrack == backtrack && route.Length < best.Route.Length))
+            if (best is null || (best.Backtrack && !backtrack)
+                || (best.Backtrack == backtrack && (tie ? crossings < bestCrossings || (crossings == bestCrossings && route.Length < best.Route.Length)
+                                                       : route.Length < best.Route.Length)))
+            {
                 best = new DepartureRoute(route, runway, end, hold with { Position = geometry[^1], DistanceFromArm = full.Length - route.Length }, backtrack);
+                bestCrossings = crossings;
+            }
         }
         return best;
     }

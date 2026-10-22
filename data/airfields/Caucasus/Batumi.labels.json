@@ -1,0 +1,96 @@
+{
+  "airfield": "Batumi",
+  "rn5": "Batumi",
+  "source": "ED's kneeboard ground chart 07_GND_UGSB_Batumi_18 (DCS install, Mods/terrains/Caucasus/Kneeboard; rev 3.5.0, 2012), georeferenced on the chart's printed coordinates (both thresholds, P1-P3; residuals under 15 m); DCS's runway ends lie 140-210 m inside the chart's. B, D and W; A, C, E, N1, N2, O, P, S1 and S2 are not in DCS. ED's chart names differ from the taxiway signs in the game on purpose.",
+  "georeference": {
+    "controlPoints": [
+      {
+        "chart": [
+          171.1,
+          308.7
+        ],
+        "x": -355122.8,
+        "z": 616423.7
+      },
+      {
+        "chart": [
+          594.9,
+          584.3
+        ],
+        "x": -356547.2,
+        "z": 618415.1
+      },
+      {
+        "chart": [
+          565.0,
+          547.5
+        ],
+        "x": -356375.1,
+        "z": 618284.0
+      },
+      {
+        "chart": [
+          528.0,
+          524.5
+        ],
+        "x": -356242.5,
+        "z": 618095.1
+      },
+      {
+        "chart": [
+          409.0,
+          414.0
+        ],
+        "x": -355675.3,
+        "z": 617538.1
+      }
+    ]
+  },
+  "taxiways": [
+    {
+      "name": "W",
+      "path": [
+        [
+          -355798.1,
+          617716.3
+        ]
+      ]
+    },
+    {
+      "name": "B",
+      "path": [
+        [
+          -355841.2,
+          617438.7
+        ]
+      ]
+    },
+    {
+      "name": "B",
+      "path": [
+        [
+          -355836.4,
+          617431.7
+        ]
+      ]
+    },
+    {
+      "name": "D",
+      "path": [
+        [
+          -356317.5,
+          618293.3
+        ]
+      ]
+    },
+    {
+      "name": "D",
+      "path": [
+        [
+          -356421.5,
+          618240.9
+        ]
+      ]
+    }
+  ]
+}

@@ -32,6 +32,9 @@ parallel taxiway, F"*. Left unnamed, the links' names would extend along it. Nam
 waypoint on each edge of its line, where no other edge is nearer) and list it first: a path of waypoints along it
 can route through the links' curves and the aprons and name those too.
 
+An apron whose lanes the chart does not name gets `"apron"` on its lanes (Beslan: *"via the apron, W"*), for the
+same reason: the links' names would run on along them.
+
 How a route is said: consecutive pieces of one taxiway are one name, pieces of other taxiways under 200 m in all
 between two pieces of the same one are left out (an angled exit overlapping a parallel taxiway would otherwise give
 *"A, A6, A, A3"*), and a roll of up to 100 m on a runway between two taxiways is a crossing (*"cross runway 13R"*;
@@ -67,3 +70,26 @@ before the runway instead, and Tower has the aircraft backtrack.
    (waypoints off the network, detours, conflicting names) and draws every named edge in its own colour.
    `rn5tool names <file.rn5>` lists every named edge. `rn5tool route ...` prints the resulting "via" list
    for real routes.
+
+## Caucasus: ED's kneeboard charts
+
+The Caucasus names come from Eagle Dynamics' ground charts in the DCS install
+(`Mods/terrains/Caucasus/Kneeboard/NN_GND_*.png`, 768 × 1024, rev 3.5.0 of 2012), the pages players see on their
+kneeboard. ED gave them other taxiway letters than the signs in the game on purpose ("revised and do not match the
+in game TWY designations ... to enable the support for human controlled ATC procedures"), so DigiTower follows the
+charts. Many of their links are not in DCS's network (Kutaisi has no B or C, Sochi none of B to I); each labels
+file says which.
+
+Each chart prints coordinates: both thresholds (PSN THR) and a few points P1, P2, … (holding positions and
+intersections, the red crosshairs). These georeference the chart better than DCS's runway ends, which can sit
+hundreds of metres inside the chart's (Krasnodar-Center ~750 m): convert them to map coordinates (the Caucasus map is
+a transverse Mercator on WGS 84, central meridian 33° E, scale 0.9996, false easting −99 517 m, false northing
+−4 998 115 m) and use all of them as control points; residuals are 1–20 m at most airfields. Where they disagree
+(Krasnodar-Center's P points by up to 90 m), use the thresholds alone.
+
+DCS's Caucasus networks are older than the Gulf's: edges often run on through junctions, and a junction is a "long
+node" whose ports lie 20–100 m apart. Where two taxiway edges both run through a junction and touch it only through a
+short tie (Kutaisi's N and D), the taxi graph links them directly so aircraft can turn from one onto the other; and
+an arm that ends 15–40 m past another edge of its node (stand lead-ins on Kutaisi's north ramp, Krymsk's C at D,
+Krasnodar-Center's A at E) is joined to it where it passes closest. Before, 38 Caucasus stands (26 at Kutaisi) and
+36 at Shiraz had no route at all.

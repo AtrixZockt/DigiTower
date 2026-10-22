@@ -97,6 +97,50 @@ public class TaxiRoutingTests
             Assert.True(TaxiGraph.TurnAngle(link.StartDir, link.EndDir) <= TaxiGraph.MaxTurn);
     }
 
+    // Kutaisi's N and D both run on through their junction as single edges, tied together by a 14 m edge whose node
+    // touches both: from N heading east there was no way onto D (only from the tie's side), so the west ramp went the
+    // whole runway the other way round to 25.
+    [Fact]
+    public void Turns_from_one_edge_onto_another_that_both_run_through_a_junction()
+    {
+        // Node 2 is a DCS "long node": its ports are where N and D end, 50-60 m past the crossing, and where the tie starts.
+        string[] types = ["taxiway_22m"];
+        var edges = new List<Rn5Edge>
+        {
+            new(0, 0, 0, 2, 1, 0, types[0], Densify([new Vec2(0, 0), new Vec2(0, 1050)])),       // N, along z
+            new(1, 1, 0, 2, 2, 0, types[0], Densify([new Vec2(-1000, 1000), new Vec2(60, 1000)])), // D, along x, crossing N
+            new(2, 2, 0, 3, 0, 0, types[0], [new Vec2(0, 1000), new Vec2(8, 1006)]),              // the tie, at the crossing
+        };
+        var graph = TaxiGraph.Build(Rn5Network.Create("Crossing", types, edges, []));
+
+        // From N (heading +z) onto D (heading -x): a 90° turn at the crossing, 990 m + 1000 m.
+        var route = TaxiRouter.Route(graph, new Vec2(0, 10), graph.VertexOfArm(1, 0));
+        Assert.NotNull(route);
+        Assert.Equal(1990, route.Length, 0);
+        Assert.Equal(0, Reversals(route.Geometry));
+    }
+
+    // Kutaisi's north ramp: a junction's ports lie 20-45 m apart, and a stand's lead-in ends 20 m past the taxiway it
+    // joins. 26 of its 58 stands had no route at all.
+    [Fact]
+    public void A_stand_lead_in_ending_past_its_taxiway_joins_it()
+    {
+        // Node 2: where N1 ends (0, 1000), N2 starts (0, 980, overlapping N1), and the lead-in ends (20, 1020).
+        string[] types = ["taxiway_22m"];
+        var edges = new List<Rn5Edge>
+        {
+            new(0, 0, 0, 2, 0, 0, types[0], Densify([new Vec2(0, 0), new Vec2(0, 1000)])),         // N1
+            new(1, 2, 1, 1, 0, 0, types[0], Densify([new Vec2(0, 980), new Vec2(0, 2000)])),       // N2
+            new(2, 3, 0, 2, 2, 0, types[0], Densify([new Vec2(-100, 1020), new Vec2(20, 1020)])),  // the stand's lead-in
+        };
+        var graph = TaxiGraph.Build(Rn5Network.Create("LongNode", types, edges, []));
+
+        // From the stand east along the lead-in, onto N2 20 m away, north to its end.
+        var route = TaxiRouter.Route(graph, new Vec2(-100, 1020), graph.VertexOfArm(1, 0));
+        Assert.NotNull(route);
+        Assert.InRange(route.Length, 1080, 1140);
+    }
+
     [SkippableTheory]
     [InlineData("13L", 4000)]
     [InlineData("31R", 1100)]
@@ -130,6 +174,16 @@ public class TaxiRoutingTests
         string rn5 = Path.Combine(TestPaths.Terrains!, "PersianGulf", "AirfieldsTaxiways", rn5Name + ".rn5");
         Skip.IfNot(File.Exists(rn5), $"{rn5Name}.rn5 not found");
         string labels = Path.Combine(TestPaths.RepoRoot, "data", "airfields", "PersianGulf", rn5Name + ".labels.json");
+        return Airfield.Build(Rn5Reader.Read(rn5), labels: AirfieldLabels.Load(labels));
+    }
+
+    /// <summary>A Caucasus airfield's layout with its taxiway names; skipped without a DCS install.</summary>
+    private static Airfield Caucasus(string rn5Name)
+    {
+        Skip.If(TestPaths.Terrains is null, "DCS install not found (set DIGITOWER_DCS_DIR)");
+        string rn5 = Path.Combine(TestPaths.Terrains!, "Caucasus", "AirfieldsTaxiways", rn5Name + ".rn5");
+        Skip.IfNot(File.Exists(rn5), $"{rn5Name}.rn5 not found");
+        string labels = Path.Combine(TestPaths.RepoRoot, "data", "airfields", "Caucasus", rn5Name + ".labels.json");
         return Airfield.Build(Rn5Reader.Read(rn5), labels: AirfieldLabels.Load(labels));
     }
 
@@ -214,6 +268,81 @@ public class TaxiRoutingTests
         var to26 = havadarya.RouteToRunway(new Vec2(109148, -5806), "26")!;
         Assert.True(to26.Backtrack);
         Assert.Equal(["F"], ViaNames(havadarya, to26));
+    }
+
+    // Sas Al Nakheel: a route to the entry on the far side of 16/34 passes D's holding point first and is as long to it;
+    // its steps beyond were said ("D, cross 16/34, B").
+    [SkippableFact]
+    public void Of_two_routes_to_one_holding_point_the_one_that_crosses_no_runway_beyond_it()
+    {
+        var sasAlNakheel = Gulf("Sas_Al_Nakheel_Airport");
+        Assert.Equal(["D"], ViaNames(sasAlNakheel, sasAlNakheel.RouteToRunway(new Vec2(-189177, -176225), "16")!));
+    }
+
+    // ED's kneeboard ground charts for all 21 Caucasus airfields: every name placed, no warnings, and the files carry
+    // DCS's airbase names (the app matches on them for AI departures and the stock ATC).
+    [SkippableFact]
+    public void Caucasus_labels_place_every_name()
+    {
+        string[] airbases =
+        [
+            "Anapa-Vityazevo", "Batumi", "Beslan", "Gelendzhik", "Gudauta", "Kobuleti", "Krasnodar-Center", "Krasnodar-Pashkovsky",
+            "Krymsk", "Kutaisi", "Maykop-Khanskaya", "Mineralnye Vody", "Mozdok", "Nalchik", "Novorossiysk", "Senaki-Kolkhi",
+            "Sochi-Adler", "Soganlug", "Sukhumi-Babushara", "Tbilisi-Lochini", "Vaziani",
+        ];
+        var files = Directory.GetFiles(Path.Combine(TestPaths.RepoRoot, "data", "airfields", "Caucasus"), "*.labels.json");
+        Assert.Equal(airbases.Order(), files.Select(f => AirfieldLabels.Load(f).Airfield).Order());
+        foreach (var file in files)
+        {
+            var labels = AirfieldLabels.Load(file);
+            var airfield = Caucasus(labels.Rn5);
+            Assert.Empty(airfield.LabelWarnings);
+            Assert.Empty(labels.Taxiways.Select(t => t.Name).Distinct().Except(airfield.TaxiwayNames.Values));
+        }
+    }
+
+    [SkippableFact]
+    public void Caucasus_routes_turn_where_dcs_edges_run_through_a_junction()
+    {
+        // Kutaisi's north ramp to 25: east along N and down D (it went west and backtracked the whole runway).
+        var kutaisi = Caucasus("KUTAISI");
+        var to25 = kutaisi.RouteToRunway(new Vec2(-284357, 683428), "25")!;
+        Assert.False(to25.Backtrack);
+        Assert.Equal(["N", "D"], ViaNames(kutaisi, to25));
+        // Anapa: from W2 east along W (it went up W3 and back: "W2, W, W3, W, M").
+        var anapa = Caucasus("Anapa");
+        Assert.Equal(["W2", "W", "M"], ViaNames(anapa, anapa.RouteToRunway(new Vec2(-5790, 241642), "04")!));
+        // Kutaisi's stand 29 (DCS's parking spot): its lead-in ends 20 m past N, a "long node"; it had no route.
+        var fromStand29 = kutaisi.RouteToRunway(new Vec2(-284741, 683150), "25");
+        Assert.NotNull(fromStand29);
+        Assert.Equal(["N", "D"], ViaNames(kutaisi, fromStand29));
+        // Krasnodar-Center: A meets E in a long node; A's stands backtracked the whole 3.9 km runway to 27.
+        var krasnodar = Caucasus("Krasnodar");
+        var to27 = krasnodar.RouteToRunway(new Vec2(11247, 368274), "27")!;
+        Assert.False(to27.Backtrack);
+        Assert.Equal(["A", "E"], ViaNames(krasnodar, to27));
+    }
+
+    [SkippableFact]
+    public void Every_caucasus_stand_has_a_way_to_a_runway()
+    {
+        Skip.If(TestPaths.Terrains is null, "DCS install not found (set DIGITOWER_DCS_DIR)");
+        foreach (var file in Directory.GetFiles(Path.Combine(TestPaths.Terrains!, "Caucasus", "AirfieldsTaxiways"), "*.rn5"))
+        {
+            var net = Rn5Reader.Read(file);
+            var airfield = Airfield.Build(net);
+            var ends = airfield.Runways.SelectMany(r => new[] { r.EndA, r.EndB }).ToList();
+            foreach (var stand in net.Nodes.Where(n => n.Degree == 1).Select(n => n.Ports.Values.First()))
+                Assert.True(ends.Any(e => airfield.RouteToRunway(stand, e.Name) is not null), $"{net.Name}: no route from ({stand.X:F0}, {stand.Z:F0})");
+        }
+    }
+
+    // Beslan's chart names no taxiway on the apron: its lanes are "the apron", or W and E would spread along them.
+    [SkippableFact]
+    public void Beslan_apron_lanes_are_the_apron()
+    {
+        var beslan = Caucasus("Beslan");
+        Assert.Equal(["apron", "W"], ViaNames(beslan, beslan.RouteToRunway(new Vec2(-148860, 844109), "10")!));
     }
 
     // Landing on Fujairah's 11: D is the only way off to the parking (the loops at the ends lead back onto the runway).

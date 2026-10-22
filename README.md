@@ -67,8 +67,10 @@ The rest is in [Using DigiTower in DCS](#using-digitower-in-dcs): every call, AI
 **Limits (beta)**
 
 - Tested mostly in single player and on one dedicated server; multiplayer with many players is little tested yet.
-- Taxiway names exist for the Persian Gulf (27 airfields with charts). Elsewhere taxi routes follow DCS's taxi
-  network but name no taxiways. Airfields DCS gives no ATC frequency (a few small ones) get text messages only.
+- Taxiway names exist for the Persian Gulf (27 airfields with charts) and the Caucasus (all 21, named as on the
+  kneeboard charts in the cockpit; ED drew those with other letters than the signs in the game, on purpose).
+  Elsewhere taxi routes follow DCS's taxi network but name no taxiways. Airfields DCS gives no ATC frequency (a few
+  small ones) get text messages only.
 - Departure and approach figures (altitudes, ranges) are tailored to Al Dhafra; other airfields use defaults.
 - Pilots use standard phrases (request taxi, ready for departure, …); free speech is not understood. A strong accent
   can trip the recognizer; it can be [tuned on your voice](docs/voice.md#tuning-the-recognizer-on-your-voice).
@@ -333,7 +335,8 @@ Third-party parts keep their own licenses:
 Credits: the SRS client follows the protocol of [DCS-SimpleRadioStandalone](https://github.com/ciribob/DCS-SimpleRadioStandalone)
 (GPL-3.0; implemented from its documentation and source, no SRS code is included). The Persian Gulf taxiway names come
 from the Master Arms charts ([wiki.masterarms.se](https://wiki.masterarms.se/index.php/Persian_Gulf_Charts)) and
-CombatWombat's airfield diagrams for the Persian Gulf (each labels file names its chart).
+CombatWombat's airfield diagrams for the Persian Gulf, the Caucasus names from Eagle Dynamics' kneeboard ground charts
+that come with DCS (each labels file names its chart).
 The maps' time zones, and the way AI arrivals are held (a new route with an orbit that ends on a flag), follow
 [MOOSE](https://github.com/FlightControl-Master/MOOSE).
 

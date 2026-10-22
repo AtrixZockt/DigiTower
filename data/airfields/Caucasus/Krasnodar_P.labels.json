@@ -1,0 +1,228 @@
+{
+  "airfield": "Krasnodar-Pashkovsky",
+  "rn5": "Krasnodar_P",
+  "source": "ED's kneeboard ground chart 13_GND_URKK_Krasnodar_Pashkovsky_33 (DCS install, Mods/terrains/Caucasus/Kneeboard; rev 3.5.0, 2012), georeferenced on the chart's printed coordinates (all four thresholds, P1-P4). N, E and J; DCS's network has runway 04R/22L only, so A, B, C, D, F, G, H, I, L and W are not in it. ED's chart names differ from the taxiway signs in the game on purpose.",
+  "georeference": {
+    "controlPoints": [
+      {
+        "chart": [
+          132.3,
+          483.3
+        ],
+        "x": 6898.3,
+        "z": 384212.4
+      },
+      {
+        "chart": [
+          322.0,
+          319.0
+        ],
+        "x": 8435.5,
+        "z": 385859.1
+      },
+      {
+        "chart": [
+          425.5,
+          509.5
+        ],
+        "x": 6655.8,
+        "z": 386743.8
+      },
+      {
+        "chart": [
+          685.5,
+          283.5
+        ],
+        "x": 8760.1,
+        "z": 389000.1
+      },
+      {
+        "chart": [
+          235.5,
+          358.5
+        ],
+        "x": 8061.8,
+        "z": 385111.3
+      },
+      {
+        "chart": [
+          115.5,
+          447.0
+        ],
+        "x": 7240.6,
+        "z": 384084.7
+      },
+      {
+        "chart": [
+          466.0,
+          453.0
+        ],
+        "x": 7185.4,
+        "z": 387094.2
+      },
+      {
+        "chart": [
+          548.0,
+          381.0
+        ],
+        "x": 7845.0,
+        "z": 387802.9
+      }
+    ]
+  },
+  "taxiways": [
+    {
+      "name": "N",
+      "path": [
+        [
+          6816.5,
+          386673.7
+        ]
+      ]
+    },
+    {
+      "name": "N",
+      "path": [
+        [
+          6858.3,
+          386717.8
+        ]
+      ]
+    },
+    {
+      "name": "N",
+      "path": [
+        [
+          6897.9,
+          386760.6
+        ]
+      ]
+    },
+    {
+      "name": "N",
+      "path": [
+        [
+          6938.6,
+          386804.6
+        ]
+      ]
+    },
+    {
+      "name": "N",
+      "path": [
+        [
+          6977.7,
+          386846.5
+        ]
+      ]
+    },
+    {
+      "name": "N",
+      "path": [
+        [
+          7019.4,
+          386891.5
+        ]
+      ]
+    },
+    {
+      "name": "N",
+      "path": [
+        [
+          7354.1,
+          387232.6
+        ]
+      ]
+    },
+    {
+      "name": "N",
+      "path": [
+        [
+          7752.8,
+          387662.1
+        ]
+      ]
+    },
+    {
+      "name": "N",
+      "path": [
+        [
+          7881.9,
+          387840.5
+        ]
+      ]
+    },
+    {
+      "name": "N",
+      "path": [
+        [
+          7922.5,
+          387884.7
+        ]
+      ]
+    },
+    {
+      "name": "N",
+      "path": [
+        [
+          7963.0,
+          387928.9
+        ]
+      ]
+    },
+    {
+      "name": "N",
+      "path": [
+        [
+          8003.6,
+          387973.1
+        ]
+      ]
+    },
+    {
+      "name": "N",
+      "path": [
+        [
+          8044.1,
+          388017.3
+        ]
+      ]
+    },
+    {
+      "name": "N",
+      "path": [
+        [
+          8085.7,
+          388062.5
+        ]
+      ]
+    },
+    {
+      "name": "N",
+      "path": [
+        [
+          8538.9,
+          388523.4
+        ]
+      ]
+    },
+    {
+      "name": "E",
+      "path": [
+        [
+          6720.7,
+          386720.1
+        ]
+      ]
+    },
+    {
+      "name": "J",
+      "path": [
+        [
+          8795.7,
+          388938.0
+        ]
+      ]
+    }
+  ]
+}

@@ -1,0 +1,160 @@
+{
+  "airfield": "Beslan",
+  "rn5": "Beslan",
+  "source": "ED's kneeboard ground chart 19_GND_URMO_Beslan_25 (DCS install, Mods/terrains/Caucasus/Kneeboard; rev 3.5.0, 2012), georeferenced on the chart's printed coordinates (both thresholds, P1-P2). W and E are the links to the runway; the chart names no taxiway on Apron South, so its lanes are \"apron\" (said \"via the apron, W\"), otherwise W and E would spread along them. ED's chart names differ from the taxiway signs in the game on purpose.",
+  "georeference": {
+    "controlPoints": [
+      {
+        "chart": [
+          155.4,
+          441.2
+        ],
+        "x": -148500.6,
+        "z": 842172.7
+      },
+      {
+        "chart": [
+          612.0,
+          464.0
+        ],
+        "x": -148683.7,
+        "z": 845157.9
+      },
+      {
+        "chart": [
+          367.0,
+          461.5
+        ],
+        "x": -148642.5,
+        "z": 843556.9
+      },
+      {
+        "chart": [
+          463.5,
+          466.5
+        ],
+        "x": -148682.7,
+        "z": 844184.6
+      }
+    ]
+  },
+  "taxiways": [
+    {
+      "name": "W",
+      "path": [
+        [
+          -148693.3,
+          843553.5
+        ]
+      ]
+    },
+    {
+      "name": "E",
+      "path": [
+        [
+          -148841.7,
+          844175.7
+        ]
+      ]
+    },
+    {
+      "name": "apron",
+      "path": [
+        [
+          -148820.5,
+          843545.6
+        ]
+      ]
+    },
+    {
+      "name": "apron",
+      "path": [
+        [
+          -148782.9,
+          843625.9
+        ]
+      ]
+    },
+    {
+      "name": "apron",
+      "path": [
+        [
+          -148870.8,
+          843542.7
+        ]
+      ]
+    },
+    {
+      "name": "apron",
+      "path": [
+        [
+          -148905.7,
+          843614.5
+        ]
+      ]
+    },
+    {
+      "name": "apron",
+      "path": [
+        [
+          -148917.2,
+          843801.2
+        ]
+      ]
+    },
+    {
+      "name": "apron",
+      "path": [
+        [
+          -148919.7,
+          843840.6
+        ]
+      ]
+    },
+    {
+      "name": "apron",
+      "path": [
+        [
+          -148922.2,
+          843881.9
+        ]
+      ]
+    },
+    {
+      "name": "apron",
+      "path": [
+        [
+          -148924.8,
+          843924.4
+        ]
+      ]
+    },
+    {
+      "name": "apron",
+      "path": [
+        [
+          -148927.3,
+          843965.3
+        ]
+      ]
+    },
+    {
+      "name": "apron",
+      "path": [
+        [
+          -148929.7,
+          844005.2
+        ]
+      ]
+    },
+    {
+      "name": "apron",
+      "path": [
+        [
+          -148932.2,
+          844045.1
+        ]
+      ]
+    }
+  ]
+}

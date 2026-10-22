@@ -1,0 +1,158 @@
+{
+  "airfield": "Sukhumi-Babushara",
+  "rn5": "Sukhumi",
+  "source": "ED's kneeboard ground chart 08_GND_UGSS_Sukhumi_Babushara_25 (DCS install, Mods/terrains/Caucasus/Kneeboard; rev 3.5.0, 2012), georeferenced on the chart's printed coordinates (both thresholds, P1-P4; residuals 4-39 m at this 1:25 000 scale). DCS has only N (its first edge also covers A at the 11 end); B, C, D and Y are not in DCS. ED's chart names differ from the taxiway signs in the game on purpose.",
+  "georeference": {
+    "controlPoints": [
+      {
+        "chart": [
+          146.4,
+          300.9
+        ],
+        "x": -219789.0,
+        "z": 562778.0
+      },
+      {
+        "chart": [
+          629.6,
+          519.8
+        ],
+        "x": -221364.7,
+        "z": 565939.0
+      },
+      {
+        "chart": [
+          140.5,
+          280.0
+        ],
+        "x": -219697.8,
+        "z": 562734.8
+      },
+      {
+        "chart": [
+          208.0,
+          289.0
+        ],
+        "x": -219703.1,
+        "z": 563201.5
+      },
+      {
+        "chart": [
+          420.0,
+          414.0
+        ],
+        "x": -220598.6,
+        "z": 564530.3
+      },
+      {
+        "chart": [
+          494.0,
+          447.5
+        ],
+        "x": -220849.5,
+        "z": 565045.7
+      }
+    ]
+  },
+  "taxiways": [
+    {
+      "name": "N",
+      "path": [
+        [
+          -219645.1,
+          563017.4
+        ]
+      ]
+    },
+    {
+      "name": "N",
+      "path": [
+        [
+          -219811.6,
+          563558.1
+        ]
+      ]
+    },
+    {
+      "name": "N",
+      "path": [
+        [
+          -219833.8,
+          563636.4
+        ]
+      ]
+    },
+    {
+      "name": "N",
+      "path": [
+        [
+          -219857.9,
+          563719.1
+        ]
+      ]
+    },
+    {
+      "name": "N",
+      "path": [
+        [
+          -219846.2,
+          563762.1
+        ]
+      ]
+    },
+    {
+      "name": "N",
+      "path": [
+        [
+          -219843.5,
+          563787.4
+        ]
+      ]
+    },
+    {
+      "name": "N",
+      "path": [
+        [
+          -219848.1,
+          563823.9
+        ]
+      ]
+    },
+    {
+      "name": "N",
+      "path": [
+        [
+          -219844.3,
+          563861.6
+        ]
+      ]
+    },
+    {
+      "name": "N",
+      "path": [
+        [
+          -219841.0,
+          563894.6
+        ]
+      ]
+    },
+    {
+      "name": "N",
+      "path": [
+        [
+          -219839.7,
+          563915.8
+        ]
+      ]
+    },
+    {
+      "name": "N",
+      "path": [
+        [
+          -220641.5,
+          564982.1
+        ]
+      ]
+    }
+  ]
+}

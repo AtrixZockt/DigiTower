@@ -1,0 +1,79 @@
+{
+  "airfield": "Soganlug",
+  "rn5": "TbilisiMilitary",
+  "source": "ED's kneeboard ground chart 03_GND_UG24_Tbilisi_Soganlug_25 (DCS install, Mods/terrains/Caucasus/Kneeboard; rev 3.5.0, 2012), georeferenced on the chart's printed coordinates (both thresholds, P1-P2). E only; A to Apron 1 is a dead end in DCS (parking), A1, A2, B, C and D are not in DCS. ED's chart names differ from the taxiway signs in the game on purpose.",
+  "georeference": {
+    "controlPoints": [
+      {
+        "chart": [
+          264.8,
+          333.1
+        ],
+        "x": -317005.4,
+        "z": 894498.6
+      },
+      {
+        "chart": [
+          543.5,
+          565.7
+        ],
+        "x": -318660.8,
+        "z": 896325.8
+      },
+      {
+        "chart": [
+          331.5,
+          413.0
+        ],
+        "x": -317576.0,
+        "z": 894920.6
+      },
+      {
+        "chart": [
+          407.5,
+          488.5
+        ],
+        "x": -318114.6,
+        "z": 895434.6
+      }
+    ]
+  },
+  "taxiways": [
+    {
+      "name": "E",
+      "path": [
+        [
+          -317056.1,
+          894458.1
+        ]
+      ]
+    },
+    {
+      "name": "E",
+      "path": [
+        [
+          -317676.3,
+          895014.8
+        ]
+      ]
+    },
+    {
+      "name": "E",
+      "path": [
+        [
+          -318388.2,
+          895713.7
+        ]
+      ]
+    },
+    {
+      "name": "E",
+      "path": [
+        [
+          -318662.2,
+          896038.1
+        ]
+      ]
+    }
+  ]
+}

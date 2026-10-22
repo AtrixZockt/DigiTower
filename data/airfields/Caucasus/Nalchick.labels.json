@@ -1,0 +1,196 @@
+{
+  "airfield": "Nalchik",
+  "rn5": "Nalchick",
+  "source": "ED's kneeboard ground chart 18_GND_URMN_Nalchik_18 (DCS install, Mods/terrains/Caucasus/Kneeboard; rev 3.5.0, 2012), georeferenced on the chart's printed coordinates (both thresholds, P1-P2). DCS has only A (from the 06 end along the front of Apron 1); B and the taxiways of Apron 2 are not in DCS. ED's chart names differ from the taxiway signs in the game on purpose.",
+  "georeference": {
+    "controlPoints": [
+      {
+        "chart": [
+          176.1,
+          537.3
+        ],
+        "x": -125577.0,
+        "z": 759484.8
+      },
+      {
+        "chart": [
+          573.4,
+          279.5
+        ],
+        "x": -124278.1,
+        "z": 761372.9
+      },
+      {
+        "chart": [
+          211.0,
+          542.0
+        ],
+        "x": -125603.3,
+        "z": 759630.8
+      },
+      {
+        "chart": [
+          292.0,
+          482.0
+        ],
+        "x": -125294.8,
+        "z": 759992.6
+      }
+    ]
+  },
+  "taxiways": [
+    {
+      "name": "A",
+      "path": [
+        [
+          -125561.6,
+          759853.5
+        ]
+      ]
+    },
+    {
+      "name": "A",
+      "path": [
+        [
+          -125479.2,
+          760255.2
+        ]
+      ]
+    },
+    {
+      "name": "A",
+      "path": [
+        [
+          -125429.7,
+          760329.7
+        ]
+      ]
+    },
+    {
+      "name": "A",
+      "path": [
+        [
+          -125414.0,
+          760352.5
+        ]
+      ]
+    },
+    {
+      "name": "A",
+      "path": [
+        [
+          -125398.5,
+          760375.3
+        ]
+      ]
+    },
+    {
+      "name": "A",
+      "path": [
+        [
+          -125393.1,
+          760383.0
+        ]
+      ]
+    },
+    {
+      "name": "A",
+      "path": [
+        [
+          -125378.7,
+          760403.9
+        ]
+      ]
+    },
+    {
+      "name": "A",
+      "path": [
+        [
+          -125361.7,
+          760428.6
+        ]
+      ]
+    },
+    {
+      "name": "A",
+      "path": [
+        [
+          -125344.8,
+          760453.3
+        ]
+      ]
+    },
+    {
+      "name": "A",
+      "path": [
+        [
+          -125327.8,
+          760478.1
+        ]
+      ]
+    },
+    {
+      "name": "A",
+      "path": [
+        [
+          -125310.8,
+          760502.8
+        ]
+      ]
+    },
+    {
+      "name": "A",
+      "path": [
+        [
+          -125293.8,
+          760527.5
+        ]
+      ]
+    },
+    {
+      "name": "A",
+      "path": [
+        [
+          -125268.3,
+          760564.7
+        ]
+      ]
+    },
+    {
+      "name": "A",
+      "path": [
+        [
+          -125234.3,
+          760614.1
+        ]
+      ]
+    },
+    {
+      "name": "A",
+      "path": [
+        [
+          -125200.4,
+          760663.6
+        ]
+      ]
+    },
+    {
+      "name": "A",
+      "path": [
+        [
+          -125166.5,
+          760713.2
+        ]
+      ]
+    },
+    {
+      "name": "A",
+      "path": [
+        [
+          -125136.2,
+          760757.6
+        ]
+      ]
+    }
+  ]
+}

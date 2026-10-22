@@ -1,0 +1,61 @@
+{
+  "airfield": "Gelendzhik",
+  "rn5": "Gelendzhik",
+  "source": "ED's kneeboard ground chart 11_GND_URKG_Gelendzhik_18 (DCS install, Mods/terrains/Caucasus/Kneeboard; rev 3.5.0, 2012), georeferenced on the chart's printed coordinates (both thresholds, P1-P2). M only; W is not in DCS. ED's chart names differ from the taxiway signs in the game on purpose.",
+  "georeference": {
+    "controlPoints": [
+      {
+        "chart": [
+          238.5,
+          608.9
+        ],
+        "x": -51084.1,
+        "z": 297814.7
+      },
+      {
+        "chart": [
+          482.4,
+          339.1
+        ],
+        "x": -49710.5,
+        "z": 298965.6
+      },
+      {
+        "chart": [
+          398.0,
+          399.5
+        ],
+        "x": -50027.4,
+        "z": 298557.4
+      },
+      {
+        "chart": [
+          283.5,
+          525.5
+        ],
+        "x": -50646.7,
+        "z": 298037.6
+      }
+    ]
+  },
+  "taxiways": [
+    {
+      "name": "M",
+      "path": [
+        [
+          -50684.0,
+          298008.2
+        ]
+      ]
+    },
+    {
+      "name": "M",
+      "path": [
+        [
+          -49998.6,
+          298583.4
+        ]
+      ]
+    }
+  ]
+}

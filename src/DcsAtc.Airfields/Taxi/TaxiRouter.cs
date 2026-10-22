@@ -244,6 +244,6 @@ public static class TaxiRouter
         // Every way onto or off a runway costs half a crossing: on and off again close by is a crossing.
         { Kind: LinkKind.Runway } or { TouchesRunway: true } => link.Length * o.RunwayCostFactor + (link.TouchesRunway ? o.RunwayCrossingPenalty / 2 : 0),
         { CrossesRunway: true } => link.Length + o.RunwayCrossingPenalty,
-        _ => link.Length,
+        _ => link.Length + link.ExtraCost,
     };
 }
