@@ -86,7 +86,9 @@ The rest is in [Using DigiTower in DCS](#using-digitower-in-dcs): every call, AI
 DigiTower comes as two programs that share one settings file, `%APPDATA%\DigiTower\settings.json`:
 
 - **`DigiTower.exe`**, the control panel. *Operations*: start and stop the ATC, status lights (DCS bridge, SRS,
-  voice, voice requests, AI handling, map drawings), the mission, and per airfield the flight progress strips of
+  voice, voice requests, AI handling, map drawings), until everything is set up a *Getting started* list (the bridge
+  in DCS, the controllers' voice, a running SRS server, voice requests as an option, each with a button to where it
+  is done; it goes away once they are there, or with *Hide*), the mission, and per airfield the flight progress strips of
   Ground, Tower and Approach (or the FARP's controller) with how long each has had its clearance and what it waits
   for. *Log*: everything the controllers say and do, by category, with search; which categories are shown and which
   go to the log file is set there and applies at once. *Settings*: the rest (DCS folder, SRS, voice, voice requests,
@@ -228,8 +230,9 @@ models, recordings and logs go to `%LOCALAPPDATA%\DigiTower`.
   `Scripts\DigiTower\DigiTowerConfig.lua` if there is none, and adds a marked block to the instance's
   `Config\autoexec.cfg`; uninstalling removes the files and the block and keeps the settings. An install from before
   the rename (DCS-ATC) is moved over.
-- **No voice.** Start the SRS server first; *SRS* and *VOICE* on the Operations page show the connection and the
-  voice in use. Without a downloaded voice a Windows voice speaks.
+- **No voice.** Start the SRS server first: DigiTower joins it, it does not start it. *SRS* on the Operations page
+  tries the server every few seconds (*No server at 127.0.0.1:5002 · start your SRS server* when none answers), and
+  *VOICE* shows the voice in use. Without a downloaded voice a Windows voice speaks.
 - **What does DigiTower see?** F10 → Other → ATC → *Debug* → *Where am I?*; the Log page shows every call and event.
 - **Airbase data for labelling** (`data/dcs/<airbase>.json`, runways and parking spots):
   `DigiTowerConsole --dump "Al Dhafra AFB"`.

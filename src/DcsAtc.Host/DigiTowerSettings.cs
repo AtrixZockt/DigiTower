@@ -82,6 +82,11 @@ public sealed class DigiTowerSettings
     public bool MinimizeToTray { get; set; } = true;
     /// <summary>An installed control panel looks for a new release on GitHub (and offers it; nothing updates by itself).</summary>
     public bool CheckForUpdates { get; set; } = true;
+    /// <summary>
+    /// The control panel shows its getting-started checklist while something essential is missing; off once everything
+    /// was done (or the checklist hidden).
+    /// </summary>
+    public bool GettingStarted { get; set; } = true;
 
     /// <summary>DCS Saved Games folders added on the Install page (a server whose folder is somewhere else).</summary>
     public List<string> DcsFolders { get; set; } = [];

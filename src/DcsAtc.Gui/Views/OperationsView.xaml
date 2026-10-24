@@ -89,6 +89,44 @@
                 </StackPanel>
             </Grid>
 
+            <!-- Getting started: what a new user still has to do (gone once all of it was done, or hidden). -->
+            <Border Background="{StaticResource Panel}" BorderBrush="{StaticResource Accent}" BorderThickness="1" Margin="0,0,0,20"
+                    Visibility="{Binding Setup.Visible, Converter={StaticResource VisibleWhen}}" AutomationProperties.Name="Getting started">
+                <StackPanel>
+                    <Border BorderBrush="{StaticResource EdgeSoft}" BorderThickness="0,0,0,1" Padding="16,12">
+                        <Grid>
+                            <StackPanel Margin="0,0,80,0">
+                                <TextBlock Style="{StaticResource SectionTitle}" Text="GETTING STARTED" />
+                                <TextBlock Style="{StaticResource Hint}" Text="{Binding Setup.Summary}" Margin="0,3,0,0" />
+                            </StackPanel>
+                            <Button Style="{StaticResource LinkButton}" Content="Hide" FontSize="13" HorizontalAlignment="Right" VerticalAlignment="Top"
+                                    Command="{Binding Setup.HideCommand}" ToolTip="Hide this list for good (Settings → Start shows it again)" />
+                        </Grid>
+                    </Border>
+                    <ItemsControl ItemsSource="{Binding Setup.Steps}" Margin="16,6,16,10" Focusable="False">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="26" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding Mark}" Foreground="{Binding MarkBrush}" FontSize="15" FontWeight="Bold" Margin="0,0,0,0" />
+                                    <StackPanel Grid.Column="1" Margin="0,0,16,0">
+                                        <TextBlock Text="{Binding Title}" Foreground="{Binding TitleBrush}" FontSize="14" FontWeight="Bold" />
+                                        <TextBlock Style="{StaticResource Hint}" Text="{Binding Hint}" Margin="0,2,0,0" />
+                                    </StackPanel>
+                                    <Button Grid.Column="2" Content="{Binding Action}" VerticalAlignment="Center" MinWidth="120"
+                                            Command="{Binding DataContext.Setup.GoCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"
+                                            Visibility="{Binding Done, Converter={StaticResource VisibleWhen}, ConverterParameter=not}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
             <!-- Status lights. -->
             <ItemsControl ItemsSource="{Binding Main.Lights}" Margin="0,0,-8,20" Focusable="False">
                 <ItemsControl.ItemsPanel>
@@ -98,7 +136,8 @@
                 </ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
-                        <Border Background="{Binding Back}" BorderBrush="{Binding Edge}" BorderThickness="1" Padding="12,10" MinHeight="64" Margin="0,0,8,0">
+                        <Border Background="{Binding Back}" BorderBrush="{Binding Edge}" BorderThickness="1" Padding="12,10" MinHeight="64" Margin="0,0,8,0"
+                                ToolTip="{Binding Hint}" ToolTipService.ShowOnDisabled="True">
                             <StackPanel>
                                 <TextBlock Text="{Binding Label}" Foreground="{Binding LabelBrush}" FontSize="11" FontWeight="Bold" />
                                 <TextBlock Text="{Binding Text}" Foreground="{Binding TextBrush}" FontSize="13" Margin="0,4,0,0" TextWrapping="Wrap" />

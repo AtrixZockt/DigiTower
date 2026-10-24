@@ -81,6 +81,7 @@ public sealed partial class OperationsViewModel : ObservableObject
         _host = host;
         _store = store;
         _main = main;
+        Setup = new GettingStartedViewModel(host, store, main);
         host.SnapshotChanged += s =>
         {
             // Many messages a second: show the latest one, once per redraw.
@@ -102,6 +103,9 @@ public sealed partial class OperationsViewModel : ObservableObject
     /// <summary>Start / stop, how long it has run, the status lights.</summary>
     public MainViewModel Main => _main;
 
+    /// <summary>The getting-started checklist, while something essential is missing.</summary>
+    public GettingStartedViewModel Setup { get; }
+
     public ObservableCollection<AirfieldTabViewModel> Airfields { get; } = [];
     public ObservableCollection<ColumnViewModel> Columns { get; } = [];
     public ObservableCollection<LogLineViewModel> Recent { get; } = [];
@@ -119,6 +123,7 @@ public sealed partial class OperationsViewModel : ObservableObject
 
     public void Tick()
     {
+        Setup.Tick();
         foreach (var c in Columns)
             foreach (var s in c.Strips) s.Tick();
         if (_pending is null) Describe(_host.Snapshot); // started, stopped: before any message says so

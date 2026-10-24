@@ -15,8 +15,8 @@ public enum Light
     Error,
 }
 
-/// <summary>One status light of the control panel: "DCS BRIDGE · Connected · 127.0.0.1:42700".</summary>
-public sealed record StatusLight(string Label, Light State, string Text);
+/// <summary>One status light of the control panel: "DCS BRIDGE · Connected · 127.0.0.1:42700"; <paramref name="Hint"/>: what to do about it.</summary>
+public sealed record StatusLight(string Label, Light State, string Text, string? Hint = null);
 
 /// <summary>Extras the console takes that are not settings.</summary>
 public sealed record StartOptions
@@ -37,6 +37,7 @@ public sealed class AtcHost : IAsyncDisposable
     private Task? _run;
     private BridgeClient? _client;
     private SrsRadio? _radio;
+    private SrsProbe? _srsProbe;
     private Transcriber? _transcriber;
     private AtcApp? _app;
     private LogFile? _file;
@@ -57,6 +58,9 @@ public sealed class AtcHost : IAsyncDisposable
 
     /// <summary>The log file being written, if any.</summary>
     public string? LogFilePath => _file?.CurrentPath;
+
+    /// <summary>Whether the SRS server answers, while the ATC runs with a voice (null: not known yet, or no SRS in use).</summary>
+    public bool? SrsReachable => _radio is { } radio && radio.Connections.Connected > 0 ? true : _srsProbe?.Reachable;
 
     /// <summary>The latest strips; raised on the ATC's loop after every change (marshal to the UI thread).</summary>
     public AtcSnapshot Snapshot => _snapshot;
@@ -80,6 +84,7 @@ public sealed class AtcHost : IAsyncDisposable
 
             _radio = _settings.Voice ? OpenRadio(data) : null;
             if (!_settings.Voice) Write(LogCategory.VoiceOut, "voice off: text messages only");
+            if (_radio is { } radio) _srsProbe = new SrsProbe(radio.Server, () => radio.Connections.Connected > 0);
             RecognizerCatalog? recognition = null;
             if (_settings.VoiceRequests)
             {
@@ -184,8 +189,9 @@ public sealed class AtcHost : IAsyncDisposable
         if (_client is not null) await _client.DisposeAsync();
         _transcriber?.Dispose();
         if (_radio is not null) await _radio.DisposeAsync();
+        _srsProbe?.Dispose();
         _cts?.Dispose();
-        (_client, _transcriber, _radio, _cts, _run, _app) = (null, null, null, null, null, null);
+        (_client, _transcriber, _radio, _srsProbe, _cts, _run, _app) = (null, null, null, null, null, null, null);
         StartedAt = null;
         _snapshot = AtcSnapshot.Empty;
         SnapshotChanged?.Invoke(_snapshot);
@@ -231,9 +237,12 @@ public sealed class AtcHost : IAsyncDisposable
         else
         {
             var (clients, connected) = _radio.Connections;
-            lights.Add(clients == 0 ? new("SRS", Light.On, $"Ready · {_radio.Server}")
-                : connected == clients ? new("SRS", Light.On, $"Connected · {connected} stations")
-                : new("SRS", Light.Warning, $"Connecting · {connected} of {clients} · {_radio.Server}"));
+            bool? reachable = SrsReachable;
+            lights.Add(clients > 0 && connected == clients ? new("SRS", Light.On, $"Connected · {connected} stations")
+                : reachable == false ? new("SRS", Light.Error, $"No server at {_radio.Server} · start your SRS server", SrsHint)
+                : clients > 0 ? new("SRS", Light.Warning, $"Connecting · {connected} of {clients} · {_radio.Server}")
+                : reachable == true ? new("SRS", Light.On, $"Ready · {_radio.Server}")
+                : new("SRS", Light.Warning, $"Checking · {_radio.Server}"));
         }
 
         lights.Add(!s.Voice ? new("VOICE", Light.Off, "Off · text messages only")
@@ -263,6 +272,10 @@ public sealed class AtcHost : IAsyncDisposable
             : new("MAP DRAWINGS", Light.On, "On · the whole side sees them"));
         return lights;
     }
+
+    /// <summary>What to do when the SRS server does not answer.</summary>
+    public const string SrsHint = "DigiTower joins your SRS server as the controllers; it does not start it. Start the SRS server on this PC " +
+                                  "(in single player too, with your SRS client connected to it), or check its address in Settings.";
 
     public async ValueTask DisposeAsync()
     {

@@ -363,4 +363,60 @@ public class ModelStoreTests
             Directory.Delete(dir, true);
         }
     }
+
+    // A pilot who only runs the SRS client got a green "Ready" and no voice: the probe tries the server itself.
+    [Fact]
+    public async Task Srs_probe_tells_a_running_server_from_none()
+    {
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        int open = ((IPEndPoint)listener.LocalEndpoint).Port;
+        var closed = new TcpListener(IPAddress.Loopback, 0);
+        closed.Start();
+        int none = ((IPEndPoint)closed.LocalEndpoint).Port;
+        closed.Stop();
+        try
+        {
+            Assert.True(await SrsProbe.TryConnectAsync("127.0.0.1", open, TimeSpan.FromSeconds(2)));
+            Assert.False(await SrsProbe.TryConnectAsync("127.0.0.1", none, TimeSpan.FromSeconds(2)));
+
+            using var up = new SrsProbe($"127.0.0.1:{open}");
+            using var down = new SrsProbe($"127.0.0.1:{none}");
+            var until = DateTime.UtcNow.AddSeconds(5);
+            while ((up.Reachable is null || down.Reachable is null) && DateTime.UtcNow < until) await Task.Delay(50);
+            Assert.True(up.Reachable);
+            Assert.False(down.Reachable);
+            // Known to answer (a controller is connected): no try at all.
+            using var known = new SrsProbe($"127.0.0.1:{none}", () => true);
+            until = DateTime.UtcNow.AddSeconds(5);
+            while (known.Reachable is null && DateTime.UtcNow < until) await Task.Delay(50);
+            Assert.True(known.Reachable);
+        }
+        finally
+        {
+            listener.Stop();
+        }
+        Assert.Equal(("srs.example", 5002), SrsProbe.Parse("srs.example"));
+        Assert.Equal(("10.0.0.2", 5010), SrsProbe.Parse("10.0.0.2:5010"));
+    }
+
+    [Fact]
+    public void Getting_started_lists_what_is_missing_and_ends_when_the_essentials_are_there()
+    {
+        var none = new ModelStore(null, null);
+        // Text only: just the bridge.
+        var textOnly = new DigiTowerSettings { Voice = false };
+        Assert.False(GettingStarted.Complete(GettingStarted.Steps(textOnly, bridgeInstalled: false, srsReachable: null, none)));
+        Assert.True(GettingStarted.Complete(GettingStarted.Steps(textOnly, bridgeInstalled: true, srsReachable: null, none)));
+
+        // With a voice: the voice and a running SRS server too; voice requests are optional.
+        var steps = GettingStarted.Steps(new DigiTowerSettings(), bridgeInstalled: true, srsReachable: false, none);
+        Assert.Equal(["Install the bridge into DCS", "Download the controllers' voice", "Start your SRS server", "Talk to the controllers (optional)"],
+            steps.Select(s => s.Title));
+        Assert.Contains("No SRS server answers at 127.0.0.1:5002", steps[2].Hint);
+        Assert.Contains("does not start it", steps[2].Hint);
+        Assert.False(GettingStarted.Complete(steps));
+        Assert.True(GettingStarted.Complete(steps.Select(s => s.Optional ? s : s with { Done = true })));
+        Assert.True(steps[3].Optional);
+    }
 }

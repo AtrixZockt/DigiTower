@@ -46,6 +46,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty] private bool _startAtcOnOpen;
     [ObservableProperty] private bool _minimizeToTray;
     [ObservableProperty] private bool _checkForUpdates;
+    [ObservableProperty] private bool _gettingStarted;
     /// <summary>Not in the settings file: Windows' own sign-in entry (<see cref="WindowsStartup"/>).</summary>
     [ObservableProperty] private bool _startWithWindows;
     private readonly WindowsStartup _startup = new();
@@ -243,6 +244,7 @@ public sealed partial class SettingsViewModel : ObservableObject
             StartAtcOnOpen = s.StartAtcOnOpen;
             MinimizeToTray = s.MinimizeToTray;
             CheckForUpdates = s.CheckForUpdates;
+            GettingStarted = s.GettingStarted;
             StartWithWindows = _startup.IsEnabled;
             DcsDirectory = s.DcsDirectory ?? "";
             BridgeHost = s.BridgeHost;
@@ -332,6 +334,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         s.StartAtcOnOpen = StartAtcOnOpen;
         s.MinimizeToTray = MinimizeToTray;
         s.CheckForUpdates = CheckForUpdates;
+        s.GettingStarted = GettingStarted;
         s.DcsDirectory = NullIfEmpty(DcsDirectory);
         s.BridgeHost = BridgeHost.Trim();
         s.BridgePort = int.Parse(BridgePort, CultureInfo.InvariantCulture);
@@ -363,6 +366,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         x.StartAtcOnOpen = y.StartAtcOnOpen;
         x.MinimizeToTray = y.MinimizeToTray;
         x.CheckForUpdates = y.CheckForUpdates;
+        x.GettingStarted = y.GettingStarted;
         x.DcsFolders = y.DcsFolders;
         return x.ToJson() == y.ToJson();
     }

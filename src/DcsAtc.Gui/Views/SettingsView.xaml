@@ -84,6 +84,12 @@
                                     <TextBlock Style="{StaticResource Hint}" Text="On GitHub, when DigiTower is installed. It asks before it updates." />
                                 </StackPanel>
                             </CheckBox>
+                            <CheckBox Style="{StaticResource Option}" IsChecked="{Binding GettingStarted}" AutomationProperties.Name="Getting started">
+                                <StackPanel>
+                                    <TextBlock Text="Show getting started on Operations" />
+                                    <TextBlock Style="{StaticResource Hint}" Text="While the bridge, the voice or the SRS server is missing; it goes away once all of it is there." />
+                                </StackPanel>
+                            </CheckBox>
                             <TextBlock Style="{StaticResource Hint}" Margin="0,14,0,0"
                                        Text="Without a window (a scheduled task, a service): DigiTowerConsole.exe, beside DigiTower.exe, with these settings." />
                         </StackPanel>

@@ -25,11 +25,13 @@ public sealed partial class LightViewModel : ObservableObject
     [ObservableProperty] private Brush _edge = Brushes.Transparent;
     [ObservableProperty] private Brush _labelBrush = Brushes.Transparent;
     [ObservableProperty] private Brush _textBrush = Brushes.Transparent;
+    [ObservableProperty] private string? _hint;
 
     public void Set(StatusLight light)
     {
         Label = light.Label;
         Text = light.Text;
+        Hint = light.Hint;
         (Back, Edge, LabelBrush, TextBrush) = Palette.Light(light.State);
     }
 }
@@ -82,6 +84,7 @@ public sealed partial class MainViewModel : ObservableObject
             _ => Operations,
         };
         if (value == Page.Install) Install.Refresh();
+        if (value == Page.Operations) Operations.Setup.Check();
         if (value == Page.Settings) Settings.Refresh();
     }
 
